@@ -1,0 +1,21 @@
+{
+    "name": "vocabbook-modern",
+    "version": "2.0.0",
+    "description": "智能生词本 - 现代化 AI 增强英语学习工具",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "dev": "electron ."
+    },
+    "keywords": [
+        "vocabulary",
+        "english",
+        "learning",
+        "ai"
+    ],
+    "author": "VocabBook",
+    "license": "MIT",
+    "devDependencies": {
+        "electron": "^28.0.0"
+    }
+}
