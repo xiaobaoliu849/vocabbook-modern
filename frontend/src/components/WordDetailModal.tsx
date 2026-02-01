@@ -55,6 +55,18 @@ export default function WordDetailModal({ word, onClose }: WordDetailProps) {
     return () => document.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
+  // Auto-play audio when modal opens
+  useEffect(() => {
+    if (word && word.word) {
+      const timer = setTimeout(() => {
+        const url = audioSrc || `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word.word)}&type=2`
+        const audio = new Audio(url)
+        audio.play().catch(err => console.warn('Auto-play failed:', err))
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [word, audioSrc])
+
   if (!word) return null
 
   return (
@@ -85,7 +97,6 @@ export default function WordDetailModal({ word, onClose }: WordDetailProps) {
                 <AudioButton
                   word={word.word}
                   audioSrc={audioSrc}
-                  autoPlay={true}
                   className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
                 />
               </div>

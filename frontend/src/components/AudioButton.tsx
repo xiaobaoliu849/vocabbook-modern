@@ -98,7 +98,7 @@ export default function AudioButton({
       if ((useTTS || isExample) && word) {
         console.log('Trying fallback...')
         const fallback = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=1`)
-        fallback.play().catch(() => {})
+        fallback.play().catch(() => { })
       }
     }
 
@@ -106,11 +106,30 @@ export default function AudioButton({
     audio.load()
   }, [getTextToSpeak, audioSrc, word, useTTS, isExample])
 
+  // Track previous word/text to detect actual content changes
+  const prevTextRef = useRef<string>('')
+  const isMountedRef = useRef(false)
+
   useEffect(() => {
-    if (autoPlay && getTextToSpeak()) {
-      const timer = setTimeout(() => doPlay(), 300)
-      return () => clearTimeout(timer)
+    const textToSpeak = getTextToSpeak()
+
+    // Only autoPlay when:
+    // 1. autoPlay is enabled
+    // 2. We have actual content (not empty)
+    // 3. Either: it's first mount with valid content, OR content has changed
+    if (autoPlay && textToSpeak && textToSpeak.trim().length > 0) {
+      const shouldPlay = !isMountedRef.current || prevTextRef.current !== textToSpeak
+
+      if (shouldPlay) {
+        isMountedRef.current = true
+        prevTextRef.current = textToSpeak
+        const timer = setTimeout(() => doPlay(), 300)
+        return () => clearTimeout(timer)
+      }
     }
+
+    // Mark as mounted but don't play if there's no valid text
+    isMountedRef.current = true
   }, [autoPlay, getTextToSpeak, doPlay])
 
   const playAudio = useCallback((e: React.MouseEvent) => {
@@ -122,21 +141,19 @@ export default function AudioButton({
   return (
     <button
       onClick={playAudio}
-      className={`p-2 rounded-lg transition-all duration-300 relative group ${
-        isPlaying
-          ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-          : isExample
-            ? 'hover:bg-emerald-100 text-emerald-500 hover:text-emerald-600 dark:hover:bg-emerald-900/20 dark:text-emerald-400'
-            : 'hover:bg-slate-100 text-slate-500 hover:text-primary-600 dark:hover:bg-slate-800 dark:text-slate-400'
-      } ${className}`}
+      className={`p-2 rounded-lg transition-all duration-300 relative group ${isPlaying
+        ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+        : isExample
+          ? 'hover:bg-emerald-100 text-emerald-500 hover:text-emerald-600 dark:hover:bg-emerald-900/20 dark:text-emerald-400'
+          : 'hover:bg-slate-100 text-slate-500 hover:text-primary-600 dark:hover:bg-slate-800 dark:text-slate-400'
+        } ${className}`}
       title={isExample ? "朗读例句" : "播放发音"}
       disabled={isPlaying || isLoading}
     >
       <Volume2
         size={size}
-        className={`transition-transform duration-300 ${
-          isPlaying ? 'scale-110 animate-pulse' : 'group-hover:scale-110'
-        }`}
+        className={`transition-transform duration-300 ${isPlaying ? 'scale-110 animate-pulse' : 'group-hover:scale-110'
+          }`}
       />
 
       {isLoading && (

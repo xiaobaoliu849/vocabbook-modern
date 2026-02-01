@@ -10,11 +10,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
         window.addEventListener('navigate', (event) => {
             callback(event.detail)
         })
+    },
+
+    // Auto Update APIs
+    checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+    downloadUpdate: () => ipcRenderer.invoke('download-update'),
+    installUpdate: () => ipcRenderer.invoke('install-update'),
+    getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+    onUpdateStatus: (callback) => {
+        ipcRenderer.on('update-status', (_event, status, data) => callback(status, data))
+    },
+    removeUpdateStatusListener: () => {
+        ipcRenderer.removeAllListeners('update-status')
     }
 })
 
 // Listen for search trigger from main process
-ipcRenderer.on('trigger-search', (event, text) => {
+ipcRenderer.on('trigger-search', (_event, text) => {
     window.dispatchEvent(new CustomEvent('search-word', { detail: text }))
 })
 

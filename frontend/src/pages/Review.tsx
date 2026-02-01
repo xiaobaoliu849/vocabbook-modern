@@ -59,7 +59,7 @@ interface ReviewWord {
     interval: number
 }
 
-export default function Review() {
+export default function Review({ isActive }: { isActive?: boolean }) {
     // Mode state
     const [reviewMode, setReviewMode] = useState<'flashcard' | 'spelling'>('flashcard')
 
@@ -154,16 +154,16 @@ export default function Review() {
         }
     }, [currentWord])
 
-    // Auto-play audio when word changes
+    // Auto-play audio when word changes (only if page is active)
     useEffect(() => {
-        if (currentWord && !loading) {
+        if (isActive && currentWord && !loading) {
             // Small delay to ensure smooth transition
             const timer = setTimeout(() => {
                 playAudio()
             }, 300)
             return () => clearTimeout(timer)
         }
-    }, [currentWord, loading, playAudio])
+    }, [isActive, currentWord, loading, playAudio])
 
     const checkSpelling = () => {
         if (!currentWord) return
@@ -196,23 +196,53 @@ export default function Review() {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!currentWord) return
 
-            if (e.code === 'Space') {
-                // In spelling mode, space shouldn't flip unless already flipped or focused input handling
+            const target = e.target as HTMLElement
+            const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
+
+            // Rating keys 1-5 should work even when in input (after card is flipped)
+            if (isFlipped && ['1', '2', '3', '4', '5'].includes(e.key)) {
+                e.preventDefault()
+                handleRating(parseInt(e.key))
+                return
+            }
+
+            // Don't intercept other shortcuts when typing in spelling input
+            if (isInInput) {
+                return
+            }
+
+            // Tab to switch modes
+            if (e.key === 'Tab') {
+                e.preventDefault()
+                setReviewMode(prev => prev === 'flashcard' ? 'spelling' : 'flashcard')
+                return
+            }
+
+            // Space/Arrow to flip
+            if (e.code === 'Space' || e.key === 'ArrowRight') {
+                // In spelling mode, space shouldn't flip unless already flipped
                 if (reviewMode === 'flashcard' || isFlipped) {
                     e.preventDefault()
                     setIsFlipped(!isFlipped)
                 }
-            } else if (e.key === '1') handleRating(1)
-            else if (e.key === '2') handleRating(2)
-            else if (e.key === '3') handleRating(3)
-            else if (e.key === '4') handleRating(4)
-            else if (e.key === '5') handleRating(5)
-            else if (e.key === 'p') playAudio()
+            } else if (e.key === 'ArrowLeft' && isFlipped) {
+                // Arrow left to flip back
+                e.preventDefault()
+                setIsFlipped(false)
+            } else if (e.key === 'p' || e.key === 'P' || e.key === 'r' || e.key === 'R') {
+                // P or R for play/replay audio
+                e.preventDefault()
+                playAudio()
+            } else if ((e.key === 'h' || e.key === 'H') && reviewMode === 'spelling') {
+                // H for hint in spelling mode
+                e.preventDefault()
+                setShowSpellingHint(prev => !prev)
+            }
         }
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [currentWord, isFlipped, playAudio])
+    }, [currentWord, isFlipped, playAudio, reviewMode])
 
     if (loading) {
         return (

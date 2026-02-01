@@ -176,6 +176,43 @@ export default function AddWord() {
         return () => window.removeEventListener('search-word', handleSearchRequest)
     }, [handleSearch])
 
+    // Keyboard shortcuts for AddWord page
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ctrl+Enter to add word
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault()
+                if (searchResult && !searchResult.error) {
+                    handleAddWord()
+                }
+                return
+            }
+
+            // Ctrl+G to generate AI sentences
+            if (e.ctrlKey && (e.key === 'g' || e.key === 'G')) {
+                e.preventDefault()
+                if (searchWord.trim() && !isGeneratingAI) {
+                    handleGenerateAI()
+                }
+                return
+            }
+
+            // Ctrl+P to play audio
+            if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
+                e.preventDefault()
+                if (searchResult && !searchResult.error) {
+                    const audioSrc = `https://dict.youdao.com/dictvoice?audio=${searchResult.word}&type=2`
+                    const audio = new Audio(audioSrc)
+                    audio.play().catch(err => console.warn('Audio play failed:', err))
+                }
+                return
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [searchResult, searchWord, isGeneratingAI])
+
     const handleAddWord = async () => {
         if (!searchResult || searchResult.error) return
         const result = await saveWord(searchResult, false, aiSentences)

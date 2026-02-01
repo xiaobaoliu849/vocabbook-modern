@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage } = require('electron')
+const { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, ipcMain } = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
+const { autoUpdater } = require('electron-updater')
 
 let mainWindow = null
 let tray = null
@@ -289,4 +290,107 @@ app.on('will-quit', () => {
 
 app.on('before-quit', () => {
     app.isQuiting = true
+})
+
+// ============================================
+// Auto Updater Setup
+// ============================================
+
+function sendUpdateStatus(status, data = null) {
+    if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('update-status', status, data)
+    }
+}
+
+function setupAutoUpdater() {
+    // Configuration
+    autoUpdater.autoDownload = false  // User manually triggers download
+    autoUpdater.autoInstallOnAppQuit = true
+
+    // Logging for debugging
+    autoUpdater.logger = require('electron').app
+
+    // Event handlers
+    autoUpdater.on('checking-for-update', () => {
+        console.log('Checking for updates...')
+        sendUpdateStatus('checking')
+    })
+
+    autoUpdater.on('update-available', (info) => {
+        console.log('Update available:', info.version)
+        sendUpdateStatus('available', {
+            version: info.version,
+            releaseDate: info.releaseDate,
+            releaseNotes: info.releaseNotes
+        })
+    })
+
+    autoUpdater.on('update-not-available', (info) => {
+        console.log('No updates available')
+        sendUpdateStatus('not-available', { version: info.version })
+    })
+
+    autoUpdater.on('download-progress', (progress) => {
+        console.log(`Download progress: ${progress.percent.toFixed(1)}%`)
+        sendUpdateStatus('downloading', {
+            percent: progress.percent,
+            bytesPerSecond: progress.bytesPerSecond,
+            transferred: progress.transferred,
+            total: progress.total
+        })
+    })
+
+    autoUpdater.on('update-downloaded', (info) => {
+        console.log('Update downloaded:', info.version)
+        sendUpdateStatus('downloaded', {
+            version: info.version,
+            releaseNotes: info.releaseNotes
+        })
+    })
+
+    autoUpdater.on('error', (err) => {
+        console.error('Update error:', err)
+        sendUpdateStatus('error', err.message || 'Unknown error')
+    })
+}
+
+// IPC Handlers for renderer process
+ipcMain.handle('check-for-updates', async () => {
+    try {
+        return await autoUpdater.checkForUpdates()
+    } catch (error) {
+        console.error('Check for updates failed:', error)
+        throw error
+    }
+})
+
+ipcMain.handle('download-update', async () => {
+    try {
+        return await autoUpdater.downloadUpdate()
+    } catch (error) {
+        console.error('Download update failed:', error)
+        throw error
+    }
+})
+
+ipcMain.handle('install-update', () => {
+    autoUpdater.quitAndInstall(false, true)
+})
+
+ipcMain.handle('get-app-version', () => {
+    return app.getVersion()
+})
+
+// Initialize auto updater when app is ready (only in production)
+app.whenReady().then(() => {
+    setupAutoUpdater()
+
+    // Check for updates on startup in production mode (after a delay)
+    if (!DEV_MODE) {
+        setTimeout(() => {
+            autoUpdater.checkForUpdates().catch(err => {
+                console.log('Auto update check failed:', err.message)
+            })
+        }, 3000)
+    }
 })

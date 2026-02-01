@@ -5,7 +5,11 @@
     "main": "main.js",
     "scripts": {
         "start": "electron .",
-        "dev": "electron ."
+        "dev": "electron .",
+        "pack": "electron-builder --dir",
+        "dist": "electron-builder",
+        "dist:win": "electron-builder --win",
+        "publish": "electron-builder --publish always"
     },
     "keywords": [
         "vocabulary",
@@ -15,7 +19,53 @@
     ],
     "author": "VocabBook",
     "license": "MIT",
+    "dependencies": {
+        "electron-updater": "^6.7.3"
+    },
     "devDependencies": {
-        "electron": "^28.0.0"
+        "electron": "^28.0.0",
+        "electron-builder": "^24.13.3"
+    },
+    "build": {
+        "appId": "com.vocabbook.modern",
+        "productName": "智能生词本",
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "main.js",
+            "preload.js",
+            "icon.png",
+            "../frontend/dist/**/*",
+            "../backend/**/*",
+            "!../backend/__pycache__",
+            "!../backend/**/*.pyc"
+        ],
+        "win": {
+            "target": [
+                {
+                    "target": "nsis",
+                    "arch": [
+                        "x64"
+                    ]
+                }
+            ],
+            "icon": "icon.png"
+        },
+        "nsis": {
+            "oneClick": false,
+            "perMachine": true,
+            "allowToChangeInstallationDirectory": true,
+            "installerIcon": "icon.png",
+            "uninstallerIcon": "icon.png",
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true
+        },
+        "publish": {
+            "provider": "github",
+            "owner": "xiaobaoliu849",
+            "repo": "vocabbook-modern",
+            "releaseType": "release"
+        }
     }
 }
