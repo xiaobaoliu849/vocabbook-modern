@@ -3,7 +3,7 @@ AI API Router
 AI 增强功能
 """
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -41,11 +41,16 @@ class PronunciationRequest(BaseModel):
 
 
 @router.post("/generate-sentences")
-async def generate_sentences(request: GenerateSentencesRequest):
+async def generate_sentences(
+    request: GenerateSentencesRequest,
+    x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
+    x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+):
     """AI 生成例句"""
     from services.ai_service import AIService
     
-    ai = AIService()
+    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
     try:
         sentences = await ai.generate_sentences(
             word=request.word,
@@ -62,11 +67,16 @@ async def generate_sentences(request: GenerateSentencesRequest):
 
 
 @router.post("/memory-tips")
-async def generate_memory_tips(request: MemoryTipsRequest):
+async def generate_memory_tips(
+    request: MemoryTipsRequest,
+    x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
+    x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+):
     """AI 生成记忆技巧"""
     from services.ai_service import AIService
     
-    ai = AIService()
+    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
     try:
         tips = await ai.generate_memory_tips(
             word=request.word,
@@ -81,11 +91,16 @@ async def generate_memory_tips(request: MemoryTipsRequest):
 
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
+    x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+):
     """AI 对话练习"""
     from services.ai_service import AIService
     
-    ai = AIService()
+    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
     try:
         response = await ai.chat(
             messages=[{"role": m.role, "content": m.content} for m in request.messages],

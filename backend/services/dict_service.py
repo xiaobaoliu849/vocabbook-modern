@@ -1,19 +1,10 @@
-"""
-Dictionary Service
-词典查询服务
-"""
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-
-def get_session():
-    """Get a configured requests session"""
-    session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    })
-    return session
+from .tag_service import TagService
+from .word_family_service import WordFamilyService
+from .multi_dict_service import get_session, MultiDictService
 
 
 class DictService:
@@ -41,11 +32,57 @@ class DictService:
         return None
 
     @staticmethod
-    def search_word(word):
+    def search_word(word, sources=None):
         """
-        Search word on Youdao.
-        Returns a dictionary with word info, or None if not found/error.
-        dict keys: word, phonetic, meaning, example, date
+        Search word on Youdao and optionally other dictionaries.
+        Returns a dictionary structure compatible with old format but enriched.
+        """
+        
+        # 1. First, search Youdao as base (because it's the primary source for most parsing logic)
+        youdao_result = DictService._search_youdao_base(word)
+        
+        # 2. If multi-source search is requested (or default behavior)
+        if sources is None:
+            # Default sources logic could be here, but for now we trust the caller 
+            # or default to just Youdao if sources is empty/None to save time?
+            # Actually, let's default to ALL if not specified, to match user request "richer"
+            # But normally we might want to make it configurable. 
+            # For backward compatibility with existing frontend call (search_word(word)),
+            # let's just return Youdao unless specifically asked for more?
+            # No, user wants optimization. Let's do aggregate search.
+            pass
+
+        # Perform aggregate search
+        # If youdao search failed, we still might want to try others?
+        # But our aggregate_search logic takes youdao_result as input.
+        
+        aggregated = MultiDictService.aggregate_search(word, enabled_dicts=sources, youdao_result=youdao_result)
+        
+        if not aggregated['primary']:
+            return None
+            
+        # Merge best info into primary result
+        primary = aggregated['primary']
+        
+        # Enrich phonetic if missing or better available
+        best_phonetic = MultiDictService.get_best_phonetic(aggregated['sources'])
+        if best_phonetic and (not primary.get('phonetic') or len(best_phonetic) > len(primary.get('phonetic', ''))):
+             primary['phonetic'] = best_phonetic
+
+        # Enrich examples (merge all)
+        all_examples = MultiDictService.get_all_examples(aggregated['sources'])
+        if all_examples:
+            primary['example'] = all_examples
+            
+        # Add the full sources data to the result so frontend can display tabs
+        primary['sources_data'] = aggregated['sources']
+        
+        return primary
+
+    @staticmethod
+    def _search_youdao_base(word):
+        """
+        Original Youdao search logic to parse specific fields like roots, tags, etc.
         """
         try:
             url = f"https://dict.youdao.com/w/eng/{word}"
@@ -115,8 +152,17 @@ class DictService:
                         if syn_container:
                             synonyms = syn_container.get_text(separator=' ', strip=True)
 
-                # Parse Tags (simplified)
-                tags = ""
+                # Parse Tags (CET4, GRE, etc.)
+                tags = TagService.get_tags_for_word(word, resp.text)
+
+                # Extract word family information
+                word_families = WordFamilyService.extract_root_from_word(word)
+                if roots:
+                    parsed_roots = WordFamilyService.parse_roots_text(roots)
+                    existing_roots = {f['root'] for f in word_families}
+                    for pr in parsed_roots:
+                        if pr['root'] not in existing_roots:
+                            word_families.append(pr)
 
                 return {
                     "word": word,
@@ -125,7 +171,8 @@ class DictService:
                     "example": example,
                     "roots": roots,
                     "synonyms": synonyms,
-                    "tags": tags,
+                    "tags": TagService.format_tags(tags),
+                    "word_families": word_families,
                     "date": datetime.now().strftime('%Y-%m-%d'),
                 }
         except Exception as e:

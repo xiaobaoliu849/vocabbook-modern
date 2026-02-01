@@ -14,3 +14,5 @@ aiosqlite>=0.19.0
 
 # For audio
 pydub>=0.25.1
+# TTS - EdgeTTS for high-quality text-to-speech  
+edge-tts>=7.2.7

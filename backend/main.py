@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 # Add parent dir to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from routers import words, review, dictionary, stats, ai
+from routers import words, review, dictionary, stats, ai, tts
 from models.database import DatabaseManager
 
 # Global database instance
@@ -26,12 +26,12 @@ async def lifespan(app: FastAPI):
     # Startup
     db_path = os.environ.get("VOCABBOOK_DB_PATH", "vocab.db")
     db = DatabaseManager(db_path=db_path)
-    print(f"📚 VocabBook Modern API started with database: {db_path}")
+    print(f"[VocabBook] API started with database: {db_path}")
     yield
     # Shutdown
     if db:
         db.close_connection()
-    print("👋 VocabBook Modern API shutdown")
+    print("[VocabBook] API shutdown")
 
 
 app = FastAPI(
@@ -56,6 +56,7 @@ app.include_router(review.router, prefix="/api/review", tags=["Review"])
 app.include_router(dictionary.router, prefix="/api/dict", tags=["Dictionary"])
 app.include_router(stats.router, prefix="/api/stats", tags=["Statistics"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
+app.include_router(tts.router, prefix="/api/tts", tags=["TTS"])
 
 
 @app.get("/")

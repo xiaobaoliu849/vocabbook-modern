@@ -266,13 +266,15 @@ class DatabaseManager:
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                INSERT INTO words (word, phonetic, meaning, example, roots, synonyms, tags, date_added, next_review_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO words (word, phonetic, meaning, example, context_en, context_cn, roots, synonyms, tags, date_added, next_review_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 data['word'],
                 data.get('phonetic', ''),
                 data.get('meaning', ''),
                 data.get('example', ''),
+                data.get('context_en', ''),
+                data.get('context_cn', ''),
                 data.get('roots', ''),
                 data.get('synonyms', ''),
                 data.get('tags', ''),
@@ -295,6 +297,10 @@ class DatabaseManager:
             d = dict(row)
             d['mastered'] = bool(d['mastered'])
             d['date'] = d['date_added']
+            # Ensure text fields are not None
+            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags']:
+                if d.get(key) is None:
+                    d[key] = ""
             return d
         return None
 
@@ -311,6 +317,10 @@ class DatabaseManager:
             d = dict(row)
             d['mastered'] = bool(d['mastered'])
             d['date'] = d['date_added']
+            # Ensure text fields are not None
+            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags']:
+                if d.get(key) is None:
+                    d[key] = ""
             result.append(d)
         return result
 
@@ -334,6 +344,44 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute('UPDATE words SET context_en = ?, context_cn = ? WHERE word = ?', (en, cn, word))
         conn.commit()
+
+    def update_word(self, word, update_data):
+        """
+        Generic method to update word fields.
+        update_data: dict of {column: value}
+        """
+        if not update_data:
+            return False
+            
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Filter valid columns to prevent SQL injection
+        valid_columns = {
+            'phonetic', 'meaning', 'example', 'context_en', 'context_cn', 
+            'roots', 'synonyms', 'tags', 'mastered', 'stage'
+        }
+        
+        set_clauses = []
+        params = []
+        for col, val in update_data.items():
+            if col in valid_columns:
+                set_clauses.append(f"{col} = ?")
+                params.append(val)
+        
+        if not set_clauses:
+            return False
+            
+        sql = f"UPDATE words SET {', '.join(set_clauses)} WHERE word = ?"
+        params.append(word)
+        
+        try:
+            cursor.execute(sql, tuple(params))
+            conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            print(f"Update word error: {e}")
+            return False
 
     def delete_word(self, word):
         conn = self.get_connection()
@@ -450,11 +498,44 @@ class DatabaseManager:
         # 学习中的单词
         learning = total - mastered
 
+        # --- 新增统计逻辑 ---
+        today_str = datetime.now().strftime('%Y-%m-%d')
+
+        # 1. 今日已复习单词数 (去重)
+        cursor.execute('SELECT COUNT(DISTINCT word_id) FROM review_history WHERE review_date = ?', (today_str,))
+        reviewed_today = cursor.fetchone()[0]
+
+        # 2. 连续坚持天数 (Streak)
+        cursor.execute('SELECT DISTINCT review_date FROM review_history ORDER BY review_date DESC')
+        dates = [row[0] for row in cursor.fetchall()]
+
+        streak_days = 0
+        if dates:
+            # 检查最新的日期是否是今天或昨天
+            latest_date = datetime.strptime(dates[0], '%Y-%m-%d').date()
+            today_date = datetime.now().date()
+            
+            if latest_date == today_date or latest_date == (today_date - timedelta(days=1)):
+                streak_days = 1
+                current_check = latest_date
+                
+                for i in range(1, len(dates)):
+                    prev_date = datetime.strptime(dates[i], '%Y-%m-%d').date()
+                    if (current_check - prev_date).days == 1:
+                        streak_days += 1
+                        current_check = prev_date
+                    else:
+                        break
+            else:
+                streak_days = 0 # 断签超过1天
+
         return {
             'total': total,
             'mastered': mastered,
             'learning': learning,
-            'due_today': due_today
+            'due_today': due_today,
+            'reviewed_today': reviewed_today,
+            'streak_days': streak_days
         }
 
     def log_study_session(self, duration_seconds, review_count=0):
@@ -649,6 +730,10 @@ class DatabaseManager:
             d = dict(row)
             d['mastered'] = bool(d['mastered'])
             d['date'] = d['date_added']
+            # Ensure text fields are not None
+            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags']:
+                if d.get(key) is None:
+                    d[key] = ""
             result.append(d)
 
         return result, total_count

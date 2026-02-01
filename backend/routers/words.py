@@ -167,13 +167,14 @@ async def update_word(word: str, word_data: WordUpdate):
     if not existing:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
     
-    # Update context if provided
-    if word_data.context_en is not None or word_data.context_cn is not None:
-        db.update_context(
-            word,
-            word_data.context_en if word_data.context_en is not None else existing.get("context_en", ""),
-            word_data.context_cn if word_data.context_cn is not None else existing.get("context_cn", "")
-        )
+    # Collect fields to update
+    update_dict = {}
+    for field, value in word_data.model_dump().items():
+        if value is not None:
+            update_dict[field] = value
+            
+    if update_dict:
+        db.update_word(word, update_dict)
     
     return {"message": "Word updated successfully", "word": word}
 

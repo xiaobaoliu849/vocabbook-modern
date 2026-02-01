@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+
 type Page = 'add' | 'list' | 'review' | 'settings'
 
 interface SidebarProps {
@@ -18,25 +19,26 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
 
     return (
         <aside
-            className={`glass-sidebar flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'
+            className={`glass-sidebar flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-48'
                 }`}
         >
             {/* Header */}
-            <div className="p-4 flex items-center gap-3">
+            <div className="p-4 flex items-center gap-3 overflow-hidden">
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl
+                    className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl
                      hover:bg-slate-200 dark:hover:bg-slate-700 
                      transition-colors text-xl"
                 >
                     ≡
                 </button>
-                {!isCollapsed && (
-                    <h1 className="font-bold text-xl bg-gradient-to-r from-primary-600 to-accent-500 
-                         bg-clip-text text-transparent animate-fade-in">
-                        智能生词本
-                    </h1>
-                )}
+                <h1
+                    className={`font-bold text-xl bg-linear-to-r from-primary-600 to-accent-500 
+                         bg-clip-text text-transparent whitespace-nowrap transition-all duration-300
+                         ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}
+                >
+                    智能生词本
+                </h1>
             </div>
 
             {/* Navigation */}
@@ -45,13 +47,16 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
                     <button
                         key={item.id}
                         onClick={() => setCurrentPage(item.id)}
-                        className={`nav-item w-full ${currentPage === item.id ? 'active' : ''}`}
+                        className={`nav-item w-full overflow-hidden ${currentPage === item.id ? 'active' : ''}`}
                         title={item.tooltip}
                     >
-                        <span className="text-xl">{item.icon}</span>
-                        {!isCollapsed && (
-                            <span className="animate-fade-in">{item.label}</span>
-                        )}
+                        <span className="text-xl shrink-0">{item.icon}</span>
+                        <span
+                            className={`whitespace-nowrap transition-all duration-300 
+                                ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}
+                        >
+                            {item.label}
+                        </span>
                         {currentPage === item.id && (
                             <div className="absolute left-0 w-1 h-8 bg-primary-500 rounded-r-full" />
                         )}
@@ -63,20 +68,27 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
             <div className="px-3 pb-4">
                 <button
                     onClick={() => setCurrentPage('settings')}
-                    className={`nav-item w-full ${currentPage === 'settings' ? 'active' : ''}`}
+                    className={`nav-item w-full overflow-hidden ${currentPage === 'settings' ? 'active' : ''}`}
                     title="应用设置"
                 >
-                    <span className="text-xl">⚙️</span>
-                    {!isCollapsed && <span className="animate-fade-in">设置</span>}
+                    <span className="text-xl shrink-0">⚙️</span>
+                    <span
+                        className={`whitespace-nowrap transition-all duration-300 
+                            ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}
+                    >
+                        设置
+                    </span>
                 </button>
             </div>
 
             {/* Version info */}
-            {!isCollapsed && (
-                <div className="px-4 pb-4 text-xs text-slate-400 dark:text-slate-500">
-                    v2.0.0 Modern
-                </div>
-            )}
+            <div
+                className={`px-4 pb-4 text-xs text-slate-400 dark:text-slate-500 
+                    whitespace-nowrap transition-all duration-300 overflow-hidden
+                    ${isCollapsed ? 'opacity-0 h-0 pb-0' : 'opacity-100 h-auto'}`}
+            >
+                v2.0.0 Modern
+            </div>
         </aside>
     )
 }

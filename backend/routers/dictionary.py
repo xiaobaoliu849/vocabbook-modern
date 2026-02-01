@@ -4,7 +4,7 @@ Dictionary API Router
 """
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 router = APIRouter()
 
@@ -15,11 +15,16 @@ class TranslateRequest(BaseModel):
 
 
 @router.get("/search/{word}")
-async def search_word(word: str):
-    """在线词典搜索单词"""
+async def search_word(word: str, sources: Optional[str] = None):
+    """
+    在线词典搜索单词
+    sources: comma separated list of enabled dicts (e.g. "youdao,cambridge,bing")
+    """
     from services.dict_service import DictService
     
-    result = DictService.search_word(word)
+    source_list = sources.split(",") if sources else None
+    
+    result = DictService.search_word(word, sources=source_list)
     if not result:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not found in dictionary")
     

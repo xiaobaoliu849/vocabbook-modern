@@ -36,6 +36,33 @@ function createWindow() {
         mainWindow.show()
     })
 
+    // Context Menu for Right Click
+    mainWindow.webContents.on('context-menu', (event, params) => {
+        const menuTemplate = [
+            { role: 'cut', label: '剪切' },
+            { role: 'copy', label: '复制' },
+            { role: 'paste', label: '粘贴' },
+            { type: 'separator' }
+        ]
+
+        if (params.selectionText && params.selectionText.trim().length > 0) {
+            menuTemplate.unshift(
+                {
+                    label: `查询 "${params.selectionText.trim().length > 15 ? params.selectionText.trim().slice(0, 15) + '...' : params.selectionText.trim()}"`,
+                    click: () => {
+                        mainWindow.show()
+                        mainWindow.focus()
+                        mainWindow.webContents.send('trigger-search', params.selectionText.trim())
+                    }
+                },
+                { type: 'separator' }
+            )
+        }
+
+        const menu = Menu.buildFromTemplate(menuTemplate)
+        menu.popup()
+    })
+
     // Handle close to tray
     mainWindow.on('close', (event) => {
         if (!app.isQuiting) {
@@ -46,7 +73,7 @@ function createWindow() {
 
     // Open DevTools in development
     if (DEV_MODE) {
-        mainWindow.webContents.openDevTools()
+        // mainWindow.webContents.openDevTools()
     }
 }
 
@@ -92,6 +119,97 @@ function createTray() {
     })
 }
 
+function createApplicationMenu() {
+    const isMac = process.platform === 'darwin'
+
+    const template = [
+        // { role: 'appMenu' }
+        ...(isMac ? [{
+            label: app.name,
+            submenu: [
+                { role: 'about', label: '关于 VocabBook' },
+                { type: 'separator' },
+                { role: 'services', label: '服务' },
+                { type: 'separator' },
+                { role: 'hide', label: '隐藏 VocabBook' },
+                { role: 'hideOthers', label: '隐藏其他' },
+                { role: 'unhide', label: '显示全部' },
+                { type: 'separator' },
+                { role: 'quit', label: '退出 VocabBook' }
+            ]
+        }] : []),
+        // { role: 'fileMenu' }
+        {
+            label: '文件',
+            submenu: [
+                isMac ? { role: 'close', label: '关闭窗口' } : { role: 'quit', label: '退出' }
+            ]
+        },
+        // { role: 'editMenu' }
+        {
+            label: '编辑',
+            submenu: [
+                { role: 'undo', label: '撤销' },
+                { role: 'redo', label: '重做' },
+                { type: 'separator' },
+                { role: 'cut', label: '剪切' },
+                { role: 'copy', label: '复制' },
+                { role: 'paste', label: '粘贴' },
+                { role: 'delete', label: '删除' },
+                { type: 'separator' },
+                { role: 'selectAll', label: '全选' }
+            ]
+        },
+        // { role: 'viewMenu' }
+        {
+            label: '视图',
+            submenu: [
+                { role: 'reload', label: '刷新' },
+                { role: 'forceReload', label: '强制刷新' },
+                { role: 'toggleDevTools', label: '开发者工具' },
+                { type: 'separator' },
+                { role: 'resetZoom', label: '实际大小' },
+                { role: 'zoomIn', label: '放大' },
+                { role: 'zoomOut', label: '缩小' },
+                { type: 'separator' },
+                { role: 'togglefullscreen', label: '切换全屏' }
+            ]
+        },
+        // { role: 'windowMenu' }
+        {
+            label: '窗口',
+            submenu: [
+                { role: 'minimize', label: '最小化' },
+                { role: 'zoom', label: '缩放' },
+                ...(isMac ? [
+                    { type: 'separator' },
+                    { role: 'front', label: '前置全部窗口' },
+                    { type: 'separator' },
+                    { role: 'window', label: '窗口' }
+                ] : [
+                    { role: 'close', label: '关闭' }
+                ])
+            ]
+        },
+        {
+            role: 'help',
+            label: '帮助',
+            submenu: [
+                {
+                    label: '了解更多',
+                    click: async () => {
+                        const { shell } = require('electron')
+                        await shell.openExternal('https://github.com/vocabbook/vocabbook-modern')
+                    }
+                }
+            ]
+        }
+    ]
+
+    const menu = Menu.buildFromTemplate(template)
+    Menu.setApplicationMenu(menu)
+}
+
 function registerGlobalShortcut() {
     const ret = globalShortcut.register(HOTKEY, () => {
         if (mainWindow) {
@@ -111,7 +229,7 @@ function registerGlobalShortcut() {
 
 function startBackend() {
     // Start Python backend
-    const pythonPath = process.platform === 'win32' ? 'py' : 'python3'
+    const pythonPath = process.platform === 'win32' ? 'python' : 'python3'
 
     backendProcess = spawn(pythonPath, ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'], {
         cwd: BACKEND_PATH,
@@ -143,6 +261,7 @@ function stopBackend() {
 app.whenReady().then(() => {
     createWindow()
     createTray()
+    createApplicationMenu()
     registerGlobalShortcut()
 
     // In production, start backend

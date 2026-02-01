@@ -1,26 +1,36 @@
 import { useState, useEffect } from 'react'
+import WordDetailModal from '../components/WordDetailModal'
+import AudioButton from '../components/AudioButton'
 
 interface Word {
     id: number
     word: string
     phonetic: string
     meaning: string
+    example: string
+    roots: string
+    synonyms: string
     mastered: boolean
     next_review_time: number
     tags: string
+    date_added: string
+    review_count: number
 }
 
-export default function WordList() {
+export default function WordList({ isActive }: { isActive?: boolean }) {
     const [words, setWords] = useState<Word[]>([])
     const [loading, setLoading] = useState(true)
     const [searchKeyword, setSearchKeyword] = useState('')
     const [filterTag, setFilterTag] = useState('')
     const [allTags, setAllTags] = useState<string[]>([])
+    const [selectedWord, setSelectedWord] = useState<Word | null>(null)
 
     useEffect(() => {
-        fetchWords()
-        fetchTags()
-    }, [searchKeyword, filterTag])
+        if (isActive !== false) {
+            fetchWords()
+            fetchTags()
+        }
+    }, [searchKeyword, filterTag, isActive])
 
     const fetchWords = async () => {
         setLoading(true)
@@ -29,6 +39,7 @@ export default function WordList() {
             if (searchKeyword) params.append('keyword', searchKeyword)
             if (filterTag) params.append('tag', filterTag)
             params.append('page_size', '100')
+            params.append('_t', Date.now().toString()) // Prevent caching
 
             const response = await fetch(`http://localhost:8000/api/words?${params}`)
             if (response.ok) {
@@ -54,7 +65,8 @@ export default function WordList() {
         }
     }
 
-    const handleDelete = async (word: string) => {
+    const handleDelete = async (word: string, e: React.MouseEvent) => {
+        e.stopPropagation()
         if (!confirm(`确定要删除 "${word}" 吗？`)) return
 
         try {
@@ -63,13 +75,15 @@ export default function WordList() {
             })
             if (response.ok) {
                 setWords(words.filter(w => w.word !== word))
+                if (selectedWord?.word === word) setSelectedWord(null)
             }
         } catch (error) {
             console.error('Failed to delete word:', error)
         }
     }
 
-    const handleMarkMastered = async (word: string) => {
+    const handleMarkMastered = async (word: string, e: React.MouseEvent) => {
+        e.stopPropagation()
         try {
             const response = await fetch(`http://localhost:8000/api/words/${encodeURIComponent(word)}/master`, {
                 method: 'POST'
@@ -146,19 +160,20 @@ export default function WordList() {
                         {words.map((word, index) => (
                             <div
                                 key={word.id}
+                                onClick={() => setSelectedWord(word)}
                                 className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 
-                           transition-colors animate-slide-up"
+                           transition-colors animate-slide-up cursor-pointer group"
                                 style={{ animationDelay: `${index * 0.02}s` }}
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3">
-                                            <h3 className="font-bold text-lg text-slate-800 dark:text-white">
+                                            <h3 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
                                                 {word.word}
                                             </h3>
                                             <span className="text-slate-400">{word.phonetic}</span>
                                             {getStatusBadge(word)}
-                                            {word.tags && word.tags.split(',').map(tag => (
+                                            {word.tags && word.tags.split(',').map(tag => tag.trim() && (
                                                 <span
                                                     key={tag}
                                                     className="px-2 py-0.5 text-xs rounded bg-slate-100 dark:bg-slate-700 
@@ -174,20 +189,10 @@ export default function WordList() {
                                     </div>
 
                                     <div className="flex gap-2 ml-4">
-                                        <button
-                                            onClick={() => {
-                                                const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${word.word}&type=2`)
-                                                audio.play()
-                                            }}
-                                            className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 
-                                 transition-colors text-slate-500"
-                                            title="播放发音"
-                                        >
-                                            🔊
-                                        </button>
+                                        <AudioButton word={word.word} />
                                         {!word.mastered && (
                                             <button
-                                                onClick={() => handleMarkMastered(word.word)}
+                                                onClick={(e) => handleMarkMastered(word.word, e)}
                                                 className="p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 
                                    transition-colors text-slate-500 hover:text-green-600"
                                                 title="标记为已掌握"
@@ -196,7 +201,7 @@ export default function WordList() {
                                             </button>
                                         )}
                                         <button
-                                            onClick={() => handleDelete(word.word)}
+                                            onClick={(e) => handleDelete(word.word, e)}
                                             className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 
                                  transition-colors text-slate-500 hover:text-red-600"
                                             title="删除"
@@ -210,6 +215,14 @@ export default function WordList() {
                     </div>
                 )}
             </div>
+
+            {/* Detail Modal */}
+            {selectedWord && (
+                <WordDetailModal 
+                    word={selectedWord} 
+                    onClose={() => setSelectedWord(null)}
+                />
+            )}
         </div>
     )
 }

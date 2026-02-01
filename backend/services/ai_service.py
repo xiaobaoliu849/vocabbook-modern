@@ -12,17 +12,19 @@ import httpx
 class AIService:
     """AI 服务封装，支持多 Provider 切换"""
     
-    def __init__(self, provider: str = None):
+    def __init__(self, provider: str = None, api_key: str = None, model: str = None):
         """
         初始化 AI 服务
         
         Args:
-            provider: AI 提供商 (openai, anthropic, gemini, ollama, custom)
+            provider: AI 提供商 (openai, anthropic, gemini, ollama, dashscope, custom)
+            api_key: API Key (optional)
+            model: Model Name (optional)
         """
         self.provider = provider or os.environ.get("AI_PROVIDER", "openai")
-        self.api_key = os.environ.get("AI_API_KEY", "")
+        self.api_key = api_key or os.environ.get("AI_API_KEY", "")
         self.api_base = os.environ.get("AI_API_BASE", "")
-        self.model = os.environ.get("AI_MODEL", "gpt-4o-mini")
+        self.model = model or os.environ.get("AI_MODEL", "gpt-4o-mini")
         
     def _get_client_config(self) -> Dict:
         """获取 HTTP 客户端配置"""
@@ -49,6 +51,11 @@ class AIService:
                 "base_url": self.api_base or "http://localhost:11434/api",
                 "headers": {}
             }
+        elif self.provider == "dashscope":
+            return {
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "headers": {"Authorization": f"Bearer {self.api_key}"}
+            }
         else:  # custom
             return {
                 "base_url": self.api_base,
@@ -60,7 +67,7 @@ class AIService:
         config = self._get_client_config()
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            if self.provider in ["openai", "custom"]:
+            if self.provider in ["openai", "custom", "dashscope"]:
                 response = await client.post(
                     f"{config['base_url']}/chat/completions",
                     headers=config['headers'],
