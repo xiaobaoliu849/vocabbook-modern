@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import AudioButton from '../components/AudioButton'
+import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2 } from 'lucide-react'
 
 // 分割例句为数组 (智能处理: 优先按双换行或明确的打点符号拆分，其次处理单换行的例句+翻译对)
 function splitExamples(example: string): string[] {
@@ -258,13 +259,14 @@ export default function AddWord() {
                     <button
                         onClick={() => handleSearch()}
                         disabled={isSearching}
-                        className="btn-primary px-8"
+                        className="btn-primary px-8 flex items-center gap-2"
                     >
                         {isSearching ? (
-                            <span className="animate-pulse">查询中...</span>
+                            <Loader2 className="w-5 h-5 animate-spin" />
                         ) : (
-                            '🔍 查询'
+                            <Search size={20} />
                         )}
+                        <span>{isSearching ? '查询中...' : '查询'}</span>
                     </button>
                 </div>
 
@@ -325,8 +327,9 @@ export default function AddWord() {
                                         audioSrc={currentData.audio}
                                         className="btn-secondary !p-2 h-auto"
                                     />
-                                    <button onClick={handleAddWord} className="btn-primary">
-                                        ➕ 添加到生词本
+                                    <button onClick={handleAddWord} className="btn-primary flex items-center gap-2">
+                                        <Plus size={18} />
+                                        <span>添加到生词本</span>
                                     </button>
                                 </div>                                                        </div>
 
@@ -428,14 +431,20 @@ export default function AddWord() {
                             <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
                                 <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-medium text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                                        ✨ AI 智能例句
+                                        <Sparkles size={18} className="text-accent-500" />
+                                        AI 智能例句
                                     </h4>
                                     <button
                                         onClick={handleGenerateAI}
                                         disabled={isGeneratingAI}
-                                        className="btn-accent text-sm px-4 py-2"
+                                        className="btn-accent text-sm px-4 py-2 flex items-center gap-2"
                                     >
-                                        {isGeneratingAI ? '生成中...' : '🤖 生成例句'}
+                                        {isGeneratingAI ? (
+                                            <RotateCw size={16} className="animate-spin" />
+                                        ) : (
+                                            <Sparkles size={16} />
+                                        )}
+                                        <span>{isGeneratingAI ? '生成中...' : '生成例句'}</span>
                                     </button>
                                 </div>
 
@@ -468,20 +477,26 @@ export default function AddWord() {
             {/* Quick Tips */}
             {!searchResult && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="glass-card p-5 text-center">
-                        <span className="text-3xl">🔍</span>
-                        <h3 className="font-medium mt-2">智能查询</h3>
-                        <p className="text-sm text-slate-500 mt-1">支持多词典聚合查询</p>
+                    <div className="glass-card p-5 text-center flex flex-col items-center gap-2 hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors">
+                        <div className="w-12 h-12 rounded-2xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400">
+                            <Search size={24} />
+                        </div>
+                        <h3 className="font-medium">智能查询</h3>
+                        <p className="text-sm text-slate-500">支持多词典聚合查询</p>
                     </div>
-                    <div className="glass-card p-5 text-center">
-                        <span className="text-3xl">🤖</span>
-                        <h3 className="font-medium mt-2">AI 增强</h3>
-                        <p className="text-sm text-slate-500 mt-1">AI 生成例句和记忆技巧</p>
+                    <div className="glass-card p-5 text-center flex flex-col items-center gap-2 hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors">
+                        <div className="w-12 h-12 rounded-2xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center text-accent-600 dark:text-accent-400">
+                            <Zap size={24} />
+                        </div>
+                        <h3 className="font-medium">AI 增强</h3>
+                        <p className="text-sm text-slate-500">AI 生成例句和记忆技巧</p>
                     </div>
-                    <div className="glass-card p-5 text-center">
-                        <span className="text-3xl">⌨️</span>
-                        <h3 className="font-medium mt-2">快捷键</h3>
-                        <p className="text-sm text-slate-500 mt-1">Ctrl+Alt+V 全局呼出</p>
+                    <div className="glass-card p-5 text-center flex flex-col items-center gap-2 hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors">
+                        <div className="w-12 h-12 rounded-2xl bg-secondary-100 dark:bg-secondary-900/30 flex items-center justify-center text-secondary-600 dark:text-secondary-400">
+                            <Keyboard size={24} />
+                        </div>
+                        <h3 className="font-medium">快捷键</h3>
+                        <p className="text-sm text-slate-500">Ctrl+Alt+V 全局呼出</p>
                     </div>
                 </div>
             )}

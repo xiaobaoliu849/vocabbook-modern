@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import WordDetailModal from '../components/WordDetailModal'
 import AudioButton from '../components/AudioButton'
+import { Trash2, CheckCircle, BookOpen, Loader2 } from 'lucide-react'
 
 interface Word {
     id: number
@@ -147,13 +148,14 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             {/* Word List */}
             <div className="glass-card overflow-hidden">
                 {loading ? (
-                    <div className="p-8 text-center text-slate-500">
-                        <div className="animate-pulse">加载中...</div>
+                    <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+                        <div className="animate-pulse">正在整理词库...</div>
                     </div>
                 ) : words.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500">
-                        <span className="text-4xl">📚</span>
-                        <p className="mt-2">暂无单词，去添加一些吧！</p>
+                    <div className="p-12 text-center text-slate-500">
+                        <BookOpen className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600 opacity-50" />
+                        <p className="text-lg">暂无单词，去添加一些吧！</p>
                     </div>
                 ) : (
                     <div className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -193,20 +195,20 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                         {!word.mastered && (
                                             <button
                                                 onClick={(e) => handleMarkMastered(word.word, e)}
-                                                className="p-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 
-                                   transition-colors text-slate-500 hover:text-green-600"
+                                                className="p-2 rounded-xl hover:bg-green-100 dark:hover:bg-green-900/30 
+                                   transition-all text-slate-400 hover:text-green-600 hover:scale-110 active:scale-95"
                                                 title="标记为已掌握"
                                             >
-                                                ✅
+                                                <CheckCircle size={20} />
                                             </button>
                                         )}
                                         <button
                                             onClick={(e) => handleDelete(word.word, e)}
-                                            className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 
-                                 transition-colors text-slate-500 hover:text-red-600"
+                                            className="p-2 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 
+                                 transition-all text-slate-400 hover:text-red-600 hover:scale-110 active:scale-95"
                                             title="删除"
                                         >
-                                            🗑️
+                                            <Trash2 size={20} />
                                         </button>
                                     </div>
                                 </div>
@@ -218,8 +220,8 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
             {/* Detail Modal */}
             {selectedWord && (
-                <WordDetailModal 
-                    word={selectedWord} 
+                <WordDetailModal
+                    word={selectedWord}
                     onClose={() => setSelectedWord(null)}
                 />
             )}

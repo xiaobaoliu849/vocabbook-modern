@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import AudioButton from './AudioButton'
+import { X, BookOpen, MessageSquare, RefreshCw, Sprout } from 'lucide-react'
 
 interface WordDetailProps {
   word: any;
@@ -9,10 +10,10 @@ interface WordDetailProps {
 // 分割例句为数组
 function splitExamples(example: string): string[] {
   if (!example) return []
-  
+
   // 按 bullet point 或换行分割
   const parts = example.split(/\n(?=[•\-\*])|\n{2,}/)
-  
+
   return parts
     .map(part => part.trim())
     .filter(part => part.length > 10) // 过滤太短的片段
@@ -62,9 +63,11 @@ export default function WordDetailModal({ word, onClose }: WordDetailProps) {
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-700">
           <h3 className="text-lg font-medium text-slate-500 dark:text-slate-400">单词详情</h3>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-500">✕</button>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-slate-400 hover:text-slate-600 hover:rotate-90">
+            <X size={20} />
+          </button>
         </div>
-        
+
         <div className="p-6 space-y-6">
           {/* Word Title */}
           <div className="flex items-start justify-between">
@@ -79,11 +82,11 @@ export default function WordDetailModal({ word, onClose }: WordDetailProps) {
               </h2>
               <div className="flex items-center gap-3 mt-2">
                 <span className="text-xl text-slate-500 font-serif">{word.phonetic}</span>
-                <AudioButton 
-                  word={word.word} 
-                  audioSrc={audioSrc} 
+                <AudioButton
+                  word={word.word}
+                  audioSrc={audioSrc}
                   autoPlay={true}
-                  className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600" 
+                  className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600"
                 />
               </div>
             </div>
@@ -94,13 +97,19 @@ export default function WordDetailModal({ word, onClose }: WordDetailProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {word.roots && (
                 <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 border border-orange-100 dark:border-orange-900/30">
-                  <h4 className="text-xs font-bold text-orange-800 dark:text-orange-300 mb-2 uppercase">🌱 词根记忆</h4>
+                  <h4 className="text-xs font-bold text-orange-800 dark:text-orange-300 mb-2 uppercase flex items-center gap-2">
+                    <Sprout size={14} />
+                    词根记忆
+                  </h4>
                   <p className="text-orange-900 dark:text-orange-100 text-sm whitespace-pre-line">{word.roots}</p>
                 </div>
               )}
               {word.synonyms && (
                 <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 border border-indigo-100 dark:border-indigo-900/30">
-                  <h4 className="text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-2 uppercase">🔄 同近义词</h4>
+                  <h4 className="text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-2 uppercase flex items-center gap-2">
+                    <RefreshCw size={14} />
+                    同近义词
+                  </h4>
                   <p className="text-indigo-900 dark:text-indigo-100 text-sm whitespace-pre-line">{word.synonyms}</p>
                 </div>
               )}
@@ -109,7 +118,10 @@ export default function WordDetailModal({ word, onClose }: WordDetailProps) {
 
           {/* Meaning */}
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-800 dark:text-white">📖 释义</h4>
+            <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <BookOpen size={18} className="text-primary-500" />
+              释义
+            </h4>
             <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
               <p className="text-slate-800 dark:text-slate-200 whitespace-pre-line text-lg">{word.meaning}</p>
             </div>
@@ -119,19 +131,20 @@ export default function WordDetailModal({ word, onClose }: WordDetailProps) {
           {examples.length > 0 && (
             <div className="space-y-3">
               <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                🗣️ 例句
+                <MessageSquare size={18} className="text-emerald-500" />
+                例句
                 <span className="text-xs font-normal text-slate-400">({examples.length}句)</span>
               </h4>
               <div className="space-y-3">
                 {examples.map((example, index) => {
                   const englishText = extractEnglish(example)
                   return (
-                    <div 
-                      key={index} 
+                    <div
+                      key={index}
                       className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50 hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-colors"
                     >
                       <div className="flex items-start gap-3">
-                        <AudioButton 
+                        <AudioButton
                           text={englishText}
                           useTTS={true}
                           isExample={true}

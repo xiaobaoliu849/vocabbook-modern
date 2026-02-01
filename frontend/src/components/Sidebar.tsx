@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
 
 
 type Page = 'add' | 'list' | 'review' | 'settings'
@@ -9,9 +10,9 @@ interface SidebarProps {
 }
 
 const navItems = [
-    { id: 'add' as Page, icon: '🏠', label: '词汇中心', tooltip: '搜索和添加新单词' },
-    { id: 'list' as Page, icon: '📚', label: '单词列表', tooltip: '管理已收藏的单词' },
-    { id: 'review' as Page, icon: '🧠', label: '智能复习', tooltip: '使用 SM-2 算法复习' },
+    { id: 'add' as Page, icon: <Home size={22} />, label: '词汇中心', tooltip: '搜索和添加新单词' },
+    { id: 'list' as Page, icon: <BookOpen size={22} />, label: '单词列表', tooltip: '管理已收藏的单词' },
+    { id: 'review' as Page, icon: <Brain size={22} />, label: '智能复习', tooltip: '使用 SM-2 算法复习' },
 ]
 
 export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
@@ -28,9 +29,9 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl
                      hover:bg-slate-200 dark:hover:bg-slate-700 
-                     transition-colors text-xl"
+                     transition-colors text-slate-500"
                 >
-                    ≡
+                    {isCollapsed ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
                 </button>
                 <h1
                     className={`font-bold text-xl bg-linear-to-r from-primary-600 to-accent-500 
@@ -50,7 +51,7 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
                         className={`nav-item w-full overflow-hidden ${currentPage === item.id ? 'active' : ''}`}
                         title={item.tooltip}
                     >
-                        <span className="text-xl shrink-0">{item.icon}</span>
+                        <span className="shrink-0">{item.icon}</span>
                         <span
                             className={`whitespace-nowrap transition-all duration-300 
                                 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}
@@ -71,7 +72,7 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps) {
                     className={`nav-item w-full overflow-hidden ${currentPage === 'settings' ? 'active' : ''}`}
                     title="应用设置"
                 >
-                    <span className="text-xl shrink-0">⚙️</span>
+                    <span className="shrink-0"><Settings size={22} /></span>
                     <span
                         className={`whitespace-nowrap transition-all duration-300 
                             ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}
