@@ -90,6 +90,39 @@ vocabbook-modern/
 
 默认使用 `vocab.db`（SQLite），可通过环境变量 `VOCABBOOK_DB_PATH` 指定路径。
 
+## 🛠️ 架构优化 (2026-02)
+
+### 前端优化
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| **共享工具** | `utils/textUtils.ts` | `splitExamples()`, `extractEnglish()` 文本处理 |
+| **API 封装** | `utils/api.ts` | 集中管理 API URL，支持 `VITE_API_URL` 环境变量 |
+| **性能工具** | `utils/performance.ts` | `useDebounce`, `AudioPool` 音频复用 |
+| **错误边界** | `components/ErrorBoundary.tsx` | 防止组件错误导致应用崩溃 |
+
+### 后端优化
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| **词典缓存** | `services/dict_service.py` | LRU 内存缓存 (500条/5分钟过期) |
+| **查询优化** | `models/database.py` | `get_words_for_list()` 精简字段查询 |
+
+### 使用示例
+
+```typescript
+// 前端 API 调用
+import { API_BASE_URL, api, API_PATHS } from './utils/api'
+
+// 使用环境变量配置 (.env)
+// VITE_API_URL=http://your-server:8000
+
+// 搜索防抖
+import { useDebounce } from './utils/performance'
+const debouncedSearch = useDebounce(searchKeyword, 300)
+```
+
 ## 📝 License
 
 MIT
+

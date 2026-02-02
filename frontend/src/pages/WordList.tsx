@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import WordDetailModal from '../components/WordDetailModal'
 import AudioButton from '../components/AudioButton'
 import { Trash2, CheckCircle, BookOpen, Loader2, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { useDebounce } from '../utils/performance'
 
 interface Word {
     id: number
@@ -34,6 +35,9 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
     const [itemsPerPage, setItemsPerPage] = useState(20)
     const [totalItems, setTotalItems] = useState(0)
 
+    // 使用防抖的搜索关键词 (300ms 延迟)
+    const debouncedKeyword = useDebounce(searchKeyword, 300)
+
     const searchInputRef = useRef<HTMLInputElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
 
@@ -45,13 +49,13 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             fetchWords()
             fetchTags()
         }
-    }, [searchKeyword, filterTag, isActive, currentPage, itemsPerPage])
+    }, [debouncedKeyword, filterTag, isActive, currentPage, itemsPerPage])
 
     const fetchWords = async () => {
         setLoading(true)
         try {
             const params = new URLSearchParams()
-            if (searchKeyword) params.append('keyword', searchKeyword)
+            if (debouncedKeyword) params.append('keyword', debouncedKeyword)
             if (filterTag) params.append('tag', filterTag)
             params.append('page', currentPage.toString())
             params.append('page_size', itemsPerPage.toString())

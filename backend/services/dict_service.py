@@ -1,10 +1,38 @@
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from functools import lru_cache
+import time
 
 from .tag_service import TagService
 from .word_family_service import WordFamilyService
 from .multi_dict_service import get_session, MultiDictService
+
+
+# 内存缓存用于词典查询 (最多 500 个词，5分钟过期)
+_dict_cache = {}
+_cache_ttl = 300  # 5 minutes
+
+
+def _get_cached(word: str):
+    """获取缓存的词典结果"""
+    if word in _dict_cache:
+        result, timestamp = _dict_cache[word]
+        if time.time() - timestamp < _cache_ttl:
+            return result
+        else:
+            del _dict_cache[word]
+    return None
+
+
+def _set_cached(word: str, result: dict):
+    """设置词典缓存"""
+    # 限制缓存大小
+    if len(_dict_cache) >= 500:
+        # 移除最旧的条目
+        oldest_key = min(_dict_cache.keys(), key=lambda k: _dict_cache[k][1])
+        del _dict_cache[oldest_key]
+    _dict_cache[word] = (result, time.time())
 
 
 class DictService:
@@ -36,7 +64,13 @@ class DictService:
         """
         Search word on Youdao and optionally other dictionaries.
         Returns a dictionary structure compatible with old format but enriched.
+        Uses LRU cache to improve performance.
         """
+        # 检查缓存
+        cache_key = f"{word}:{sources or 'default'}"
+        cached = _get_cached(cache_key)
+        if cached:
+            return cached
         
         # 1. First, search Youdao as base (because it's the primary source for most parsing logic)
         youdao_result = DictService._search_youdao_base(word)
@@ -76,6 +110,9 @@ class DictService:
             
         # Add the full sources data to the result so frontend can display tabs
         primary['sources_data'] = aggregated['sources']
+        
+        # 存入缓存
+        _set_cached(cache_key, primary)
         
         return primary
 

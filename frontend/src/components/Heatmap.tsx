@@ -59,15 +59,13 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
         const today = new Date()
         today.setHours(0, 0, 0, 0)
         const todayStr = formatDateLocal(today)
-        
-        console.log('Heatmap Debug:', { todayStr, dataKeys: Object.keys(data), todayCount: data[todayStr] })
-        
+
         // Calculate start date (1 year ago, adjusted to Sunday)
         const startDate = new Date(today)
         startDate.setDate(today.getDate() - 364)
         const dayOfWeek = startDate.getDay()
         startDate.setDate(startDate.getDate() - dayOfWeek)
-        
+
         // Calculate end date (Today)
         const endDate = new Date(today)
 
@@ -87,7 +85,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
 
         let currentMonth = -1
         let col = 0
-        
+
         const cellSize = 10
         const cellGap = 2
         const marginLeft = 28
@@ -102,7 +100,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
             // Create a fresh date object for each day to ensure accuracy
             const current = new Date(startDate)
             current.setDate(startDate.getDate() + i)
-            
+
             const dateStr = formatDateLocal(current)
             const dayOfWeekIdx = current.getDay() // 0 = Sunday
 
@@ -110,7 +108,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
             const y = marginTop + dayOfWeekIdx * (cellSize + cellGap)
 
             const displayDate = `${current.getFullYear()}年${monthsZh[current.getMonth()]}${current.getDate()}日`
-            
+
             // Simple string comparison for future check
             const isFuture = dateStr > todayStr
 
@@ -129,7 +127,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
                 currentMonth = current.getMonth()
                 months.push({ text: monthNames[currentMonth], x })
             }
-            
+
             // Move column on Saturday (end of week)
             if (dayOfWeekIdx === 6) {
                 col++

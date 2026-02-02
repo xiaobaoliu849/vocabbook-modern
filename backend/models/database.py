@@ -324,6 +324,65 @@ class DatabaseManager:
             result.append(d)
         return result
 
+    def get_words_for_list(self, keyword=None, tag=None, page=1, page_size=20):
+        """
+        Optimized query for word list display.
+        Only fetches fields needed for list view, reducing data transfer.
+        Returns: { 'words': [...], 'total': int }
+        """
+        conn = self.get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # 只选择列表显示必需的字段 (不包括 example, context_en, context_cn 等大字段)
+        select_fields = '''
+            id, word, phonetic, meaning, mastered, next_review_time, 
+            tags, date_added, review_count
+        '''
+        
+        where_clauses = []
+        params = []
+        
+        if keyword:
+            where_clauses.append("(word LIKE ? OR meaning LIKE ?)")
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
+        
+        if tag:
+            where_clauses.append("tags LIKE ?")
+            params.append(f"%{tag}%")
+        
+        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+        
+        # 获取总数
+        count_sql = f"SELECT COUNT(*) FROM words WHERE {where_sql}"
+        cursor.execute(count_sql, tuple(params))
+        total = cursor.fetchone()[0]
+        
+        # 获取分页数据
+        offset = (page - 1) * page_size
+        data_sql = f'''
+            SELECT {select_fields} 
+            FROM words 
+            WHERE {where_sql} 
+            ORDER BY next_review_time ASC 
+            LIMIT ? OFFSET ?
+        '''
+        cursor.execute(data_sql, tuple(params) + (page_size, offset))
+        rows = cursor.fetchall()
+        
+        result = []
+        for row in rows:
+            d = dict(row)
+            d['mastered'] = bool(d.get('mastered', 0))
+            d['date'] = d.get('date_added', '')
+            # 确保必要字段不为 None
+            for key in ['phonetic', 'meaning', 'tags']:
+                if d.get(key) is None:
+                    d[key] = ""
+            result.append(d)
+        
+        return {'words': result, 'total': total}
+
     def get_all_tags(self):
         """Get all unique tags from the database."""
         conn = self.get_connection()

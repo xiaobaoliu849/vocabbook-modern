@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ThemeProvider } from './context/ThemeContext'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
 import AddWord from './pages/AddWord'
 import WordList from './pages/WordList'
@@ -191,7 +192,9 @@ function ShortcutItem({ keys, desc }: { keys: string[], desc: string }) {
 function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
     </ThemeProvider>
   )
 }
