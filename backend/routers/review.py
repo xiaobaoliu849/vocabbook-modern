@@ -6,6 +6,8 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from datetime import datetime
+import time
+import sqlite3 # Import at top level
 
 router = APIRouter()
 
@@ -36,19 +38,16 @@ async def get_due_words(limit: int = Query(20, ge=1, le=100)):
     
     # Get words that are due for review
     words, total = db.search_words(
-        status_filter="review",
+        status_filter="due",
         sort_by="next_review_time",
         sort_order="ASC",
         limit=limit,
         offset=0
     )
     
-    # Filter words that are actually due
-    due_words = [w for w in words if w.get("next_review_time", 0) <= now and not w.get("mastered", False)]
-    
     return {
-        "words": due_words,
-        "count": len(due_words),
+        "words": words,
+        "count": len(words),
         "total_due": total
     }
 
@@ -70,6 +69,41 @@ async def get_new_words(limit: int = Query(10, ge=1, le=50)):
         "words": words,
         "count": len(words),
         "total_new": total
+    }
+
+
+@router.get("/difficult")
+async def get_difficult_words(limit: int = Query(20, ge=1, le=100)):
+    """获取困难词（错误次数 >= 1 的单词）"""
+    db = get_db()
+
+    # Use direct SQL for now as search_words might not support error_count filtering yet
+    conn = db.get_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT * FROM words
+        WHERE error_count >= 1
+        ORDER BY error_count DESC, next_review_time ASC
+        LIMIT ?
+    ''', (limit,))
+
+    rows = cursor.fetchall()
+    words = []
+    for row in rows:
+        d = dict(row)
+        d['mastered'] = bool(d['mastered'])
+        d['date'] = d['date_added']
+        # Ensure text fields are not None
+        for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags']:
+            if d.get(key) is None:
+                d[key] = ""
+        words.append(d)
+
+    return {
+        "words": words,
+        "count": len(words)
     }
 
 
@@ -105,7 +139,8 @@ async def submit_review(review: ReviewSubmit):
         "quality": review.quality,
         "next_review": datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M'),
         "interval_days": interval,
-        "easiness": round(easiness, 2)
+        "easiness": round(easiness, 2),
+        "error_count_incremented": review.quality == 1
     }
 
 
