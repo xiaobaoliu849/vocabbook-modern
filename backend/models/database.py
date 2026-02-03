@@ -112,6 +112,7 @@ class DatabaseManager:
                 next_review_time REAL DEFAULT 0,
                 review_count INTEGER DEFAULT 0,
                 mastered INTEGER DEFAULT 0,  -- 0: Learning, 1: Mastered
+                error_count INTEGER DEFAULT 0, -- New: For tracking difficult words
 
                 -- Fields for Old Logic (Stage) and Future SM-2
                 stage INTEGER DEFAULT 0,      -- Currently used for "1,2,4,7..." logic
@@ -200,6 +201,10 @@ class DatabaseManager:
             if 'tags' not in columns:
                 print("Adding 'tags' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN tags TEXT")
+
+            if 'error_count' not in columns:
+                print("Adding 'error_count' column to words table...")
+                cursor.execute("ALTER TABLE words ADD COLUMN error_count INTEGER DEFAULT 0")
 
             conn.commit()
         except Exception as e:
@@ -494,12 +499,19 @@ class DatabaseManager:
         # 这里为了保持与旧逻辑一致，暂时不自动设为 mastered，除非间隔极大
         mastered = 1 if interval > 180 else 0
 
+        # Increment error_count if rating is low (failure)
+        # Rating 0 or 1 usually means fail/hard in SM-2 concepts used here (though SM-2 uses 0-5)
+        # Assuming our frontend sends 1-4. Let's say 1=Again (Fail), 2=Hard, 3=Good, 4=Easy
+        # If rating is 1 (Again), we increment error_count.
+        error_increment = 1 if rating == 1 else 0
+
         self.execute('''
             UPDATE words
             SET easiness = ?, interval = ?, repetitions = ?, next_review_time = ?,
-                mastered = ?, review_count = review_count + 1
+                mastered = ?, review_count = review_count + 1,
+                error_count = error_count + ?
             WHERE word = ?
-        ''', (easiness, interval, repetitions, next_time, mastered, word))
+        ''', (easiness, interval, repetitions, next_time, mastered, error_increment, word))
 
         # Log history
         today = datetime.now().strftime('%Y-%m-%d')

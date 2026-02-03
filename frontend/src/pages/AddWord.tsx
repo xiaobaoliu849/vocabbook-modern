@@ -384,25 +384,21 @@ export default function AddWord() {
 
                                 {/* Example */}
                                 {currentData?.example && (
-                                    <div className="space-y-3">
-                                        <h4 className="font-bold text-slate-700 dark:text-slate-200">例句</h4>
-                                        <div className="space-y-2">
-                                            {splitExamples(currentData.example).map((ex, i) => (
-                                                <div key={i} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50 flex items-start gap-3">
-                                                    <AudioButton
-                                                        text={extractEnglish(ex)}
-                                                        useTTS={true}
-                                                        isExample={true}
-                                                        size={18}
-                                                        className="mt-0.5 flex-shrink-0 bg-emerald-50/50 hover:bg-emerald-100 dark:bg-emerald-900/10"
-                                                    />
-                                                    <div className="flex-1">
-                                                        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed text-sm font-mono">
-                                                            {ex}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <h4 className="font-bold text-slate-700 dark:text-slate-200">例句</h4>
+                                            <AudioButton
+                                                text={currentData.example}
+                                                useTTS={true}
+                                                isExample={true}
+                                                size={16}
+                                                className="bg-emerald-50 dark:bg-emerald-900/20"
+                                            />
+                                        </div>
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                                            <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed text-sm font-mono">
+                                                {currentData.example}
+                                            </p>
                                         </div>
                                     </div>
                                 )}
@@ -432,19 +428,15 @@ export default function AddWord() {
                                 {aiSentences.length > 0 && (
                                     <div className="space-y-2">
                                         {aiSentences.map((sentence, i) => (
-                                            <div key={i} className="bg-accent-50 dark:bg-accent-900/20 rounded-xl p-4 border border-accent-100 dark:border-accent-900/30 animate-slide-up flex items-start gap-3" style={{ animationDelay: `${i * 0.1}s` }}>
+                                            <div key={i} className="bg-accent-50 dark:bg-accent-900/20 rounded-lg p-3 text-slate-700 dark:text-slate-300 animate-slide-up flex items-start gap-2" style={{ animationDelay: `${i * 0.1}s` }}>
                                                 <AudioButton
                                                     text={sentence}
                                                     useTTS={true}
                                                     isExample={true}
-                                                    size={18}
-                                                    className="mt-0.5 flex-shrink-0 bg-emerald-50/50 hover:bg-emerald-100 dark:bg-emerald-900/10"
+                                                    size={16}
+                                                    className="flex-shrink-0 mt-0.5"
                                                 />
-                                                <div className="flex-1">
-                                                    <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed text-sm">
-                                                        {sentence}
-                                                    </p>
-                                                </div>
+                                                <span>{sentence}</span>
                                             </div>
                                         ))}
                                     </div>

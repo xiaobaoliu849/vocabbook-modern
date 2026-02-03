@@ -25,6 +25,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const [loading, setLoading] = useState(true)
     const [sessionStats, setSessionStats] = useState({ reviewed: 0, startTime: Date.now() })
     const [practiceMode, setPracticeMode] = useState(false)
+    const [difficultMode, setDifficultMode] = useState(false)
 
     // Spelling mode state
     const [spellingInput, setSpellingInput] = useState('')
@@ -35,20 +36,27 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         fetchDueWords()
     }, [])
 
-    const fetchDueWords = async (isPractice = false) => {
+    const fetchDueWords = async (mode: 'normal' | 'practice' | 'difficult' = 'normal') => {
         setLoading(true)
+        setPracticeMode(mode === 'practice')
+        setDifficultMode(mode === 'difficult')
+
         try {
-            // 练习模式获取所有单词，正常模式只获取到期单词
-            const url = isPractice
-                ? 'http://localhost:8000/api/words?limit=50'
-                : 'http://localhost:8000/api/review/due?limit=50'
+            // Determine API URL based on mode
+            let url = 'http://localhost:8000/api/review/due?limit=50';
+            if (mode === 'practice') {
+                url = 'http://localhost:8000/api/words?limit=50';
+            } else if (mode === 'difficult') {
+                url = 'http://localhost:8000/api/review/difficult?limit=50';
+            }
+
             const response = await fetch(url)
             if (response.ok) {
                 const data = await response.json()
                 // 两个 API 都返回 data.words
                 const words = data.words || []
                 // 练习模式随机打乱顺序
-                if (isPractice && words.length > 0) {
+                if (mode === 'practice' && words.length > 0) {
                     words.sort(() => Math.random() - 0.5)
                 }
                 setDueWords(words)
@@ -235,23 +243,26 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 </p>
                 <div className="flex justify-center gap-4 mt-6">
                     <button
-                        onClick={() => fetchDueWords(false)}
+                        onClick={() => fetchDueWords('normal')}
                         className="btn-secondary"
                     >
                         刷新
                     </button>
                     <button
-                        onClick={() => {
-                            setPracticeMode(true)
-                            fetchDueWords(true)
-                        }}
+                        onClick={() => fetchDueWords('practice')}
                         className="btn-primary"
                     >
                         🎯 练习模式
                     </button>
+                    <button
+                        onClick={() => fetchDueWords('difficult')}
+                        className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 rounded-lg transition-colors flex items-center gap-2 font-medium"
+                    >
+                        🔥 困难词本
+                    </button>
                 </div>
                 <p className="text-xs text-slate-400 mt-4">
-                    练习模式可复习所有单词，不影响复习计划
+                    练习模式可复习所有单词，困难词本集中复习错题
                 </p>
             </div>
         )
@@ -262,7 +273,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             <div className="animate-fade-in text-center py-16">
                 <span className="text-6xl">✅</span>
                 <h2 className="text-2xl font-bold mt-4 text-slate-800 dark:text-white">
-                    {practiceMode ? '练习完成！' : '复习完成！'}
+                    {practiceMode ? '练习完成！' : difficultMode ? '困难词突击完成！' : '复习完成！'}
                 </h2>
                 <p className="text-slate-500 mt-2">
                     本次{practiceMode ? '练习' : '复习'}了 {sessionStats.reviewed} 个单词
@@ -272,19 +283,18 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                         onClick={() => {
                             setCurrentIndex(0)
                             setSessionStats({ reviewed: 0, startTime: Date.now() })
-                            fetchDueWords(practiceMode)
+                            fetchDueWords(difficultMode ? 'difficult' : practiceMode ? 'practice' : 'normal')
                         }}
                         className="btn-primary"
                     >
                         再来一轮
                     </button>
-                    {practiceMode && (
+                    {(practiceMode || difficultMode) && (
                         <button
                             onClick={() => {
-                                setPracticeMode(false)
                                 setCurrentIndex(0)
                                 setSessionStats({ reviewed: 0, startTime: Date.now() })
-                                fetchDueWords(false)
+                                fetchDueWords('normal')
                             }}
                             className="btn-secondary"
                         >
@@ -306,14 +316,20 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                             智能复习
                             {practiceMode && (
                                 <button
-                                    onClick={() => {
-                                        setPracticeMode(false)
-                                        fetchDueWords(false)
-                                    }}
+                                    onClick={() => fetchDueWords('normal')}
                                     className="px-3 py-1 text-xs font-medium bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
                                     title="点击退出练习模式"
                                 >
                                     🎯 练习模式 <span className="text-amber-500 ml-1">×</span>
+                                </button>
+                            )}
+                            {difficultMode && (
+                                <button
+                                    onClick={() => fetchDueWords('normal')}
+                                    className="px-3 py-1 text-xs font-medium bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
+                                    title="点击退出困难词模式"
+                                >
+                                    🔥 困难词本 <span className="text-red-500 ml-1">×</span>
                                 </button>
                             )}
                             <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 text-sm font-medium">
