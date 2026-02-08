@@ -20,3 +20,18 @@ export interface ReviewModeProps {
     isFlipped: boolean
     setIsFlipped: (flipped: boolean) => void
 }
+
+/** 单个单词的复习评分记录 */
+export interface WordRating {
+    word: ReviewWord
+    quality: number       // 1-5 评分
+    timestamp: number     // 评分时间戳
+}
+
+/** 复习会话汇总数据 */
+export interface SessionSummaryData {
+    ratings: WordRating[]
+    duration: number          // 总耗时（秒）
+    mode: 'normal' | 'practice' | 'difficult'
+    reviewMode: ReviewMode
+}

@@ -53,11 +53,45 @@ def get_db_manager():
     return _db_manager
 
 
+def clean_chinese_text(text):
+    """
+    Remove spaces between Chinese characters and punctuation.
+    Pattern matches any space that is:
+    - Preceded by a CJK character or punctuation
+    - Followed by a CJK character or punctuation
+    """
+    if not text:
+        return text
+    # \u4e00-\u9fff: Common CJK
+    # \u3000-\u303f: CJK Symbols and Punctuation
+    # \uff00-\uffef: Fullwidth Forms
+    return re.sub(r'(?<=[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+(?=[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])', '', text)
+
+
+def _clean_dict_entry(entry):
+    """Clean common fields in dictionary entry"""
+    if not entry:
+        return entry
+    
+    if 'meaning' in entry and entry['meaning']:
+        entry['meaning'] = clean_chinese_text(entry['meaning'])
+        
+    if 'example' in entry and entry['example']:
+        # clean whole block or parts? simplest is whole block
+        entry['example'] = clean_chinese_text(entry['example'])
+        
+    return entry
+
+
 def _get_clean_text(el):
     """Helper to safely extract clean text from a BeautifulSoup element."""
     if not el:
         return ""
     text = el.get_text(separator=' ', strip=True)
+    
+    # Remove spaces between Chinese characters
+    text = clean_chinese_text(text)
+    
     return re.sub(r'\s+', ' ', text).strip()
 
 
@@ -96,7 +130,7 @@ class MultiDictService:
             if time.time() - cache_entry.get("timestamp", 0) < cls._memory_cache_ttl:
                 result = cache_entry.get(source)
                 if result is not None:
-                    return result
+                    return _clean_dict_entry(result)
             else:
                 # 内存缓存过期，清除
                 del cls._memory_cache[word_lower]
@@ -107,6 +141,8 @@ class MultiDictService:
             try:
                 result = db.get_dict_cache(word, source, ttl=cls._db_cache_ttl)
                 if result is not None:
+                    # Clean before returning
+                    result = _clean_dict_entry(result)
                     # 回填到内存缓存
                     cls._update_memory_cache(word, source, result)
                     return result
@@ -118,6 +154,9 @@ class MultiDictService:
     @classmethod
     def set_cache(cls, word, source, result):
         """设置缓存（同时写入内存和数据库）"""
+        # Clean before saving to ensure new data is clean
+        result = _clean_dict_entry(result)
+
         # 写入内存缓存
         cls._update_memory_cache(word, source, result)
 
@@ -272,7 +311,8 @@ class MultiDictService:
                     en_sent = first_sent.find('div', class_='sen_en')
                     cn_sent = first_sent.find('div', class_='sen_cn')
                     if en_sent and cn_sent:
-                        example = f"{en_sent.get_text(separator=' ', strip=True)}\n{cn_sent.get_text(separator=' ', strip=True)}"
+                        cn_text = _get_clean_text(cn_sent)
+                        example = f"{en_sent.get_text(separator=' ', strip=True)}\n{cn_text}"
             
             result = {
                 "source": MultiDictService.DICT_BING,
@@ -489,6 +529,8 @@ class MultiDictService:
             if en:
                 group_lines.append(f"• {en}")
             if cn:
+                # Ensure cleanup
+                cn = clean_chinese_text(cn)
                 group_lines.append(f"  {cn}")
             if group_lines:
                 output_parts.append("\n".join(group_lines))

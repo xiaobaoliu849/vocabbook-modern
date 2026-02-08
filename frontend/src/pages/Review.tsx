@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import AudioButton from '../components/AudioButton'
 import { splitExamples, extractEnglish } from '../utils/textUtils'
-import { ChoiceMode, DictationMode } from '../components/review'
-import type { ReviewMode } from '../components/review'
+import { ChoiceMode, DictationMode, SessionSummary } from '../components/review'
+import type { ReviewMode, WordRating, SessionSummaryData } from '../components/review'
+import { api, API_PATHS } from '../utils/api'
+import { useGlobalState } from '../context/GlobalStateContext'
 
 interface ReviewWord {
     id: number
@@ -28,9 +30,14 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const [difficultMode, setDifficultMode] = useState(false)
 
     // Spelling mode state
+    // Session ratings tracking
+    const [sessionRatings, setSessionRatings] = useState<WordRating[]>([])
+
     const [spellingInput, setSpellingInput] = useState('')
     const [spellingStatus, setSpellingStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle')
     const [showSpellingHint, setShowSpellingHint] = useState(false)
+
+    const { refreshDueCount } = useGlobalState()
 
     useEffect(() => {
         fetchDueWords()
@@ -42,27 +49,22 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         setDifficultMode(mode === 'difficult')
 
         try {
-            // Determine API URL based on mode
-            let url = 'http://localhost:8000/api/review/due?limit=50';
+            let path = `${API_PATHS.REVIEW_DUE}?limit=50`
             if (mode === 'practice') {
-                url = 'http://localhost:8000/api/words?limit=50';
+                path = `${API_PATHS.WORDS}?limit=50`
             } else if (mode === 'difficult') {
-                url = 'http://localhost:8000/api/review/difficult?limit=50';
+                path = `${API_PATHS.REVIEW_DIFFICULT}?limit=50`
             }
 
-            const response = await fetch(url)
-            if (response.ok) {
-                const data = await response.json()
-                // 两个 API 都返回 data.words
-                const words = data.words || []
-                // 练习模式随机打乱顺序
-                if (mode === 'practice' && words.length > 0) {
-                    words.sort(() => Math.random() - 0.5)
-                }
-                setDueWords(words)
-                setCurrentIndex(0)
-                setIsFlipped(false)
+            const data = await api.get(path)
+            const words = data.words || []
+            if (mode === 'practice' && words.length > 0) {
+                words.sort(() => Math.random() - 0.5)
             }
+            setDueWords(words)
+            setCurrentIndex(0)
+            setIsFlipped(false)
+            setSessionRatings([])
         } catch (error) {
             console.error('Failed to fetch words:', error)
         } finally {
@@ -76,32 +78,33 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         if (!currentWord) return
 
         try {
-            await fetch('http://localhost:8000/api/review/submit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    word: currentWord.word,
-                    quality,
-                    time_spent: 0
-                })
+        setSessionRatings(prev => [...prev, {
+            word: currentWord,
+            quality,
+            timestamp: Date.now()
+        }])
+
+            await api.post(API_PATHS.REVIEW_SUBMIT, {
+                word: currentWord.word,
+                quality,
+                time_spent: 0
             })
 
             setSessionStats(prev => ({ ...prev, reviewed: prev.reviewed + 1 }))
 
-
-            // Move to next word (increment index even for last word to trigger completion view)
             setCurrentIndex(prev => prev + 1)
             setIsFlipped(false)
 
-            // Reset spelling state
             setSpellingInput('')
             setSpellingStatus('idle')
             setShowSpellingHint(false)
 
             if (currentIndex >= dueWords.length - 1) {
-                // Session complete
                 logSession()
             }
+
+            // Refresh global due count
+            refreshDueCount()
         } catch (error) {
             console.error('Failed to submit review:', error)
         }
@@ -110,13 +113,9 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const logSession = async () => {
         const duration = Math.floor((Date.now() - sessionStats.startTime) / 1000)
         try {
-            await fetch('http://localhost:8000/api/review/session', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    duration,
-                    review_count: sessionStats.reviewed
-                })
+            await api.post(API_PATHS.REVIEW_SESSION, {
+                duration,
+                review_count: sessionStats.reviewed
             })
         } catch (error) {
             console.error('Failed to log session:', error)
@@ -125,7 +124,8 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
     const playAudio = useCallback(() => {
         if (currentWord) {
-            const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${currentWord.word}&type=2`)
+            const accent = (localStorage.getItem('preferred_accent') || 'us') === 'uk' ? '1' : '2'
+            const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${currentWord.word}&type=${accent}`)
             audio.play().catch(e => console.warn("Audio play failed", e))
         }
     }, [currentWord])
@@ -234,12 +234,12 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     if (dueWords.length === 0) {
         return (
             <div className="animate-fade-in text-center py-16">
-                <span className="text-6xl">{practiceMode ? '📚' : '🎉'}</span>
+                <span className="text-6xl">{difficultMode ? '💪' : practiceMode ? '📚' : '🎉'}</span>
                 <h2 className="text-2xl font-bold mt-4 text-slate-800 dark:text-white">
-                    {practiceMode ? '练习模式' : '太棒了！'}
+                    {difficultMode ? '困难词本为空' : practiceMode ? '练习模式' : '太棒了！'}
                 </h2>
                 <p className="text-slate-500 mt-2">
-                    {practiceMode ? '正在加载单词...' : '暂无待复习的单词，休息一下吧！'}
+                    {difficultMode ? '没有标记为困难的单词，继续加油！' : practiceMode ? '正在加载单词...' : '暂无待复习的单词，休息一下吧！'}
                 </p>
                 <div className="flex justify-center gap-4 mt-6">
                     <button
@@ -268,41 +268,47 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         )
     }
 
-    if (currentIndex >= dueWords.length) {
+    // Session complete - show summary
+    if (currentIndex >= dueWords.length && sessionRatings.length > 0) {
+        const duration = Math.floor((Date.now() - sessionStats.startTime) / 1000)
+        const summaryData: SessionSummaryData = {
+            ratings: sessionRatings,
+            duration,
+            mode: difficultMode ? 'difficult' : practiceMode ? 'practice' : 'normal',
+            reviewMode
+        }
+
+        const handleRestart = () => {
+            setCurrentIndex(0)
+            setSessionStats({ reviewed: 0, startTime: Date.now() })
+            setSessionRatings([])
+            fetchDueWords(difficultMode ? 'difficult' : practiceMode ? 'practice' : 'normal')
+        }
+
+        const handleBackToNormal = () => {
+            setCurrentIndex(0)
+            setSessionStats({ reviewed: 0, startTime: Date.now() })
+            setSessionRatings([])
+            fetchDueWords('normal')
+        }
+
+        const handleReviewWeak = (words: ReviewWord[]) => {
+            setDueWords(words)
+            setCurrentIndex(0)
+            setSessionStats({ reviewed: 0, startTime: Date.now() })
+            setSessionRatings([])
+            setIsFlipped(false)
+            setPracticeMode(true)
+            setDifficultMode(false)
+        }
+
         return (
-            <div className="animate-fade-in text-center py-16">
-                <span className="text-6xl">✅</span>
-                <h2 className="text-2xl font-bold mt-4 text-slate-800 dark:text-white">
-                    {practiceMode ? '练习完成！' : difficultMode ? '困难词突击完成！' : '复习完成！'}
-                </h2>
-                <p className="text-slate-500 mt-2">
-                    本次{practiceMode ? '练习' : '复习'}了 {sessionStats.reviewed} 个单词
-                </p>
-                <div className="flex justify-center gap-4 mt-6">
-                    <button
-                        onClick={() => {
-                            setCurrentIndex(0)
-                            setSessionStats({ reviewed: 0, startTime: Date.now() })
-                            fetchDueWords(difficultMode ? 'difficult' : practiceMode ? 'practice' : 'normal')
-                        }}
-                        className="btn-primary"
-                    >
-                        再来一轮
-                    </button>
-                    {(practiceMode || difficultMode) && (
-                        <button
-                            onClick={() => {
-                                setCurrentIndex(0)
-                                setSessionStats({ reviewed: 0, startTime: Date.now() })
-                                fetchDueWords('normal')
-                            }}
-                            className="btn-secondary"
-                        >
-                            返回正常模式
-                        </button>
-                    )}
-                </div>
-            </div>
+            <SessionSummary
+                data={summaryData}
+                onRestart={handleRestart}
+                onBackToNormal={handleBackToNormal}
+                onReviewWeak={handleReviewWeak}
+            />
         )
     }
 

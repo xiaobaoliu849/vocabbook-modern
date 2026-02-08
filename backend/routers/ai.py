@@ -146,3 +146,68 @@ async def get_ai_config():
             "pronunciation": ai.provider == "openai"  # Whisper only available with OpenAI
         }
     }
+
+# --- Translation Endpoints ---
+
+class TranslationRequest(BaseModel):
+    """翻译请求"""
+    text: str
+    source_lang: str = "Auto"
+    target_lang: str = "Chinese"
+
+
+@router.post("/translate")
+async def translate(
+    request: TranslationRequest,
+    x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
+    x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+):
+    """AI 翻译并保存记录"""
+    from services.ai_service import AIService
+    from main import get_db
+    
+    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
+    db = get_db()
+    
+    try:
+        # Call AI
+        translation, reasoning = await ai.translate(
+            text=request.text,
+            source_lang=request.source_lang,
+            target_lang=request.target_lang
+        )
+        
+        # Save to DB
+        record_id = db.add_translation(
+            source_text=request.text,
+            target_text=translation,
+            source_lang=request.source_lang,
+            target_lang=request.target_lang
+        )
+        
+        return {
+            "id": record_id,
+            "translation": translation,
+            "reasoning": reasoning,
+            "original": request.text
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+
+
+@router.get("/translations/history")
+async def get_translation_history(limit: int = 20, offset: int = 0):
+    """获取翻译历史"""
+    from main import get_db
+    db = get_db()
+    return db.get_translations(limit=limit, offset=offset)
+
+
+@router.delete("/translations/{record_id}")
+async def delete_translation_record(record_id: int):
+    """删除翻译记录"""
+    from main import get_db
+    db = get_db()
+    success = db.delete_translation(record_id)
+    return {"success": success}

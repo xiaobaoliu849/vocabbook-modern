@@ -177,6 +177,19 @@ class DatabaseManager:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_dict_cache_word ON dict_cache(word)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_dict_cache_created ON dict_cache(created_at)')
 
+        # Translation history table (New Feature)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS translations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_text TEXT,
+                target_text TEXT,
+                source_lang TEXT,
+                target_lang TEXT,
+                created_at TEXT
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_translations_created ON translations(created_at)')
+
         conn.commit()
         # 注意：不再关闭连接，使用长连接
 
@@ -205,6 +218,10 @@ class DatabaseManager:
             if 'error_count' not in columns:
                 print("Adding 'error_count' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN error_count INTEGER DEFAULT 0")
+
+            if 'note' not in columns:
+                print("Adding 'note' column to words table...")
+                cursor.execute("ALTER TABLE words ADD COLUMN note TEXT")
 
             conn.commit()
         except Exception as e:
@@ -303,7 +320,7 @@ class DatabaseManager:
             d['mastered'] = bool(d['mastered'])
             d['date'] = d['date_added']
             # Ensure text fields are not None
-            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags']:
+            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note']:
                 if d.get(key) is None:
                     d[key] = ""
             return d
@@ -323,7 +340,7 @@ class DatabaseManager:
             d['mastered'] = bool(d['mastered'])
             d['date'] = d['date_added']
             # Ensure text fields are not None
-            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags']:
+            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note']:
                 if d.get(key) is None:
                     d[key] = ""
             result.append(d)
@@ -422,7 +439,7 @@ class DatabaseManager:
         
         # Filter valid columns to prevent SQL injection
         valid_columns = {
-            'phonetic', 'meaning', 'example', 'context_en', 'context_cn', 
+            'phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'note',
             'roots', 'synonyms', 'tags', 'mastered', 'stage'
         }
         
@@ -644,6 +661,44 @@ class DatabaseManager:
         res = cursor.fetchone()
         return res[0] if res and res[0] else 0
 
+    # --- Translation History Operations (New) ---
+
+    def add_translation(self, source_text, target_text, source_lang, target_lang):
+        """Add a translation record."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                INSERT INTO translations (source_text, target_text, source_lang, target_lang, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (source_text, target_text, source_lang, target_lang, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            conn.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            print(f"Add translation error: {e}")
+            return None
+
+    def get_translations(self, limit=20, offset=0):
+        """Get translation history."""
+        conn = self.get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM translations 
+            ORDER BY created_at DESC 
+            LIMIT ? OFFSET ?
+        ''', (limit, offset))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def delete_translation(self, translation_id):
+        """Delete a translation record."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM translations WHERE id = ?', (translation_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
     # --- Word Family Operations (派生词群组) ---
 
     def add_word_family(self, root, root_meaning, word):
@@ -802,7 +857,7 @@ class DatabaseManager:
             d['mastered'] = bool(d['mastered'])
             d['date'] = d['date_added']
             # Ensure text fields are not None
-            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags']:
+            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note']:
                 if d.get(key) is None:
                     d[key] = ""
             result.append(d)

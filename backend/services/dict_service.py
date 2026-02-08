@@ -1,3 +1,4 @@
+import re
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -6,7 +7,7 @@ import time
 
 from .tag_service import TagService
 from .word_family_service import WordFamilyService
-from .multi_dict_service import get_session, MultiDictService
+from .multi_dict_service import get_session, MultiDictService, clean_chinese_text, _clean_dict_entry
 
 
 # 内存缓存用于词典查询 (最多 500 个词，5分钟过期)
@@ -19,7 +20,7 @@ def _get_cached(word: str):
     if word in _dict_cache:
         result, timestamp = _dict_cache[word]
         if time.time() - timestamp < _cache_ttl:
-            return result
+            return _clean_dict_entry(result)
         else:
             del _dict_cache[word]
     return None
@@ -27,6 +28,9 @@ def _get_cached(word: str):
 
 def _set_cached(word: str, result: dict):
     """设置词典缓存"""
+    # Clean before caching
+    result = _clean_dict_entry(result)
+    
     # 限制缓存大小
     if len(_dict_cache) >= 500:
         # 移除最旧的条目
@@ -146,6 +150,7 @@ class DictService:
                     if ul:
                         try:
                             meaning = "\n".join([li.get_text() for li in ul.find_all('li') if not li.get('class')])
+                            meaning = clean_chinese_text(meaning)
                         except (AttributeError, TypeError):
                             meaning = ""
                 if not meaning:
@@ -159,7 +164,11 @@ class DictService:
                         p = li_elem.find_all('p')
                         if p and len(p) >= 2:
                             try:
-                                example = f"{p[0].get_text(separator=' ', strip=True)}\n{p[1].get_text(separator=' ', strip=True)}"
+                                example_en = p[0].get_text(separator=' ', strip=True)
+                                example_cn = p[1].get_text(separator='', strip=True) 
+                                # Remove spaces between Chinese characters
+                                example_cn = clean_chinese_text(example_cn)
+                                example = f"{example_en}\n{example_cn}"
                             except (IndexError, AttributeError):
                                 example = ""
 

@@ -9,6 +9,8 @@ from datetime import datetime
 import time
 import sqlite3 # Import at top level
 
+from services.multi_dict_service import clean_chinese_text
+
 router = APIRouter()
 
 
@@ -30,6 +32,18 @@ def get_db():
     return main_get_db()
 
 
+def _clean_review_words(words: List[dict]) -> List[dict]:
+    """Clean Chinese text in review word list."""
+    for w in words:
+        if 'meaning' in w and w['meaning']:
+            w['meaning'] = clean_chinese_text(w['meaning'])
+        if 'example' in w and w['example']:
+            w['example'] = clean_chinese_text(w['example'])
+        if 'context_cn' in w and w['context_cn']:
+            w['context_cn'] = clean_chinese_text(w['context_cn'])
+    return words
+
+
 @router.get("/due")
 async def get_due_words(limit: int = Query(20, ge=1, le=100)):
     """获取待复习的单词"""
@@ -46,7 +60,7 @@ async def get_due_words(limit: int = Query(20, ge=1, le=100)):
     )
     
     return {
-        "words": words,
+        "words": _clean_review_words(words),
         "count": len(words),
         "total_due": total
     }
@@ -66,7 +80,7 @@ async def get_new_words(limit: int = Query(10, ge=1, le=50)):
     )
     
     return {
-        "words": words,
+        "words": _clean_review_words(words),
         "count": len(words),
         "total_new": total
     }
@@ -102,7 +116,7 @@ async def get_difficult_words(limit: int = Query(20, ge=1, le=100)):
         words.append(d)
 
     return {
-        "words": words,
+        "words": _clean_review_words(words),
         "count": len(words)
     }
 

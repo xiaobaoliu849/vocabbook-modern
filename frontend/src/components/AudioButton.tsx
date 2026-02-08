@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Volume2 } from 'lucide-react'
+import { API_BASE_URL } from '../utils/api'
 
 interface AudioButtonProps {
   word?: string
@@ -56,7 +57,7 @@ export default function AudioButton({
 
     let url: string
     if (useTTS || isExample) {
-      url = `http://localhost:8000/api/tts/speak?text=${encodeURIComponent(textToSpeak)}`
+      url = `${API_BASE_URL}/api/tts/speak?text=${encodeURIComponent(textToSpeak)}`
     } else if (audioSrc) {
       url = audioSrc
     } else if (word) {

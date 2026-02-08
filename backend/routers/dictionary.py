@@ -44,7 +44,7 @@ async def translate_text(request: TranslateRequest):
 
 
 @router.get("/audio/{word}")
-async def get_audio_url(word: str, accent: str = Query("us", regex="^(us|uk)$")):
+async def get_audio_url(word: str, accent: str = Query("us", pattern="^(us|uk)$")):
     """获取单词发音 URL"""
     # Youdao audio URL pattern
     if accent == "uk":

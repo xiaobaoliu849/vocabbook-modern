@@ -3,6 +3,8 @@ import WordDetailModal from '../components/WordDetailModal'
 import AudioButton from '../components/AudioButton'
 import { Trash2, CheckCircle, BookOpen, Loader2, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { useDebounce } from '../utils/performance'
+import { api, API_PATHS } from '../utils/api'
+import { useGlobalState } from '../context/GlobalStateContext'
 
 interface Word {
     id: number
@@ -35,6 +37,8 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
     const [itemsPerPage, setItemsPerPage] = useState(20)
     const [totalItems, setTotalItems] = useState(0)
 
+    const { notifyWordDeleted, notifyWordUpdated, lastUpdate } = useGlobalState()
+
     // 使用防抖的搜索关键词 (300ms 延迟)
     const debouncedKeyword = useDebounce(searchKeyword, 300)
 
@@ -49,7 +53,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             fetchWords()
             fetchTags()
         }
-    }, [debouncedKeyword, filterTag, isActive, currentPage, itemsPerPage])
+    }, [debouncedKeyword, filterTag, isActive, currentPage, itemsPerPage, lastUpdate])
 
     const fetchWords = async () => {
         setLoading(true)
@@ -59,14 +63,11 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             if (filterTag) params.append('tag', filterTag)
             params.append('page', currentPage.toString())
             params.append('page_size', itemsPerPage.toString())
-            params.append('_t', Date.now().toString()) // Prevent caching
+            params.append('_t', Date.now().toString())
 
-            const response = await fetch(`http://localhost:8000/api/words?${params}`)
-            if (response.ok) {
-                const data = await response.json()
-                setWords(data.words || [])
-                setTotalItems(data.total || 0)
-            }
+            const data = await api.get(`${API_PATHS.WORDS}?${params}`)
+            setWords(data.words || [])
+            setTotalItems(data.total || 0)
         } catch (error) {
             console.error('Failed to fetch words:', error)
         } finally {
@@ -76,11 +77,8 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
     const fetchTags = async () => {
         try {
-            const response = await fetch('http://localhost:8000/api/words/tags')
-            if (response.ok) {
-                const data = await response.json()
-                setAllTags(data.tags || [])
-            }
+            const data = await api.get(API_PATHS.WORD_TAGS)
+            setAllTags(data.tags || [])
         } catch (error) {
             console.error('Failed to fetch tags:', error)
         }
@@ -91,13 +89,10 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
         if (!confirm(`确定要删除 "${word}" 吗？`)) return
 
         try {
-            const response = await fetch(`http://localhost:8000/api/words/${encodeURIComponent(word)}`, {
-                method: 'DELETE'
-            })
-            if (response.ok) {
-                setWords(words.filter(w => w.word !== word))
-                if (selectedWord?.word === word) setSelectedWord(null)
-            }
+            await api.delete(API_PATHS.WORD(word))
+            setWords(words.filter(w => w.word !== word))
+            if (selectedWord?.word === word) setSelectedWord(null)
+            notifyWordDeleted()
         } catch (error) {
             console.error('Failed to delete word:', error)
         }
@@ -106,14 +101,11 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
     const handleMarkMastered = async (word: string, e: React.MouseEvent) => {
         e.stopPropagation()
         try {
-            const response = await fetch(`http://localhost:8000/api/words/${encodeURIComponent(word)}/master`, {
-                method: 'POST'
-            })
-            if (response.ok) {
-                setWords(words.map(w =>
-                    w.word === word ? { ...w, mastered: true } : w
-                ))
-            }
+            await api.post(API_PATHS.WORD_MASTER(word))
+            setWords(words.map(w =>
+                w.word === word ? { ...w, mastered: true } : w
+            ))
+            notifyWordUpdated()
         } catch (error) {
             console.error('Failed to mark mastered:', error)
         }
@@ -188,32 +180,33 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                 e.preventDefault()
                 const word = words[selectedIndex]
                 if (confirm(`确定要删除 "${word.word}" 吗？`)) {
-                    fetch(`http://localhost:8000/api/words/${encodeURIComponent(word.word)}`, { method: 'DELETE' })
-                        .then(response => {
-                            if (response.ok) {
-                                setWords(prev => prev.filter(w => w.word !== word.word))
-                                setSelectedIndex(prev => Math.min(prev, words.length - 2))
-                            }
+                    api.delete(API_PATHS.WORD(word.word))
+                        .then(() => {
+                            setWords(prev => prev.filter(w => w.word !== word.word))
+                            setSelectedIndex(prev => Math.min(prev, words.length - 2))
+                            notifyWordDeleted()
                         })
+                        .catch(err => console.error('Failed to delete word:', err))
                 }
             } else if ((e.key === 'm' || e.key === 'M') && selectedIndex >= 0 && selectedIndex < words.length) {
                 // Mark as mastered
                 e.preventDefault()
                 const word = words[selectedIndex]
                 if (!word.mastered) {
-                    fetch(`http://localhost:8000/api/words/${encodeURIComponent(word.word)}/master`, { method: 'POST' })
-                        .then(response => {
-                            if (response.ok) {
-                                setWords(prev => prev.map(w => w.word === word.word ? { ...w, mastered: true } : w))
-                            }
+                    api.post(API_PATHS.WORD_MASTER(word.word))
+                        .then(() => {
+                            setWords(prev => prev.map(w => w.word === word.word ? { ...w, mastered: true } : w))
+                            notifyWordUpdated()
                         })
+                        .catch(err => console.error('Failed to mark mastered:', err))
                 }
             } else if (e.key === 'p' || e.key === 'P') {
                 // Play audio for selected word
                 if (selectedIndex >= 0 && selectedIndex < words.length) {
                     e.preventDefault()
                     const word = words[selectedIndex]
-                    const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${word.word}&type=2`)
+                    const accent = (localStorage.getItem('preferred_accent') || 'us') === 'uk' ? '1' : '2'
+                    const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${word.word}&type=${accent}`)
                     audio.play().catch(err => console.warn('Audio play failed:', err))
                 }
             } else if (e.key === 'ArrowLeft') {
@@ -289,7 +282,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         <p className="text-lg">暂无单词，去添加一些吧！</p>
                     </div>
                 ) : (
-                    <div ref={listRef} className="divide-y divide-slate-200 dark:divide-slate-700">
+                    <div ref={listRef} className="divide-y divide-slate-200 dark:divide-slate-700 max-h-[70vh] overflow-y-auto">
                         {words.map((word, index) => (
                             <div
                                 key={word.id}
@@ -303,23 +296,25 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                            ${selectedIndex === index ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-inset ring-primary-500' : ''}`}
                                 style={{ animationDelay: `${index * 0.02}s` }}
                             >
-                                <div className="flex items-start justify-between">
+                                <div className="flex items-start justify-between w-full">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3">
                                             <h3 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
                                                 {word.word}
                                             </h3>
-                                            <span className="text-slate-400">{word.phonetic}</span>
+                                            {word.phonetic && <span className="text-slate-400">{word.phonetic}</span>}
                                             {getStatusBadge(word)}
-                                            {word.tags && word.tags.split(',').map(tag => tag.trim() && (
-                                                <span
-                                                    key={tag}
-                                                    className="px-2 py-0.5 text-xs rounded bg-slate-100 dark:bg-slate-700 
-                                     text-slate-600 dark:text-slate-300"
-                                                >
-                                                    {tag.trim()}
-                                                </span>
-                                            ))}
+                                            <div className="flex flex-wrap gap-1">
+                                                {word.tags && word.tags.split(',').map((tag, idx) => tag.trim() && (
+                                                    <span
+                                                        key={idx}
+                                                        className="px-2 py-0.5 text-xs rounded bg-slate-100 dark:bg-slate-700 
+                                         text-slate-600 dark:text-slate-300"
+                                                    >
+                                                        {tag.trim()}
+                                                    </span>
+                                                ))}
+                                            </div>
                                         </div>
                                         <p className="text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
                                             {word.meaning}

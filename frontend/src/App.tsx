@@ -6,13 +6,17 @@ import AddWord from './pages/AddWord'
 import WordList from './pages/WordList'
 import Review from './pages/Review'
 import Settings from './pages/Settings'
+import ImportWords from './pages/ImportWords'
+import TranslationPage from './pages/TranslationPage'
+import StatisticsPage from './pages/StatisticsPage'
 import './App.css'
 
-type Page = 'add' | 'list' | 'review' | 'settings'
+type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats'
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('add')
   const [showHelp, setShowHelp] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     const handleSearchWord = () => {
@@ -67,6 +71,18 @@ function AppContent() {
             e.preventDefault()
             setCurrentPage('settings')
             break
+          case '5':
+            e.preventDefault()
+            setCurrentPage('import')
+            break
+          case '6':
+            e.preventDefault()
+            setCurrentPage('translation')
+            break
+          case '7':
+            e.preventDefault()
+            setCurrentPage('stats')
+            break
         }
       }
     }
@@ -75,11 +91,18 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [showHelp])
 
+  // Navigate to settings with optional tab
+  const handleNavigateToSettings = (tab?: string) => {
+    setSettingsTab(tab)
+    setCurrentPage('settings')
+  }
+
   return (
     <div className="flex h-screen">
       <Sidebar
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
+        onNavigateToSettings={handleNavigateToSettings}
       />
       <main className="flex-1 overflow-auto">
         <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -87,8 +110,11 @@ function AppContent() {
           <div className={currentPage === 'add' ? '' : 'hidden'}><AddWord /></div>
           <div className={currentPage === 'list' ? '' : 'hidden'}><WordList isActive={currentPage === 'list'} /></div>
           <div className={currentPage === 'review' ? '' : 'hidden'}><Review isActive={currentPage === 'review'} /></div>
+          <div className={currentPage === 'translation' ? '' : 'hidden'}><TranslationPage /></div>
+          <div className={currentPage === 'stats' ? '' : 'hidden'}><StatisticsPage /></div>
+          <div className={currentPage === 'import' ? '' : 'hidden'}><ImportWords /></div>
           <div className={currentPage === 'settings' ? '' : 'hidden'}>
-            <Settings />
+            <Settings initialTab={settingsTab} onTabChange={(tab) => setSettingsTab(tab)} />
           </div>
         </div>
       </main>
@@ -124,6 +150,9 @@ function AppContent() {
                   <ShortcutItem keys={['Ctrl', '2']} desc="单词列表" />
                   <ShortcutItem keys={['Ctrl', '3']} desc="智能复习" />
                   <ShortcutItem keys={['Ctrl', '4']} desc="设置" />
+                  <ShortcutItem keys={['Ctrl', '5']} desc="批量导入" />
+                  <ShortcutItem keys={['Ctrl', '6']} desc="翻译助手" />
+                  <ShortcutItem keys={['Ctrl', '7']} desc="学习统计" />
                   <ShortcutItem keys={['?']} desc="显示/隐藏帮助" />
                   <ShortcutItem keys={['Esc']} desc="关闭弹窗" />
                 </div>

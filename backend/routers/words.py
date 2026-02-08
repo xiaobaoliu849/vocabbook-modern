@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from datetime import datetime
 
+from services.multi_dict_service import clean_chinese_text
+
 router = APIRouter()
 
 
@@ -33,6 +35,7 @@ class WordUpdate(BaseModel):
     tags: Optional[str] = None
     roots: Optional[str] = None
     synonyms: Optional[str] = None
+    note: Optional[str] = None
 
 
 class WordResponse(BaseModel):
@@ -55,6 +58,7 @@ class WordResponse(BaseModel):
     tags: str
     roots: str
     synonyms: str
+    note: str = ""
 
 
 class WordListResponse(BaseModel):
@@ -69,6 +73,26 @@ def get_db():
     """获取数据库实例"""
     from main import get_db as main_get_db
     return main_get_db()
+
+
+def _clean_word_data(word_data: dict) -> dict:
+    """Clean Chinese text in word data."""
+    if not word_data:
+        return word_data
+    
+    # Clean meaning
+    if 'meaning' in word_data and word_data['meaning']:
+        word_data['meaning'] = clean_chinese_text(word_data['meaning'])
+        
+    # Clean example
+    if 'example' in word_data and word_data['example']:
+        word_data['example'] = clean_chinese_text(word_data['example'])
+
+    # Clean context_cn if exists
+    if 'context_cn' in word_data and word_data['context_cn']:
+        word_data['context_cn'] = clean_chinese_text(word_data['context_cn'])
+        
+    return word_data
 
 
 @router.get("", response_model=WordListResponse)
@@ -98,7 +122,7 @@ async def get_words(
     )
     
     return WordListResponse(
-        words=[WordResponse(**w) for w in words],
+        words=[WordResponse(**_clean_word_data(w)) for w in words],
         total=total,
         page=page,
         page_size=page_size
@@ -110,7 +134,7 @@ async def get_all_words():
     """获取所有单词（不分页）"""
     db = get_db()
     words = db.get_all_words()
-    return {"words": words, "total": len(words)}
+    return {"words": [_clean_word_data(w) for w in words], "total": len(words)}
 
 
 @router.get("/tags")
@@ -128,7 +152,7 @@ async def get_word(word: str):
     word_data = db.get_word(word)
     if not word_data:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
-    return word_data
+    return _clean_word_data(word_data)
 
 
 @router.post("", status_code=201)

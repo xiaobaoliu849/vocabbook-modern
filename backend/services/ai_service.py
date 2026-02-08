@@ -5,7 +5,7 @@ AI 增强功能服务
 """
 import os
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import httpx
 
 
@@ -21,17 +21,36 @@ class AIService:
             api_key: API Key (optional)
             model: Model Name (optional)
         """
-        self.provider = provider or os.environ.get("AI_PROVIDER", "openai")
-        self.api_key = api_key or os.environ.get("AI_API_KEY", "")
+        # Default provider is openai if not specified, but check env vars
+        env_provider = os.environ.get("AI_PROVIDER", "openai")
+        self.provider = provider or env_provider
+
+        # Prioritize passed api_key, then check provider-specific env vars, then generic AI_API_KEY
+        if api_key:
+            self.api_key = api_key
+        elif self.provider == "openai":
+            self.api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("AI_API_KEY", "")
+        elif self.provider == "anthropic":
+            self.api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("AI_API_KEY", "")
+        elif self.provider == "gemini":
+            self.api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("AI_API_KEY", "")
+        elif self.provider == "dashscope":
+            self.api_key = os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("AI_API_KEY", "")
+        else:
+            self.api_key = os.environ.get("AI_API_KEY", "")
+            
         self.api_base = os.environ.get("AI_API_BASE", "")
         self.model = model or os.environ.get("AI_MODEL", "gpt-4o-mini")
         
     def _get_client_config(self) -> Dict:
         """获取 HTTP 客户端配置"""
         if self.provider == "openai":
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
             return {
                 "base_url": self.api_base or "https://api.openai.com/v1",
-                "headers": {"Authorization": f"Bearer {self.api_key}"}
+                "headers": headers
             }
         elif self.provider == "anthropic":
             return {
@@ -52,14 +71,21 @@ class AIService:
                 "headers": {}
             }
         elif self.provider == "dashscope":
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
             return {
                 "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                "headers": {"Authorization": f"Bearer {self.api_key}"}
+                "headers": headers
             }
-        else:  # custom
+        else:  # custom, or any other provider using OpenAI protocol (like qwen/deepseek via OpenAI client)
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
             return {
-                "base_url": self.api_base,
-                "headers": {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
+                # If api_base is not set, default to openai to prevent errors, but user should set it for custom providers
+                "base_url": self.api_base or "https://api.openai.com/v1", 
+                "headers": headers
             }
     
     async def _call_llm(self, messages: List[Dict], temperature: float = 0.7) -> str:
@@ -68,17 +94,25 @@ class AIService:
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             if self.provider in ["openai", "custom", "dashscope"]:
-                response = await client.post(
-                    f"{config['base_url']}/chat/completions",
-                    headers=config['headers'],
-                    json={
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": temperature
-                    }
-                )
-                data = response.json()
-                return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                try:
+                    response = await client.post(
+                        f"{config['base_url']}/chat/completions",
+                        headers=config['headers'],
+                        json={
+                            "model": self.model,
+                            "messages": messages,
+                            "temperature": temperature
+                        }
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                except Exception as e:
+                    print(f"LLM API Error: {e}")
+                    if 'response' in locals():
+                        print(f"Response status: {response.status_code}")
+                        print(f"Response content: {response.text}")
+                    return ""
                 
             elif self.provider == "anthropic":
                 response = await client.post(
@@ -255,3 +289,37 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             "feedback": "发音基本正确，注意重音位置。",
             "phonetic_issues": []
         }
+
+    async def translate(self, text: str, source_lang: str, target_lang: str) -> Tuple[str, str]:
+        """
+        AI 翻译
+        
+        Args:
+            text: 源文本
+            source_lang: 源语言
+            target_lang: 目标语言
+            
+        Returns:
+            翻译结果
+        """
+        prompt = f"""请将以下文本从{source_lang}翻译成{target_lang}。
+        
+        文本：
+        {text}
+        
+        要求：
+        1. 翻译准确、流畅
+        2. 只输出翻译后的文本，不要包含任何解释或额外内容
+        """
+        
+        try:
+            content = await self._call_llm([
+                {"role": "system", "content": "你是一位专业的翻译助手。"},
+                {"role": "user", "content": prompt}
+            ])
+            
+            return content.strip(), ""
+            
+        except Exception as e:
+            print(f"Translate error: {e}")
+            return "翻译失败，请稍后重试。", ""

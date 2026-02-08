@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 # Add parent dir to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from routers import words, review, dictionary, stats, ai, tts
+from routers import words, review, dictionary, stats, ai, tts, import_words
 from models.database import DatabaseManager
 
 # Global database instance
@@ -57,6 +57,7 @@ app.include_router(dictionary.router, prefix="/api/dict", tags=["Dictionary"])
 app.include_router(stats.router, prefix="/api/stats", tags=["Statistics"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 app.include_router(tts.router, prefix="/api/tts", tags=["TTS"])
+app.include_router(import_words.router, prefix="/api/import", tags=["Import"])
 
 
 @app.get("/")

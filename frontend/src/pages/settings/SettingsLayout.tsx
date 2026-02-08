@@ -1,15 +1,33 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import SettingsSidebar from './SettingsSidebar'
-import StatisticsSection from './sections/StatisticsSection'
+import AccountSection from './sections/AccountSection'
 import GeneralSection from './sections/GeneralSection'
 import DictionarySection from './sections/DictionarySection'
 import AISection from './sections/AISection'
 import AboutSection from './sections/AboutSection'
 
-type TabId = 'stats' | 'general' | 'dict' | 'ai' | 'about';
+type TabId = 'account' | 'general' | 'dict' | 'ai' | 'about';
 
-export default function SettingsLayout() {
-    const [activeTab, setActiveTab] = useState<TabId>('stats')
+interface SettingsLayoutProps {
+    initialTab?: string
+    onTabChange?: (tab: string) => void
+}
+
+export default function SettingsLayout({ initialTab, onTabChange }: SettingsLayoutProps) {
+    const [activeTab, setActiveTab] = useState<TabId>('account')
+
+    // Handle initial tab navigation from Header
+    useEffect(() => {
+        if (initialTab && ['account', 'general', 'dict', 'ai', 'about'].includes(initialTab)) {
+            setActiveTab(initialTab as TabId)
+        }
+    }, [initialTab])
+
+    // Notify parent of tab changes
+    const handleTabChange = (tab: TabId) => {
+        setActiveTab(tab)
+        onTabChange?.(tab)
+    }
 
     return (
         // 使用负边距抵消父级 padding，并使用 calc 计算精确高度以占满视口
@@ -25,13 +43,13 @@ export default function SettingsLayout() {
                         Preferences
                     </p>
                 </div>
-                <SettingsSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+                <SettingsSidebar activeTab={activeTab} setActiveTab={handleTabChange} />
             </div>
 
             {/* Content Area - 独立滚动 */}
             <div className="flex-1 min-w-0 overflow-y-auto pr-2">
                 <div className="animate-fade-in">
-                    {activeTab === 'stats' && <StatisticsSection />}
+                    {activeTab === 'account' && <AccountSection />}
                     {activeTab === 'general' && <GeneralSection />}
                     {activeTab === 'dict' && <DictionarySection />}
                     {activeTab === 'ai' && <AISection />}

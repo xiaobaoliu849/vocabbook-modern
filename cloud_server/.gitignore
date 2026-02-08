@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+.DS_Store
+venv/
+apiclient_key.pem
+cloud_app.db

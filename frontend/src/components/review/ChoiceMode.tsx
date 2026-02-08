@@ -130,9 +130,7 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
             )}
 
             {/* Hint */}
-            {!showResult && (
-                <p className="mt-8 text-slate-400 text-sm">按 1-4 或点击选择正确释义</p>
-            )}
+
         </div>
     )
 }

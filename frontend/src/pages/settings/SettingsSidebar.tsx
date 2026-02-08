@@ -1,5 +1,6 @@
 
-type TabId = 'stats' | 'general' | 'dict' | 'ai' | 'about';
+
+type TabId = 'account' | 'general' | 'dict' | 'ai' | 'about';
 
 interface SettingsSidebarProps {
     activeTab: TabId;
@@ -8,7 +9,7 @@ interface SettingsSidebarProps {
 
 export default function SettingsSidebar({ activeTab, setActiveTab }: SettingsSidebarProps) {
     const tabs: { id: TabId; label: string; icon: string }[] = [
-        { id: 'stats', label: '学习统计', icon: '📊' },
+        { id: 'account', label: '账户', icon: '👤' },
         { id: 'general', label: '常规设置', icon: '⚙️' },
         { id: 'dict', label: '词典源', icon: '📚' },
         { id: 'ai', label: 'AI 助手', icon: '🤖' },

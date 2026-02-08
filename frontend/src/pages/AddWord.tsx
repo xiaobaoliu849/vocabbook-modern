@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import AudioButton from '../components/AudioButton'
 import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2 } from 'lucide-react'
-import { splitExamples, extractEnglish } from '../utils/textUtils'
+import { api, ApiError, API_PATHS } from '../utils/api'
+import { useGlobalState } from '../context/GlobalStateContext'
 
 export default function AddWord() {
     const [searchWord, setSearchWord] = useState('')
@@ -10,6 +11,8 @@ export default function AddWord() {
     const [aiSentences, setAiSentences] = useState<string[]>([])
     const [isGeneratingAI, setIsGeneratingAI] = useState(false)
     const [activeTab, setActiveTab] = useState('youdao')
+    
+    const { notifyWordAdded } = useGlobalState()
 
     // Auto features state
     const [autoSave, setAutoSave] = useState(() => localStorage.getItem('auto_save') === 'true')
@@ -27,35 +30,24 @@ export default function AddWord() {
         // 合并额外例句 (AI 生成的)
         if (extraSentences.length > 0) {
             const aiContent = "\n\n" + extraSentences.join("\n\n");
-            // 避免重复追加
             if (!data.example.includes(extraSentences[0])) {
                 data.example = (data.example || "") + aiContent;
             }
         }
 
         try {
-            const response = await fetch('http://localhost:8000/api/words', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            })
-
-            if (response.ok) {
-                if (!silent) alert('✅ 单词添加成功！')
-                return 'success'
-            } else if (response.status === 409) {
-                // 如果已存在且是 AI 生成触发的静默保存，则尝试更新
+            await api.post(API_PATHS.WORDS, data)
+            if (!silent) alert('✅ 单词添加成功！')
+            notifyWordAdded()
+            return 'success'
+        } catch (error) {
+            if (error instanceof ApiError && error.status === 409) {
                 if (extraSentences.length > 0) {
-                    await fetch(`http://localhost:8000/api/words/${encodeURIComponent(data.word)}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ example: data.example })
-                    });
+                    await api.put(API_PATHS.WORD(data.word), { example: data.example })
                 }
                 if (!silent) alert('⚠️ 该单词已存在')
                 return 'exist'
             }
-        } catch (error) {
             if (!silent) alert('❌ 添加失败')
             return 'error'
         }
@@ -68,7 +60,6 @@ export default function AddWord() {
         setSearchResult(null)
         setAiSentences([])
 
-        // Get enabled dicts from localStorage (Default to enabled if not set)
         const enabledDicts = ['youdao'];
         ['cambridge', 'bing', 'freedict'].forEach(id => {
             if (localStorage.getItem(`dict_${id}`) !== 'false') {
@@ -78,29 +69,25 @@ export default function AddWord() {
 
         try {
             const sourcesParam = enabledDicts.join(',');
-            const response = await fetch(`http://localhost:8000/api/dict/search/${encodeURIComponent(wordToSearch)}?sources=${sourcesParam}`)
-            if (response.ok) {
-                const data = await response.json()
-                setSearchResult(data)
-                setActiveTab('youdao')
+            const data = await api.get(API_PATHS.DICT_SEARCH(wordToSearch, sourcesParam))
+            setSearchResult(data)
+            setActiveTab('youdao')
 
-                // Auto Play
-                if (autoPlay) {
-                    let audioSrc = `https://dict.youdao.com/dictvoice?audio=${data.word}&type=2`;
-                    const audio = new Audio(audioSrc)
-                    audio.play().catch(e => console.error("Auto-play blocked:", e))
-                }
+            if (autoPlay) {
+                const audioSrc = `https://dict.youdao.com/dictvoice?audio=${data.word}&type=2`;
+                const audio = new Audio(audioSrc)
+                audio.play().catch(e => console.error("Auto-play blocked:", e))
+            }
 
-                // Auto Save
-                if (autoSave) {
-                    saveWord(data, true)
-                }
-
-            } else {
-                setSearchResult({ error: '未找到该单词' })
+            if (autoSave) {
+                saveWord(data, true)
             }
         } catch (error) {
-            setSearchResult({ error: '查询失败，请检查后端服务' })
+            if (error instanceof ApiError && error.status === 404) {
+                setSearchResult({ error: '未找到该单词' })
+            } else {
+                setSearchResult({ error: '查询失败，请检查后端服务' })
+            }
         } finally {
             setIsSearching(false)
         }
@@ -176,27 +163,21 @@ export default function AddWord() {
             const aiApiKey = localStorage.getItem('ai_api_key') || ''
             const aiModel = localStorage.getItem('ai_model') || 'qwen-plus'
 
-            const response = await fetch('http://localhost:8000/api/ai/generate-sentences', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+            const data = await api.post(API_PATHS.AI_GENERATE_SENTENCES, 
+                { word: searchWord, count: 3 },
+                {
+                    headers: {
                     'X-AI-Provider': aiProvider,
                     'X-AI-Key': aiApiKey,
                     'X-AI-Model': aiModel
-                },
-                body: JSON.stringify({ word: searchWord, count: 3 })
-            })
-
-            if (response.ok) {
-                const data = await response.json()
-                const newSentences = data.sentences || []
-                setAiSentences(newSentences)
-
-                // 重点：自动同步到数据库
-                if (searchResult && !searchResult.error && newSentences.length > 0) {
-                    // 静默调用 saveWord，利用其内部的 update 逻辑
-                    saveWord(searchResult, true, newSentences);
+                    }
                 }
+            )
+            const newSentences = data.sentences || []
+            setAiSentences(newSentences)
+
+            if (searchResult && !searchResult.error && newSentences.length > 0) {
+                saveWord(searchResult, true, newSentences);
             }
         } catch (error) {
             console.error('AI generation failed:', error)

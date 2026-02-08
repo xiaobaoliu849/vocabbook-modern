@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useTheme } from '../context/ThemeContext'
+import { api, API_PATHS } from '../utils/api'
 
 interface HeatmapData {
     [date: string]: number
@@ -20,12 +21,8 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
 
     const fetchHeatmapData = async () => {
         try {
-            // Add cache: 'no-store' to prevent browser caching of stats
-            const response = await fetch('http://localhost:8000/api/stats/heatmap', { cache: 'no-store' })
-            if (response.ok) {
-                const result = await response.json()
-                setData(result.heatmap || {})
-            }
+            const result = await api.get(API_PATHS.STATS_HEATMAP)
+            setData(result.heatmap || {})
         } catch (error) {
             console.error('Failed to fetch heatmap data:', error)
         } finally {
