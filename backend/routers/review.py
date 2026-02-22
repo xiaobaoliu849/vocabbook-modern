@@ -146,6 +146,34 @@ async def submit_review(review: ReviewSubmit):
         next_time=next_time,
         rating=review.quality
     )
+
+    # Store learning record to EverMemOS (fire-and-forget)
+    try:
+        from services.evermem_config import get_service
+        evermem = get_service()
+        if evermem:
+            import asyncio
+            meaning = word_data.get('meaning', '')
+            # Build structured learning record
+            quality_labels = {
+                0: "完全不认识", 1: "勉强见过", 2: "有印象但想不起来",
+                3: "有些犹豫但答对了", 4: "比较熟悉", 5: "完全掌握"
+            }
+            label = quality_labels.get(review.quality, f"评分{review.quality}")
+            record = (
+                f"复习单词 '{review.word}' ({meaning}). "
+                f"评分: {review.quality}/5 ({label}). "
+                f"下次复习间隔: {interval}天."
+            )
+            asyncio.create_task(
+                evermem.add_memory(
+                    content=record,
+                    sender="tutor_vocab",
+                    sender_name="VocabBook Tutor"
+                )
+            )
+    except Exception as e:
+        print(f"[EverMem] Failed to store review record: {e}")
     
     return {
         "message": "Review submitted",

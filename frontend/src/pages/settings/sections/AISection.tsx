@@ -62,7 +62,7 @@ export default function AISection() {
 
         setApiKeys(keysMap)
         setAiModels(modelsMap)
-        
+
         setAiApiKey(keysMap[provider] || '')
         setAiModel(modelsMap[provider] || getDefaultModel(provider))
 
@@ -115,7 +115,7 @@ export default function AISection() {
         setAiProvider(provider)
         // Switch to the key for this provider
         setAiApiKey(apiKeys[provider] || '')
-        
+
         // Switch to model for this provider or default
         const savedModel = aiModels[provider]
         setAiModel(savedModel || getDefaultModel(provider))
@@ -161,20 +161,20 @@ export default function AISection() {
                             API Key
                         </label>
                         <div className="relative">
-                        <input
-                            type={showApiKey ? "text" : "password"}
-                            value={aiApiKey}
-                            onChange={(e) => {
-                                setAiApiKey(e.target.value)
-                                // Update the map immediately in state so switching back preserves it before saving? 
-                                // Actually better to keep local state separate until save, 
-                                // but user expects switching providers to work. 
-                                // Let's update the map in state as they type to prevent loss on switch without save
-                                setApiKeys(prev => ({ ...prev, [aiProvider]: e.target.value }))
-                            }}
-                            placeholder="输入你的 API Key..."
-                            className="input-field w-full pr-10"
-                        />
+                            <input
+                                type={showApiKey ? "text" : "password"}
+                                value={aiApiKey}
+                                onChange={(e) => {
+                                    setAiApiKey(e.target.value)
+                                    // Update the map immediately in state so switching back preserves it before saving? 
+                                    // Actually better to keep local state separate until save, 
+                                    // but user expects switching providers to work. 
+                                    // Let's update the map in state as they type to prevent loss on switch without save
+                                    setApiKeys(prev => ({ ...prev, [aiProvider]: e.target.value }))
+                                }}
+                                placeholder="输入你的 API Key..."
+                                className="input-field w-full pr-10"
+                            />
                             <button
                                 type="button"
                                 onClick={() => setShowApiKey(!showApiKey)}
@@ -207,7 +207,7 @@ export default function AISection() {
                     )}
                     {/* Ensure Gemini and Anthropic etc can also set model */}
                     {(aiProvider === 'anthropic' || aiProvider === 'gemini' || aiProvider === 'ollama') && (
-                         <div className="animate-fade-in">
+                        <div className="animate-fade-in">
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                                 模型名称 (Model Name)
                             </label>
@@ -262,9 +262,12 @@ export default function AISection() {
                                     type="text"
                                     value={evermemUrl}
                                     onChange={(e) => setEvermemUrl(e.target.value)}
-                                    placeholder="http://localhost:1995"
+                                    placeholder="https://api.evermind.ai"
                                     className="input-field w-full"
                                 />
+                                <p className="text-xs text-slate-400 mt-1">
+                                    云端用 https://api.evermind.ai，自部署用 http://localhost:1995
+                                </p>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -288,7 +291,7 @@ export default function AISection() {
                                 </div>
                             </div>
                             <p className="text-xs text-slate-500">
-                                需要部署 EverMemOS 服务。查看 <a href="https://github.com/EverMind-AI/EverMemOS" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">项目主页</a> 获取更多信息。
+                                在 <a href="https://console.evermind.ai" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">EverMemOS Cloud</a> 注册获取 API Key，或 <a href="https://github.com/EverMind-AI/EverMemOS" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">自行部署</a>。
                             </p>
                         </div>
                     )}

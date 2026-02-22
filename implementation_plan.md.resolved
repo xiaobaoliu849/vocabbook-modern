@@ -1,0 +1,54 @@
+# ChatGPT-like Multi-Session Chat UI
+
+Transform the single-session [AIChat.tsx](file:///d:/Projects/vocabbook-modern/frontend/src/pages/AIChat.tsx) into a multi-session chat with a sidebar for managing conversations, similar to ChatGPT's interface.
+
+## Proposed Changes
+
+### Frontend - AIChat Component
+
+#### [MODIFY] [AIChat.tsx](file:///d:/Projects/vocabbook-modern/frontend/src/pages/AIChat.tsx)
+
+**Complete rewrite** with the following architecture:
+
+1. **Session data model** — all sessions stored in `localStorage` as `chat_sessions`:
+   ```ts
+   interface ChatSession {
+     id: string
+     title: string        // auto-generated from first message
+     messages: Message[]
+     createdAt: number
+     updatedAt: number
+   }
+   ```
+
+2. **Layout** — two-panel design inside the existing page container:
+   - **Left sidebar** (~260px): session list, new chat button, session actions (rename, delete)
+   - **Right chat area**: messages + input (existing chat UI, refined)
+
+3. **Key features**:
+   - **New Chat** button (top of sidebar) with `+` icon
+   - **Session list** sorted by `updatedAt` descending
+   - **Auto-title**: first user message becomes the session title (truncated to ~30 chars)
+   - **Active session highlight** with primary color accent
+   - **Edit title** inline on double-click
+   - **Delete session** with confirmation
+   - **Empty state** when no sessions exist
+   - **Collapsible sidebar** via toggle button (mobile-friendly)
+   - All existing features preserved: EverMem memory indicators, provider/model display, API headers
+
+4. **Styling**: Uses existing Tailwind + glassmorphism utilities from [index.css](file:///d:/Projects/vocabbook-modern/frontend/src/index.css). No new CSS file needed.
+
+5. **State management**: All local via `useState` + `localStorage`. No backend changes needed since sessions are purely a frontend concept.
+
+## Verification Plan
+
+### Manual Verification
+1. Start the dev server (`cd frontend && npm run dev`)
+2. Navigate to "AI 语伴" page
+3. Verify sidebar appears with "New Chat" button
+4. Create a new chat → verify it appears in sidebar
+5. Send a message → verify title auto-generates
+6. Create a second session → switch between them
+7. Double-click to rename a session
+8. Delete a session
+9. Refresh the page → verify sessions persist from localStorage

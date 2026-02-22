@@ -1,0 +1,106 @@
+Data Flow
+dict_service.py
+multi_dict_service.py
+API Responseprimary + sources_data{}
+AddWord - 4 tab view
+QuickLookup - merged only
+SQLite DB
+WordDetailModal - saved data
+Context	Component	Current Display	Issues
+Main Page	
+AddWord.tsx
+Word header + tags + roots/synonyms + 4-dict tabs (meaning+example each) + AI sentences	Tab content only shows meaning+example, no phonetic per-source; tab labels are plain text
+Quick Lookup	
+QuickLookupPopup.tsx
+Word + phonetic + tags + meaning + example (merged)	No multi-dict awareness; limited info density; no roots/synonyms
+Word Detail	
+WordDetailModal.tsx
+Word + tags + phonetic + roots/synonyms + meaning + examples + notes + review stats	Already the richest view; could improve example card styling and add word family display
+Proposed Changes
+1. QuickLookupPopup (快速查词弹窗)
+[MODIFY] 
+QuickLookupPopup.tsx
+Goal: Make the popup more information-dense while staying compact.
+
+Changes:
+
+Add roots/synonyms in a compact inline format below the meaning (single-line pills, not full cards)
+Add word family tags (e.g., CET4/GRE) — already present ✅
+Improve example display: Show up to 2 examples with better formatting (distinguish EN/CN lines)
+Add mini dict-source indicator: Show which dictionaries contributed (e.g., small icons: 有/剑/Bing) so user knows the data is aggregated
+Compact layout polish: Tighter spacing, better use of the 400×300px area
+diff
+// Word lookup result section
++// After meaning block, add compact roots/synonyms
++{wordData.roots && (
++  <p className="text-xs text-orange-600">🌱 {wordData.roots}</p>
++)}
++{wordData.synonyms && (
++  <p className="text-xs text-indigo-600">🔄 {wordData.synonyms}</p>
++)}
++// Sources indicator in footer
++<div className="flex gap-1">
++  {Object.keys(wordData.sources_data || {}).map(s => (
++    <span className="text-[10px] px-1 rounded bg-slate-100">{label}</span>
++  ))}
++</div>
+2. AddWord Main Page (词汇中心)
+[MODIFY] 
+AddWord.tsx
+Goal: Elevate the multi-dict tab experience to feel more like a professional dictionary app.
+
+Changes:
+
+Redesign tab bar: Replace flat buttons with a pill/segment control style with subtle dict logos/icons
+Per-tab phonetic: Show the tab-specific phonetic (Cambridge IPA is often different from Youdao), already partially implemented but can be more prominent
+Per-tab audio: Each tab's audio button plays that source's pronunciation (Cambridge UK audio vs Youdao US audio)
+Structured meaning display: Parse and display meanings with part-of-speech labels (n. / v. / adj.) as distinct visual blocks instead of raw text dump
+Example cards: Each example gets its own card with EN/CN separated, with per-example TTS button (already has TTS but styling can improve)
+Sticky word header: As user scrolls through tab content, keep the word + phonetic + action buttons visible
+diff
+// Tab bar redesign
+-className={`px-4 py-2 rounded-lg text-sm font-medium...`}
++className={`px-4 py-2 rounded-full text-sm font-medium border...`}
++// Add dict icon/emoji before label
++<span>{icon}</span> {label}
+3. WordDetailModal (单词详情)
+[MODIFY] 
+WordDetailModal.tsx
+Goal: Polish the existing richest view into a truly premium dictionary card.
+
+Changes:
+
+Example cards redesign: Each example as a distinct card with numbered badge, clear EN/CN separation, and TTS button (already mostly done, polish styling)
+Word family section: Display word_families data if available (currently parsed by backend but not rendered)
+Review progress visualization: Replace plain text "复习次数: N" with a small progress indicator or mini chart
+Note section: Add character count indicator and Markdown preview hint
+Mastered badge: If word.mastered, show a prominent badge/ribbon
+Design System Consistency
+All three contexts should share:
+
+Same color coding: Roots = orange, Synonyms = indigo, Examples = emerald, Tags = primary, AI = accent
+Same card border radius: rounded-xl throughout
+Same phonetic font: font-serif for IPA
+Same audio button component: Reuse AudioButton everywhere (QuickLookup currently uses raw <Audio>)
+Information Density Hierarchy
+QuickLookup (compact)     AddWord (full)           WordDetail (saved)
+─────────────────────     ─────────────────────    ─────────────────────
+Word + Phonetic 🔊        Word + Phonetic 🔊       Word + Phonetic 🔊
+Tags (CET4, GRE...)       Tags                     Tags
+Meaning (merged)           Tab: Meaning per-dict    Meaning (saved)
+Example (1-2, compact)     Tab: Examples per-dict   Examples (all, saved)
+Roots (1-line)             Roots + Synonyms (cards) Roots + Synonyms
+Synonyms (1-line)          AI Sentences ✨           Word Families
+Sources indicator          ───                      Notes ✏️
+[Save status] [→详情]      [Add to vocab] btn       Review stats
+Verification Plan
+Browser Testing
+Start dev server (dev.bat)
+Search a word on AddWord page → verify tabs, layout, phonetic per-tab
+Right-click lookup a word → verify popup shows roots, sources, compact layout
+Click a word in WordList → verify detail modal with enhanced sections
+Edge Cases
+Word with no roots/synonyms (should hide sections gracefully)
+Word with only 1 dictionary result (tabs should still work or hide)
+Very long meanings (scrollable area)
+Dark mode rendering for all three contexts

@@ -106,6 +106,11 @@ async def chat(
     # Check if evermem is enabled (header comes as string "true"/"false")
     evermem_enabled = str(x_evermem_enabled).lower() == "true"
 
+    # Persist evermem config so other routers (e.g. review) can access it
+    if evermem_enabled and x_evermem_key:
+        from services.evermem_config import save_config
+        save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
+
     ai = AIService(
         provider=x_ai_provider,
         api_key=x_ai_key,
@@ -115,16 +120,56 @@ async def chat(
         evermem_key=x_evermem_key
     )
     try:
-        response = await ai.chat(
+        result = await ai.chat(
             messages=[{"role": m.role, "content": m.content} for m in request.messages],
             context_word=request.context_word
         )
         return {
-            "response": response,
-            "context_word": request.context_word
+            "response": result["text"],
+            "context_word": request.context_word,
+            "memories_retrieved": result.get("memories_retrieved", 0),
+            "memory_saved": result.get("memory_saved", False)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI chat failed: {str(e)}")
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    request: ChatRequest,
+    x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
+    x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key")
+):
+    """AI 对话练习 (流式)"""
+    from services.ai_service import AIService
+    from fastapi.responses import StreamingResponse
+    
+    evermem_enabled = str(x_evermem_enabled).lower() == "true"
+
+    if evermem_enabled and x_evermem_key:
+        from services.evermem_config import save_config
+        save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
+
+    ai = AIService(
+        provider=x_ai_provider,
+        api_key=x_ai_key,
+        model=x_ai_model,
+        evermem_enabled=evermem_enabled,
+        evermem_url=x_evermem_url,
+        evermem_key=x_evermem_key
+    )
+    try:
+        messages = [{"role": m.role, "content": m.content} for m in request.messages]
+        return StreamingResponse(
+            ai.chat_stream(messages=messages, context_word=request.context_word),
+            media_type="text/event-stream"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI chat stream failed: {str(e)}")
 
 
 @router.post("/evaluate-pronunciation")

@@ -50,8 +50,8 @@ class AIService:
         # EverMemOS setup
         self.evermem_enabled = evermem_enabled
         self.evermem_service = None
-        if self.evermem_enabled and evermem_url:
-            self.evermem_service = EverMemService(api_url=evermem_url, api_key=evermem_key)
+        if self.evermem_enabled and evermem_key:
+            self.evermem_service = EverMemService(api_url=evermem_url or "https://api.evermind.ai", api_key=evermem_key)
 
     def _get_client_config(self) -> Dict:
         """获取 HTTP 客户端配置"""
@@ -153,6 +153,46 @@ class AIService:
                 return data.get("message", {}).get("content", "")
                 
         return ""
+
+    async def _call_llm_stream(self, messages: List[Dict], temperature: float = 0.7):
+        """流式调用 LLM API"""
+        config = self._get_client_config()
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if self.provider in ["openai", "custom", "dashscope"]:
+                try:
+                    async with client.stream(
+                        "POST",
+                        f"{config['base_url']}/chat/completions",
+                        headers=config['headers'],
+                        json={
+                            "model": self.model,
+                            "messages": messages,
+                            "temperature": temperature,
+                            "stream": True # Enable streaming
+                        }
+                    ) as response:
+                        response.raise_for_status()
+                        async for line in response.aiter_lines():
+                            if line.startswith("data: "):
+                                data_str = line[6:]
+                                if data_str == "[DONE]":
+                                    break
+                                import json
+                                try:
+                                    data = json.loads(data_str)
+                                    chunk = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                    if chunk:
+                                        yield chunk
+                                except json.JSONDecodeError:
+                                    continue
+                except Exception as e:
+                    print(f"LLM Stream API Error: {e}")
+                    yield ""
+            
+            # Streaming for anthropic/ollama is not fully implemented here as dashscope/openai are primary
+            else:
+                yield await self._call_llm(messages, temperature)
     
     async def generate_sentences(self, word: str, count: int = 3, difficulty: str = "intermediate") -> List[str]:
         """
@@ -254,56 +294,194 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         except Exception as e:
             print(f"Generate memory tips error: {e}")
             return {}
-    
-    async def chat(self, messages: List[Dict], context_word: str = "") -> str:
+            
+    # Lightweight skip-list for trivial messages that don't need memory retrieval
+    _SKIP_PATTERNS = {
+        # Greetings
+        "你好", "hello", "hi", "hey", "嗨", "哈喽", "早上好", "晚上好", "下午好",
+        # Acknowledgments
+        "好的", "ok", "okay", "嗯", "嗯嗯", "好", "行", "可以", "明白", "了解",
+        "谢谢", "thanks", "thank you", "thx", "感谢", "多谢",
+        # Reactions
+        "哈哈", "哈哈哈", "lol", "😂", "👍", "666", "厉害", "不错",
+        "太棒了", "棒", "nice", "great", "cool", "wow",
+        # Farewells
+        "再见", "拜拜", "bye", "晚安", "good night",
+    }
+
+    def _should_skip_memory(self, user_msg: str) -> bool:
         """
-        AI 对话练习
+        Lightweight local check to skip memory retrieval for trivial messages.
+        Zero LLM cost. Returns True if retrieval should be skipped.
+        """
+        msg = user_msg.strip().lower().rstrip("!！~.。？?")
+        # Very short messages are almost always trivial
+        if len(msg) <= 2:
+            return True
+        # Check against known trivial patterns
+        if msg in self._SKIP_PATTERNS:
+            return True
+        return False
+
+    async def chat(self, messages: List[Dict], context_word: str = "") -> Dict:
+        """
+        AI 对话练习 (optimized with EverMemOS official pattern)
+        
+        Flow: Store user msg → Retrieve context → Generate response → Store assistant msg
         
         Args:
             messages: 对话历史
             context_word: 当前学习的单词（可选）
         
         Returns:
-            AI 回复
+            Dict with 'response', 'memories_retrieved', 'memory_saved'
         """
+        import asyncio as _asyncio
+
         system_prompt = "你是一位友好的英语口语老师，帮助学生练习英语对话。用简单易懂的英语回复，并在适当时候纠正语法错误。"
         
-        # Inject Memories from EverMemOS
+        memories_retrieved = 0
+        memory_saved = False
+        last_user_msg = None
+        
+        # EverMemOS integration (official pattern: store → retrieve → generate → store)
         if self.evermem_service:
+            system_prompt += "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。记忆中可能包含用户的单词复习记录（含评分和薄弱点），请自然地利用这些信息来个性化教学，比如针对用户薄弱的单词多做练习。不要主动提及你在使用记忆系统，除非用户明确询问。"
             last_user_msg = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+            
             if last_user_msg:
-                try:
-                    memories = await self.evermem_service.search_memories(query=last_user_msg)
-                    if memories:
-                        memory_context = "\n".join([f"- {m.get('content', '')}" for m in memories])
-                        system_prompt += f"\n\n【相关记忆】\n这是一个拥有长期记忆的系统。以下是关于用户的相关记忆，请参考这些信息进行个性化回复：\n{memory_context}"
-                        print(f"Injected {len(memories)} memories into context.")
-                except Exception as e:
-                    print(f"Failed to retrieve memories: {e}")
+                # Step 1: Store user message (fire-and-forget)
+                _asyncio.create_task(
+                    self.evermem_service.add_memory(
+                        content=last_user_msg,
+                        sender_name="User"
+                    )
+                )
+                memory_saved = True
+
+                # Step 2: Retrieve context (skip only for trivial messages)
+                if not self._should_skip_memory(last_user_msg):
+                    try:
+                        memories = await self.evermem_service.search_memories(
+                            query=last_user_msg, min_score=0.3
+                        )
+                        if memories:
+                            memories_retrieved = len(memories)
+                            memory_context = "\n".join([m.get('content', '') for m in memories])
+                            system_prompt += f"\n\n【相关记忆】\n{memory_context}"
+                            print(f"[EverMem] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
+                    except Exception as e:
+                        print(f"[EverMem] Failed to retrieve memories: {e}")
+                else:
+                    print(f"[EverMem] Skipped retrieval for trivial message: '{last_user_msg}'")
 
         if context_word:
             system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
         
         try:
+            # Step 3: Generate response
             response = await self._call_llm([
                 {"role": "system", "content": system_prompt},
                 *messages
             ])
 
-            # Save memory asynchronously (fire and forget pattern for now, or just await it if speed isn't critical)
-            if self.evermem_service and last_user_msg:
-                try:
-                    # Save user message
-                    await self.evermem_service.add_memory(content=last_user_msg)
-                    # Optionally save AI response too? For now just user input as "what user said/prefers" is most valuable.
-                except Exception as e:
-                    print(f"Failed to save memory: {e}")
+            # Step 4: Store assistant response (fire-and-forget)
+            if self.evermem_service and response:
+                _asyncio.create_task(
+                    self.evermem_service.add_memory(
+                        content=response,
+                        sender="assistant_001",
+                        sender_name="Assistant"
+                    )
+                )
 
-            return response
+            return {
+                "text": response,
+                "memories_retrieved": memories_retrieved,
+                "memory_saved": memory_saved
+            }
 
         except Exception as e:
             print(f"Chat error: {e}")
-            return "Sorry, I encountered an error. Please try again."
+            return {
+                "text": "Sorry, I encountered an error. Please try again.",
+                "memories_retrieved": 0,
+                "memory_saved": False
+            }
+
+    async def chat_stream(self, messages: List[Dict], context_word: str = ""):
+        """
+        AI 对话练习 (流式输出)
+        Flow: Store user msg → Retrieve context → Stream response → Store assistant msg
+        """
+        import asyncio as _asyncio
+        import json
+
+        system_prompt = "你是一位友好的英语口语老师，帮助学生练习英语对话。用简单易懂的英语回复，并在适当时候纠正语法错误。"
+        
+        memories_retrieved = 0
+        memory_saved = False
+        last_user_msg = None
+        
+        if self.evermem_service:
+            system_prompt += "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。记忆中可能包含用户的单词复习记录（含评分和薄弱点），请自然地利用这些信息来个性化教学，比如针对用户薄弱的单词多做练习。不要主动提及你在使用记忆系统，除非用户明确询问。"
+            last_user_msg = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+            
+            if last_user_msg:
+                # Step 1: Store user message
+                _asyncio.create_task(
+                    self.evermem_service.add_memory(
+                        content=last_user_msg,
+                        sender_name="User"
+                    )
+                )
+                memory_saved = True
+
+                # Step 2: Retrieve context
+                if not self._should_skip_memory(last_user_msg):
+                    try:
+                        memories = await self.evermem_service.search_memories(
+                            query=last_user_msg, min_score=0.3
+                        )
+                        if memories:
+                            memories_retrieved = len(memories)
+                            memory_context = "\n".join([m.get('content', '') for m in memories])
+                            system_prompt += f"\n\n【相关记忆】\n{memory_context}"
+                            print(f"[EverMem Stream] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
+                    except Exception as e:
+                        print(f"[EverMem Stream] Failed to retrieve memories: {e}")
+                else:
+                    print(f"[EverMem Stream] Skipped retrieval for trivial message: '{last_user_msg}'")
+
+        if context_word:
+            system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
+        
+        full_response = ""
+        try:
+            # Step 3: Stream response
+            payload_messages = [{"role": "system", "content": system_prompt}] + messages
+            async for chunk in self._call_llm_stream(payload_messages):
+                full_response += chunk
+                yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+
+            # Step 4: Store assistant response
+            if self.evermem_service and full_response:
+                _asyncio.create_task(
+                    self.evermem_service.add_memory(
+                        content=full_response,
+                        sender="assistant_001",
+                        sender_name="Assistant"
+                    )
+                )
+
+            # Yield final metadata
+            yield f"data: {json.dumps({'type': 'done', 'memories_retrieved': memories_retrieved, 'memory_saved': memory_saved})}\n\n"
+
+        except Exception as e:
+            print(f"Chat stream error: {e}")
+            error_msg = "Sorry, I encountered an error."
+            yield f"data: {json.dumps({'type': 'token', 'content': error_msg})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'memories_retrieved': memories_retrieved, 'memory_saved': memory_saved})}\n\n"
     
     async def evaluate_pronunciation(self, word: str, audio_base64: str) -> Dict:
         """

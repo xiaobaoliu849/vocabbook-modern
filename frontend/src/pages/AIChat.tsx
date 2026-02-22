@@ -1,24 +1,78 @@
 import { useState, useEffect, useRef } from 'react'
-import { Send, Bot, User, Trash2, Brain } from 'lucide-react'
-import { api, API_PATHS } from '../utils/api'
+import { Send, Bot, User, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2 } from 'lucide-react'
+import { API_PATHS, API_BASE_URL } from '../utils/api'
+import AudioButton from '../components/AudioButton'
 
 interface Message {
     id: string
     role: 'user' | 'assistant'
     content: string
     timestamp: number
+    memoriesUsed?: number
+    memorySaved?: boolean
+}
+
+interface ChatSession {
+    id: string
+    title: string
+    messages: Message[]
+    updatedAt: number
+    createdAt: number
 }
 
 export default function AIChat({ isActive }: { isActive?: boolean }) {
-    const [messages, setMessages] = useState<Message[]>([])
+    const [sessions, setSessions] = useState<ChatSession[]>([])
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+    const [isInitialized, setIsInitialized] = useState(false)
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    const [sidebarOpen, setSidebarOpen] = useState(false)
 
     // Config state
     const [provider, setProvider] = useState('')
     const [model, setModel] = useState('')
     const [evermemEnabled, setEvermemEnabled] = useState(false)
+
+    // Memory activity toast
+    const [memoryToast, setMemoryToast] = useState<string | null>(null)
+
+    // Load sessions from local storage
+    useEffect(() => {
+        const savedSessions = localStorage.getItem('chat_sessions')
+        if (savedSessions) {
+            try {
+                const parsed = JSON.parse(savedSessions)
+                setSessions(parsed)
+                if (parsed.length > 0 && !activeSessionId) {
+                    setActiveSessionId(parsed[0].id)
+                }
+            } catch (e) {
+                console.error("Failed to load chat sessions", e)
+            }
+        } else {
+            // Migrate old history if exists
+            const oldHistory = localStorage.getItem('chat_history')
+            if (oldHistory) {
+                try {
+                    const parsedMessages = JSON.parse(oldHistory)
+                    const migratedSession: ChatSession = {
+                        id: Date.now().toString(),
+                        title: 'Migrated Chat',
+                        messages: parsedMessages,
+                        updatedAt: Date.now(),
+                        createdAt: Date.now()
+                    }
+                    setSessions([migratedSession])
+                    setActiveSessionId(migratedSession.id)
+                    localStorage.setItem('chat_sessions', JSON.stringify([migratedSession]))
+                } catch (e) { }
+            } else {
+                createNewSession()
+            }
+        }
+        setIsInitialized(true)
+    }, [])
 
     useEffect(() => {
         if (isActive) {
@@ -27,45 +81,41 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         }
     }, [isActive])
 
+    // Save sessions to localStorage whenever they change
     useEffect(() => {
-        loadConfig()
-        // Load history from local storage if available?
-        // For now, let's keep it ephemeral or maybe save to localStorage
-        const savedMessages = localStorage.getItem('chat_history')
-        if (savedMessages) {
-            try {
-                setMessages(JSON.parse(savedMessages))
-            } catch (e) {
-                console.error("Failed to load chat history", e)
-            }
+        if (!isInitialized) return
+        if (sessions.length > 0) {
+            localStorage.setItem('chat_sessions', JSON.stringify(sessions))
+        } else {
+            localStorage.removeItem('chat_sessions')
         }
-    }, [])
+    }, [sessions, isInitialized])
 
+    // Scroll to bottom when active session or its messages change
     useEffect(() => {
         scrollToBottom()
-        // Save history
-        if (messages.length > 0) {
-            localStorage.setItem('chat_history', JSON.stringify(messages))
+    }, [activeSessionId, sessions.find(s => s.id === activeSessionId)?.messages.length])
+
+    // Auto-hide memory toast
+    useEffect(() => {
+        if (memoryToast) {
+            const t = setTimeout(() => setMemoryToast(null), 3000)
+            return () => clearTimeout(t)
         }
-    }, [messages])
+    }, [memoryToast])
 
     const loadConfig = () => {
         const currentProvider = localStorage.getItem('ai_provider') || 'dashscope'
         setProvider(currentProvider)
 
-        // Load model
         const savedModelsStr = localStorage.getItem('ai_models_map')
         let modelsMap: Record<string, string> = {}
         if (savedModelsStr) {
             try {
                 modelsMap = JSON.parse(savedModelsStr)
-            } catch (e) {
-                console.error('Failed to parse ai models map', e)
-            }
+            } catch (e) { }
         }
         setModel(modelsMap[currentProvider] || localStorage.getItem('ai_model') || '')
-
-        // Load EverMem settings
         setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
     }
 
@@ -75,23 +125,19 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
     const getApiHeaders = () => {
         const headers: Record<string, string> = {}
-
-        // AI Provider headers
         if (provider) headers['X-AI-Provider'] = provider
         if (model) headers['X-AI-Model'] = model
 
-        // Get Key
         const savedKeysStr = localStorage.getItem('ai_api_keys_map')
         let keysMap: Record<string, string> = {}
         if (savedKeysStr) {
             try {
                 keysMap = JSON.parse(savedKeysStr)
-            } catch (e) {}
+            } catch (e) { }
         }
         const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || ''
         if (apiKey) headers['X-AI-Key'] = apiKey
 
-        // EverMem headers
         if (evermemEnabled) {
             headers['X-EverMem-Enabled'] = 'true'
             const evermemUrl = localStorage.getItem('evermem_url')
@@ -99,176 +145,462 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             if (evermemUrl) headers['X-EverMem-Url'] = evermemUrl
             if (evermemKey) headers['X-EverMem-Key'] = evermemKey
         }
-
         return headers
     }
 
+    const activeSession = sessions.find(s => s.id === activeSessionId)
+    const messages = activeSession?.messages || []
+
+    const createNewSession = () => {
+        const newSession: ChatSession = {
+            id: Date.now().toString(),
+            title: 'New Chat',
+            messages: [],
+            updatedAt: Date.now(),
+            createdAt: Date.now()
+        }
+        setSessions(prev => [newSession, ...prev])
+        setActiveSessionId(newSession.id)
+        setSidebarOpen(false)
+    }
+
+    const deleteSession = (e: React.MouseEvent, id: string) => {
+        e.stopPropagation()
+        if (window.confirm('Are you sure you want to delete this chat session?')) {
+            setSessions(prev => {
+                const filtered = prev.filter(s => s.id !== id)
+                if (activeSessionId === id) {
+                    setActiveSessionId(filtered.length > 0 ? filtered[0].id : null)
+                }
+                if (filtered.length === 0) {
+                    setTimeout(() => createNewSession(), 0)
+                }
+                return filtered
+            })
+        }
+    }
+
+    const renameSession = (e: React.MouseEvent, id: string) => {
+        e.stopPropagation()
+        const session = sessions.find(s => s.id === id)
+        if (!session) return
+        const newTitle = window.prompt('Rename chat session', session.title)
+        if (newTitle && newTitle.trim()) {
+            setSessions(prev => prev.map(s =>
+                s.id === id ? { ...s, title: newTitle.trim(), updatedAt: Date.now() } : s
+            ))
+        }
+    }
+
     const handleSend = async () => {
-        if (!input.trim() || loading) return
+        if (!input.trim() || loading || !activeSessionId) return
+
+        const userContent = input.trim()
+
+        // Auto-rename session if it's the first message
+        if (activeSession && activeSession.messages.length === 0) {
+            const baseTitle = userContent.length > 15 ? userContent.substring(0, 15) + '...' : userContent
+            setSessions(prev => prev.map(s =>
+                s.id === activeSessionId ? { ...s, title: baseTitle } : s
+            ))
+        }
 
         const userMsg: Message = {
             id: Date.now().toString(),
             role: 'user',
-            content: input.trim(),
+            content: userContent,
             timestamp: Date.now()
         }
 
-        setMessages(prev => [...prev, userMsg])
+        setSessions(prev => prev.map(s => {
+            if (s.id === activeSessionId) {
+                return { ...s, messages: [...s.messages, userMsg], updatedAt: Date.now() }
+            }
+            return s
+        }))
+
         setInput('')
         setLoading(true)
 
         try {
-            // Prepare context (last 10 messages)
             const history = messages.slice(-10).map(m => ({
                 role: m.role,
                 content: m.content
             }))
             history.push({ role: userMsg.role, content: userMsg.content })
 
-            const response = await api.post(API_PATHS.AI_CHAT, {
-                messages: history
-            }, {
-                headers: getApiHeaders()
-            })
-
-            const botMsg: Message = {
-                id: (Date.now() + 1).toString(),
+            const botMsgId = (Date.now() + 1).toString()
+            const initialBotMsg: Message = {
+                id: botMsgId,
                 role: 'assistant',
-                content: response.response,
+                content: '',
                 timestamp: Date.now()
             }
 
-            setMessages(prev => [...prev, botMsg])
+            // Initially add empty bot message and mark user message as saved (optimistic or wait for end)
+            setSessions(prev => prev.map(s => {
+                if (s.id === activeSessionId) {
+                    return { ...s, messages: [...s.messages, initialBotMsg], updatedAt: Date.now() }
+                }
+                return s
+            }))
+
+            const response = await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_STREAM}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getApiHeaders()
+                },
+                body: JSON.stringify({ messages: history })
+            })
+
+            if (!response.ok) {
+                throw new Error(`API Error: ${response.statusText}`)
+            }
+            if (!response.body) {
+                throw new Error(`No response body`)
+            }
+
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder()
+            let done = false
+            let botContent = ''
+            let memoriesRetrieved = 0
+            let memorySaved = false
+
+            while (!done) {
+                const { value, done: readerDone } = await reader.read()
+                done = readerDone
+                if (value) {
+                    const chunkInfo = decoder.decode(value, { stream: true })
+                    const lines = chunkInfo.split('\n')
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6))
+                                if (data.type === 'token') {
+                                    botContent += data.content
+                                    // Incrementally update the UI
+                                    setSessions(prev => prev.map(s => {
+                                        if (s.id === activeSessionId) {
+                                            const updatedMessages = s.messages.map(m =>
+                                                m.id === botMsgId ? { ...m, content: botContent } : m
+                                            )
+                                            return { ...s, messages: updatedMessages, updatedAt: Date.now() }
+                                        }
+                                        return s
+                                    }))
+                                    scrollToBottom()
+                                } else if (data.type === 'done') {
+                                    memoriesRetrieved = data.memories_retrieved || 0
+                                    memorySaved = data.memory_saved || false
+                                }
+                            } catch (e) {
+                                // Ignore incomplete chunks
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Final update with metadata
+            setSessions(prev => prev.map(s => {
+                if (s.id === activeSessionId) {
+                    const updatedMessages = [...s.messages]
+                    let lastUserIdx = -1;
+                    let lastBotIdx = -1;
+
+                    for (let i = updatedMessages.length - 1; i >= 0; i--) {
+                        if (updatedMessages[i].role === 'user' && lastUserIdx === -1) lastUserIdx = i;
+                        if (updatedMessages[i].id === botMsgId) lastBotIdx = i;
+                    }
+
+                    if (lastUserIdx >= 0) {
+                        updatedMessages[lastUserIdx] = { ...updatedMessages[lastUserIdx], memorySaved }
+                    }
+                    if (lastBotIdx >= 0) {
+                        updatedMessages[lastBotIdx] = { ...updatedMessages[lastBotIdx], memoriesUsed: memoriesRetrieved }
+                    }
+
+                    return { ...s, messages: updatedMessages, updatedAt: Date.now() }
+                }
+                return s
+            }))
+
+            if (memoriesRetrieved > 0 || memorySaved) {
+                const parts = []
+                if (memoriesRetrieved > 0) parts.push(`回忆了 ${memoriesRetrieved} 条相关记忆`)
+                if (memorySaved) parts.push('已记住本次对话')
+                setMemoryToast(`🧠 ${parts.join('，')}`)
+            }
         } catch (error: any) {
-            console.error('Chat failed:', error)
+            console.error('Chat stream failed:', error)
             const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
                 content: `Error: ${error.message || 'Failed to get response'}`,
                 timestamp: Date.now()
             }
-            setMessages(prev => [...prev, errorMsg])
+            setSessions(prev => prev.map(s => {
+                if (s.id === activeSessionId) {
+                    return { ...s, messages: [...s.messages, errorMsg], updatedAt: Date.now() }
+                }
+                return s
+            }))
         } finally {
             setLoading(false)
         }
     }
 
-    const clearHistory = () => {
-        if (window.confirm('确定要清空聊天记录吗？')) {
-            setMessages([])
-            localStorage.removeItem('chat_history')
-        }
-    }
+    const providerLabel = provider === 'openai' ? 'OpenAI' :
+        provider === 'anthropic' ? 'Claude' :
+            provider === 'dashscope' ? '通义千问' :
+                provider === 'gemini' ? 'Gemini' :
+                    provider === 'ollama' ? 'Ollama' : provider
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex flex-col animate-fade-in relative">
-            {/* Header */}
-            <div className="flex-none mb-4 flex items-center justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
-                        AI 语伴
-                        {evermemEnabled && (
-                            <span className="px-2 py-1 text-xs font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-full flex items-center gap-1 border border-indigo-200 dark:border-indigo-800">
-                                <Brain size={12} />
-                                记忆已开启
-                            </span>
-                        )}
-                    </h2>
-                    <p className="text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2 text-sm">
-                        {provider === 'openai' ? 'OpenAI' :
-                         provider === 'anthropic' ? 'Claude' :
-                         provider === 'dashscope' ? '通义千问' :
-                         provider === 'gemini' ? 'Gemini' :
-                         provider === 'ollama' ? 'Ollama' : provider}
-                        <span className="opacity-50">•</span>
-                        {model || 'Default Model'}
-                    </p>
-                </div>
-                <button
-                    onClick={clearHistory}
-                    className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                    title="清空聊天记录"
-                >
-                    <Trash2 size={20} />
-                </button>
-            </div>
+        <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative bg-slate-50 dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+            {/* Global Sidebar Overlay */}
+            <div
+                className={`absolute inset-0 z-40 bg-slate-900/20 dark:bg-slate-900/50 backdrop-blur-[2px] transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                    }`}
+                onClick={() => setSidebarOpen(false)}
+            />
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-6 custom-scrollbar mb-4">
-                {messages.length === 0 && (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                        <Bot size={64} className="mb-4 text-slate-300 dark:text-slate-600" />
-                        <p>开始和 AI 练习英语对话吧！</p>
-                        {evermemEnabled && (
-                            <p className="text-sm mt-2 text-indigo-400 flex items-center gap-1">
-                                <Brain size={14} /> EverMemOS 将记住你们的对话
-                            </p>
-                        )}
-                    </div>
-                )}
-
-                {messages.map((msg) => (
-                    <div
-                        key={msg.id}
-                        className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+            {/* Sidebar Drawer */}
+            <div className={`
+                absolute inset-y-0 left-0 z-50
+                w-72 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-r border-white/20 dark:border-slate-700/50 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.05)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)]
+                transition-transform duration-300 ease-out
+                ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
+                <div className="p-4 flex-none">
+                    <button
+                        onClick={createNewSession}
+                        className="w-full flex items-center gap-2 justify-center py-3 px-4 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/30 dark:hover:bg-primary-900/50 text-primary-600 dark:text-primary-400 font-medium rounded-xl transition-colors border border-primary-100 dark:border-primary-800/50"
                     >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
-                            ${msg.role === 'user'
-                                ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                            }`}
-                        >
-                            {msg.role === 'user' ? <User size={20} /> : <Bot size={20} />}
-                        </div>
+                        <Plus size={18} />
+                        New Chat
+                    </button>
+                </div>
 
-                        <div className={`max-w-[80%] rounded-2xl px-5 py-3 shadow-sm text-sm leading-relaxed whitespace-pre-wrap
-                            ${msg.role === 'user'
-                                ? 'bg-primary-500 text-white rounded-tr-none'
-                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-tl-none border border-slate-100 dark:border-slate-700'
-                            }`}
+                <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-1 custom-scrollbar">
+                    {sessions.sort((a, b) => b.updatedAt - a.updatedAt).map(session => (
+                        <div
+                            key={session.id}
+                            onClick={() => {
+                                setActiveSessionId(session.id);
+                                setSidebarOpen(false);
+                            }}
+                            className={`
+                                group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all
+                                ${activeSessionId === session.id
+                                    ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                }
+                            `}
                         >
-                            {msg.content}
+                            <div className="flex items-center gap-3 overflow-hidden">
+                                <MessageSquare size={16} className="flex-shrink-0" />
+                                <span className="truncate text-sm font-medium">{session.title}</span>
+                            </div>
+
+                            <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${activeSessionId === session.id ? 'opacity-100' : ''}`}>
+                                <button
+                                    onClick={(e) => renameSession(e, session.id)}
+                                    className="p-1.5 text-slate-400 hover:text-primary-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors"
+                                    title="Rename"
+                                >
+                                    <Edit2 size={14} />
+                                </button>
+                                <button
+                                    onClick={(e) => deleteSession(e, session.id)}
+                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors"
+                                    title="Delete"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Main Chat Area */}
+            <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 relative">
+                {/* Header */}
+                <div className="flex-none h-16 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setSidebarOpen(!sidebarOpen)}
+                            className="p-2 -ml-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            title={sidebarOpen ? "收起历史记录" : "展开历史记录"}
+                        >
+                            <Menu size={20} />
+                        </button>
+
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <span className="hidden sm:inline">AI 语伴</span>
+                                {evermemEnabled && (
+                                    <span className="px-2 py-0.5 text-[10px] font-bold bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 dark:from-indigo-900/40 dark:to-purple-900/40 dark:text-indigo-300 rounded-full flex items-center gap-1 border border-indigo-200/60 dark:border-indigo-700/50">
+                                        <Brain size={10} className="animate-pulse" />
+                                        长期记忆已开启
+                                    </span>
+                                )}
+                            </h2>
+                            <p className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 text-[10px] sm:text-xs">
+                                {providerLabel} <span className="opacity-50">•</span> {model || 'Default Model'}
+                            </p>
                         </div>
                     </div>
-                ))}
 
-                {loading && (
-                    <div className="flex gap-4">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-                            <Bot size={20} />
-                        </div>
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl rounded-tl-none px-5 py-4 border border-slate-100 dark:border-slate-700 flex gap-1 items-center">
-                            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={(e) => { if (activeSessionId) deleteSession(e, activeSessionId) }}
+                            className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            title="删除当前对话"
+                        >
+                            <Trash2 size={18} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Memory Toast */}
+                {memoryToast && (
+                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 animate-fade-in shadow-xl">
+                        <div className="bg-indigo-600/95 backdrop-blur-md text-white text-sm px-4 py-2 rounded-full shadow-indigo-500/20 shadow-lg flex items-center gap-2 whitespace-nowrap border border-indigo-500">
+                            <Brain size={14} className="animate-pulse" />
+                            {memoryToast}
                         </div>
                     </div>
                 )}
-                <div ref={messagesEndRef} />
-            </div>
 
-            {/* Input Area */}
-            <div className="flex-none bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 p-2 flex gap-2 items-end">
-                <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault()
-                            handleSend()
-                        }
-                    }}
-                    placeholder="输入消息 (Enter 发送)..."
-                    className="flex-1 bg-transparent border-none focus:ring-0 p-3 max-h-32 min-h-[48px] resize-none text-slate-800 dark:text-white placeholder-slate-400"
-                    rows={1}
-                />
-                <button
-                    onClick={handleSend}
-                    disabled={!input.trim() || loading}
-                    className="p-3 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex-shrink-0"
-                >
-                    {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={20} />}
-                </button>
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar scroll-smooth">
+                    {messages.length === 0 && (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                            <Bot size={56} className="mb-4 text-slate-300 dark:text-slate-600" />
+                            <p className="text-base font-medium text-slate-500 dark:text-slate-400">开始和 AI 练习英语对话吧！</p>
+                            {evermemEnabled && (
+                                <div className="mt-6 px-5 py-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800/50 text-center max-w-sm">
+                                    <p className="text-sm text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 font-bold mb-1">
+                                        <Brain size={16} /> EverMemOS 记忆引挚已激活
+                                    </p>
+                                    <p className="text-xs text-indigo-500/80 dark:text-indigo-400/70">
+                                        AI 会自动记忆关键内容，赋予每次对话延续性
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {messages.map((msg) => (
+                        <div
+                            key={msg.id}
+                            className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+                        >
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm
+                                ${msg.role === 'user'
+                                    ? 'bg-gradient-to-br from-primary-100 to-primary-200 text-primary-600 dark:from-primary-900/60 dark:to-primary-800/40 dark:text-primary-300'
+                                    : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 dark:from-slate-800 dark:to-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                }`}
+                            >
+                                {msg.role === 'user' ? <User size={18} /> : <Bot size={18} />}
+                            </div>
+
+                            <div className={`flex flex-col gap-1.5 max-w-[85%] md:max-w-[75%]`}>
+                                <div className={`rounded-2xl px-5 py-3.5 shadow-sm text-[15px] leading-[1.6] whitespace-pre-wrap relative group/msg
+                                    ${msg.role === 'user'
+                                        ? 'bg-primary-500 text-white rounded-tr-sm shadow-primary-500/20'
+                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-tl-sm border border-slate-100 dark:border-slate-700/60'
+                                    }`}
+                                >
+                                    {msg.content}
+
+                                    {/* TTS Button for Assistant Messages */}
+                                    {msg.role === 'assistant' && msg.content && (
+                                        <div className="absolute -right-10 top-2 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200">
+                                            <AudioButton
+                                                text={msg.content}
+                                                useTTS={true}
+                                                size={16}
+                                                className="!p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-full text-slate-500 hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Memory indicators */}
+                                {msg.role === 'user' && msg.memorySaved && (
+                                    <span className="text-[11px] text-indigo-500 dark:text-indigo-400 flex items-center gap-1 self-end mr-1 font-medium">
+                                        <Brain size={10} /> 已纳入长记忆
+                                    </span>
+                                )}
+                                {msg.role === 'assistant' && (msg.memoriesUsed || 0) > 0 && (
+                                    <span className="text-[11px] text-indigo-500 dark:text-indigo-400 flex items-center gap-1 ml-1 font-medium">
+                                        <Sparkles size={10} /> 提取 {msg.memoriesUsed} 条核心记忆
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+
+                    {loading && (
+                        <div className="flex gap-4 max-w-4xl mx-auto">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-slate-400 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <Bot size={18} />
+                            </div>
+                            <div className="bg-white dark:bg-slate-800 rounded-2xl rounded-tl-sm px-6 py-4 border border-slate-100 dark:border-slate-700/60 shadow-sm flex gap-2 items-center">
+                                {evermemEnabled ? (
+                                    <span className="text-[13px] font-medium text-indigo-500 dark:text-indigo-400 flex items-center gap-2">
+                                        <Brain size={14} className="animate-pulse" />
+                                        思考中...
+                                    </span>
+                                ) : (
+                                    <>
+                                        <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                        <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                        <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    <div ref={messagesEndRef} className="h-4" />
+                </div>
+
+                {/* Input Area */}
+                <div className="flex-none p-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur border-t border-slate-200 dark:border-slate-800">
+                    <div className="max-w-4xl mx-auto flex gap-3 items-end bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-2 relative focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500/50 transition-all">
+                        <textarea
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault()
+                                    handleSend()
+                                }
+                            }}
+                            placeholder="输入消息 (Enter 发送, Shift+Enter 换行)..."
+                            className="flex-1 bg-transparent border-none focus:ring-0 p-3 max-h-48 min-h-[52px] resize-none text-[15px] text-slate-800 dark:text-white placeholder-slate-400 custom-scrollbar"
+                            rows={1}
+                        />
+                        <button
+                            onClick={handleSend}
+                            disabled={!input.trim() || loading || !activeSessionId}
+                            className="p-3.5 mb-0.5 mr-0.5 rounded-xl bg-primary-500 hover:bg-primary-600 active:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all flex-shrink-0 shadow-md shadow-primary-500/20"
+                        >
+                            {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={18} className="translate-x-[1px] -translate-y-[1px]" />}
+                        </button>
+                    </div>
+                    <div className="text-center mt-2.5">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                            AI 可能产生不准确的信息，请独立判断
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
     )

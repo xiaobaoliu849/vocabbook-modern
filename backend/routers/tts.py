@@ -31,7 +31,7 @@ def clean_text_for_tts(text: str) -> str:
     清理文本以便TTS处理：
     1. 提取英文字符
     2. 去除多余换行
-    3. 限制长度
+    3. 限制长度 (放大至适用长对话)
     """
     if not text:
         return ""
@@ -39,11 +39,24 @@ def clean_text_for_tts(text: str) -> str:
     # 先去除首尾空白
     text = text.strip()
     
-    # 移除 bullet point 符号
+    # 移除 bullet point 和 markdown 符号
     text = re.sub(r'^[•\-\*]\s*', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\*+', '', text)  # remove bold/italic marks
+    text = re.sub(r'_+', '', text)   # remove underline/italic marks
+    text = re.sub(r'#+\s*', '', text) # remove heading marks
     
-    # 策略：只保留连续英文句子（至少3个单词）
-    # 匹配英文字母、数字、常见标点
+    # 移除 Emoji 和特殊符号 (覆盖常见 emoji 和符号区块)
+    # Miscellaneous Symbols and Pictographs, Emoticons, Transport and Map Symbols, etc.
+    text = re.sub(r'[\U0001f600-\U0001f64f]', '', text) # Emoticons
+    text = re.sub(r'[\U0001f300-\U0001f5ff]', '', text) # Misc Symbols and Pictographs
+    text = re.sub(r'[\U0001f680-\U0001f6ff]', '', text) # Transport and Map
+    text = re.sub(r'[\u2600-\u26ff]', '', text)         # Misc symbols (like ⚠️, ☀️)
+    text = re.sub(r'[\u2700-\u27bf]', '', text)         # Dingbats (like ✅, ✏️)
+    text = re.sub(r'[\U0001fa70-\U0001faff]', '', text) # Symbols and Pictographs Extended-A
+    text = re.sub(r'[\U0001f900-\U0001f9ff]', '', text) # Supplemental Symbols and Pictographs
+    text = re.sub(r'💡|🌟|😊|✅|⚠️|⭐|✨|🎯|📚|📝|🎉|👍', '', text) # 额外写死一些常见的高频 emoji 保底
+    
+    # 策略：只保留连续英文句子（至少2个单词）
     english_sentences = []
     lines = text.split('\n')
     
@@ -52,32 +65,32 @@ def clean_text_for_tts(text: str) -> str:
         if not line:
             continue
             
-        # 如果行主要是中文字符（中文字符占比>50%），跳过
+        # 如果行主要是中文字符（中文字符占比>30%），跳过该行
         chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', line))
         total_chars = len(line)
-        if chinese_chars > total_chars * 0.3:  # 如果中文字符超过30%
+        if total_chars > 0 and (chinese_chars / total_chars) > 0.3:
             continue
         
-        # 移除中文
+        # 移除剩余的少量中文
         line = re.sub(r'[\u4e00-\u9fff]', '', line)
         
         # 清理多余空格
         line = ' '.join(line.split())
         
         # 如果清理后还有内容，保留
-        if len(line.split()) >= 2:  # 至少2个单词
+        if len(line.split()) >= 2:  # 至少2个单词才算一句话
             english_sentences.append(line)
     
-    # 合并所有英文句子（取前3句，避免太长）
-    result = ' '.join(english_sentences[:3])
+    # 合并所有英文句子
+    result = ' '.join(english_sentences)
     
-    # 最终清理
-    result = re.sub(r'\s+', ' ', result)  # 多余空格
+    # 最终清理多余空格
+    result = re.sub(r'\s+', ' ', result)
     result = result.strip()
     
-    # 限制长度（最多200个字符）
-    if len(result) > 200:
-        result = result[:200].rsplit(' ', 1)[0] + '.'
+    # 限制长度（放宽至 4000 个字符）
+    if len(result) > 4000:
+        result = result[:4000].rsplit(' ', 1)[0] + '.'
     
     return result
 

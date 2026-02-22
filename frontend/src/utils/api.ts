@@ -141,6 +141,7 @@ export const API_PATHS = {
 
     // AI
     AI_CHAT: '/api/ai/chat',
+    AI_CHAT_STREAM: '/api/ai/chat/stream',
     AI_GENERATE_SENTENCES: '/api/ai/generate-sentences',
     AI_TRANSLATE: '/api/ai/translate',
     AI_TRANSLATIONS: '/api/ai/translations/history',
