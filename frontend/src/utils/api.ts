@@ -140,6 +140,7 @@ export const API_PATHS = {
     STATS_STUDY_TIME: '/api/stats/study-time',
 
     // AI
+    AI_CHAT: '/api/ai/chat',
     AI_GENERATE_SENTENCES: '/api/ai/generate-sentences',
     AI_TRANSLATE: '/api/ai/translate',
     AI_TRANSLATIONS: '/api/ai/translations/history',

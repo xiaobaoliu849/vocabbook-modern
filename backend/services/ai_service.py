@@ -7,12 +7,14 @@ import os
 import json
 from typing import List, Dict, Optional, Tuple
 import httpx
+from services.evermem_service import EverMemService
 
 
 class AIService:
     """AI 服务封装，支持多 Provider 切换"""
     
-    def __init__(self, provider: str = None, api_key: str = None, model: str = None):
+    def __init__(self, provider: str = None, api_key: str = None, model: str = None,
+                 evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None):
         """
         初始化 AI 服务
         
@@ -20,6 +22,9 @@ class AIService:
             provider: AI 提供商 (openai, anthropic, gemini, ollama, dashscope, custom)
             api_key: API Key (optional)
             model: Model Name (optional)
+            evermem_enabled: 是否启用 EverMemOS 记忆功能
+            evermem_url: EverMemOS API URL
+            evermem_key: EverMemOS API Key
         """
         # Default provider is openai if not specified, but check env vars
         env_provider = os.environ.get("AI_PROVIDER", "openai")
@@ -42,6 +47,12 @@ class AIService:
         self.api_base = os.environ.get("AI_API_BASE", "")
         self.model = model or os.environ.get("AI_MODEL", "gpt-4o-mini")
         
+        # EverMemOS setup
+        self.evermem_enabled = evermem_enabled
+        self.evermem_service = None
+        if self.evermem_enabled and evermem_url:
+            self.evermem_service = EverMemService(api_url=evermem_url, api_key=evermem_key)
+
     def _get_client_config(self) -> Dict:
         """获取 HTTP 客户端配置"""
         if self.provider == "openai":
@@ -257,14 +268,39 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         """
         system_prompt = "你是一位友好的英语口语老师，帮助学生练习英语对话。用简单易懂的英语回复，并在适当时候纠正语法错误。"
         
+        # Inject Memories from EverMemOS
+        if self.evermem_service:
+            last_user_msg = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+            if last_user_msg:
+                try:
+                    memories = await self.evermem_service.search_memories(query=last_user_msg)
+                    if memories:
+                        memory_context = "\n".join([f"- {m.get('content', '')}" for m in memories])
+                        system_prompt += f"\n\n【相关记忆】\n这是一个拥有长期记忆的系统。以下是关于用户的相关记忆，请参考这些信息进行个性化回复：\n{memory_context}"
+                        print(f"Injected {len(memories)} memories into context.")
+                except Exception as e:
+                    print(f"Failed to retrieve memories: {e}")
+
         if context_word:
             system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
         
         try:
-            return await self._call_llm([
+            response = await self._call_llm([
                 {"role": "system", "content": system_prompt},
                 *messages
             ])
+
+            # Save memory asynchronously (fire and forget pattern for now, or just await it if speed isn't critical)
+            if self.evermem_service and last_user_msg:
+                try:
+                    # Save user message
+                    await self.evermem_service.add_memory(content=last_user_msg)
+                    # Optionally save AI response too? For now just user input as "what user said/prefers" is most valuable.
+                except Exception as e:
+                    print(f"Failed to save memory: {e}")
+
+            return response
+
         except Exception as e:
             print(f"Chat error: {e}")
             return "Sorry, I encountered an error. Please try again."

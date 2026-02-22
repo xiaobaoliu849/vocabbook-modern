@@ -95,12 +95,25 @@ async def chat(
     request: ChatRequest,
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
-    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"), # header defaults to string in some frameworks/proxies
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key")
 ):
     """AI 对话练习"""
     from services.ai_service import AIService
     
-    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
+    # Check if evermem is enabled (header comes as string "true"/"false")
+    evermem_enabled = str(x_evermem_enabled).lower() == "true"
+
+    ai = AIService(
+        provider=x_ai_provider,
+        api_key=x_ai_key,
+        model=x_ai_model,
+        evermem_enabled=evermem_enabled,
+        evermem_url=x_evermem_url,
+        evermem_key=x_evermem_key
+    )
     try:
         response = await ai.chat(
             messages=[{"role": m.role, "content": m.content} for m in request.messages],

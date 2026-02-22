@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight, Upload, Languages, User as UserIcon, LogOut, Crown, BarChart2 } from 'lucide-react'
+import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight, Upload, Languages, User as UserIcon, LogOut, Crown, BarChart2, Bot } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useAuth } from '../context/AuthContext'
@@ -212,7 +212,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
     )
 }
 
-type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats'
+type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat'
 
 interface SidebarProps {
     currentPage: Page
@@ -231,6 +231,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
         { id: 'review' as Page, icon: <Brain size={22} />, label: '智能复习', tooltip: '使用 SM-2 算法复习', badge: dueCount },
         { id: 'stats' as Page, icon: <BarChart2 size={22} />, label: '学习统计', tooltip: '查看学习进度和热力图', badge: 0 },
         { id: 'translation' as Page, icon: <Languages size={22} />, label: '翻译助手', tooltip: '多语言智能翻译助手', badge: 0 },
+        { id: 'chat' as Page, icon: <Bot size={22} />, label: 'AI 语伴', tooltip: '拥有长期记忆的对话练习', badge: 0 },
     ]
 
     return (

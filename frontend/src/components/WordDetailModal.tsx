@@ -1,6 +1,6 @@
  import { useEffect, useRef, useState } from 'react'
  import AudioButton from './AudioButton'
- import { X, BookOpen, MessageSquare, RefreshCw, Sprout, Pencil, Save, StickyNote } from 'lucide-react'
+ import { X, BookOpen, MessageSquare, RefreshCw, Sprout, StickyNote } from 'lucide-react'
  import { api, API_PATHS } from '../utils/api'
  
  interface WordDetailProps {

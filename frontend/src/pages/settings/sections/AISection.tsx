@@ -11,6 +11,12 @@ export default function AISection() {
     // Store Models for each provider separately
     const [aiModels, setAiModels] = useState<Record<string, string>>({})
 
+    // EverMemOS State
+    const [evermemEnabled, setEvermemEnabled] = useState(false)
+    const [evermemUrl, setEvermemUrl] = useState('')
+    const [evermemKey, setEvermemKey] = useState('')
+    const [showEvermemKey, setShowEvermemKey] = useState(false)
+
     useEffect(() => {
         loadAiSettings()
     }, [])
@@ -59,6 +65,11 @@ export default function AISection() {
         
         setAiApiKey(keysMap[provider] || '')
         setAiModel(modelsMap[provider] || getDefaultModel(provider))
+
+        // Load EverMem settings
+        setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
+        setEvermemUrl(localStorage.getItem('evermem_url') || '')
+        setEvermemKey(localStorage.getItem('evermem_key') || '')
     }
 
     const getDefaultModel = (provider: string) => {
@@ -89,6 +100,12 @@ export default function AISection() {
         localStorage.setItem('ai_api_key', aiApiKey)
 
         localStorage.setItem('ai_model', aiModel)
+
+        // Save EverMem settings
+        localStorage.setItem('evermem_enabled', String(evermemEnabled))
+        localStorage.setItem('evermem_url', evermemUrl)
+        localStorage.setItem('evermem_key', evermemKey)
+
         // You might want to use a toast notification here instead of alert in a real app
         alert('✅ AI 设置已保存')
     }
@@ -212,6 +229,69 @@ export default function AISection() {
                             保存 AI 设置
                         </button>
                     </div>
+                </div>
+            </div>
+
+            {/* EverMemOS Settings */}
+            <div className="glass-card p-6 border-l-4 border-l-indigo-500">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                    🧠 长期记忆 (EverMemOS)
+                </h3>
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                            启用记忆增强
+                        </label>
+                        <button
+                            onClick={() => setEvermemEnabled(!evermemEnabled)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${evermemEnabled ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                        >
+                            <span
+                                className={`${evermemEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                            />
+                        </button>
+                    </div>
+
+                    {evermemEnabled && (
+                        <div className="animate-fade-in space-y-4 pt-2">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    API URL
+                                </label>
+                                <input
+                                    type="text"
+                                    value={evermemUrl}
+                                    onChange={(e) => setEvermemUrl(e.target.value)}
+                                    placeholder="http://localhost:1995"
+                                    className="input-field w-full"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    API Key
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type={showEvermemKey ? "text" : "password"}
+                                        value={evermemKey}
+                                        onChange={(e) => setEvermemKey(e.target.value)}
+                                        placeholder="EverMemOS API Key"
+                                        className="input-field w-full pr-10"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowEvermemKey(!showEvermemKey)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                                    >
+                                        {showEvermemKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                                需要部署 EverMemOS 服务。查看 <a href="https://github.com/EverMind-AI/EverMemOS" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">项目主页</a> 获取更多信息。
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

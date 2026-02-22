@@ -27,27 +27,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             const token = localStorage.getItem('vocab_token');
             if (token) {
-                const userData = await authService.getCurrentUser();
-                setUser(userData);
+                // If we have a token, fetch user details
+                try {
+                    const userData = await authService.getCurrentUser();
+                    setUser(userData);
+                } catch (e) {
+                     // Token might be expired
+                     console.warn("Token expired or invalid", e);
+                     localStorage.removeItem('vocab_token');
+                     setUser(null);
+                }
+            } else {
+                setUser(null);
             }
         } catch (error) {
             console.error("Auth check failed:", error);
-            localStorage.removeItem('vocab_token'); // Clear invalid token
         } finally {
             setIsLoading(false);
         }
     };
 
-    const login = async (email: string, password: string) => {
+    useEffect(() => {
         checkAuth();
     }, []);
 
-    const login = async (email, password) => {
-    const register = async (email: string, password: string) => {
+    const login = async (email: string, password: string) => {
+        await authService.login(email, password);
         await checkAuth();
     };
 
-    const register = async (email, password) => {
+    const register = async (email: string, password: string) => {
         await authService.register(email, password);
         // Optional: Auto login after register?
         // await login(email, password); 
