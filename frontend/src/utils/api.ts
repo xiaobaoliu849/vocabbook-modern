@@ -18,10 +18,27 @@ export class ApiError extends Error {
     }
 }
 
+import { useAuthStore } from '../stores/useAuthStore'
+
 /**
  * 封装的 fetch 请求方法
  */
 export const api = {
+    /**
+     * Helper to get headers with Auth token
+     */
+    _getHeaders(customHeaders?: HeadersInit): HeadersInit {
+        const token = useAuthStore.getState().token
+        const headers: Record<string, string> = {}
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`
+        }
+        return {
+            ...headers,
+            ...(customHeaders as Record<string, string>)
+        }
+    },
+
     /**
      * GET 请求
      */
@@ -29,6 +46,7 @@ export const api = {
         const response = await fetch(`${API_BASE_URL}${path}`, {
             ...options,
             method: 'GET',
+            headers: this._getHeaders(options?.headers)
         })
         if (!response.ok) {
             throw new ApiError(response.status, await response.text())
@@ -43,10 +61,10 @@ export const api = {
         const response = await fetch(`${API_BASE_URL}${path}`, {
             ...options,
             method: 'POST',
-            headers: {
+            headers: this._getHeaders({
                 'Content-Type': 'application/json',
                 ...options?.headers,
-            },
+            }),
             body: data ? JSON.stringify(data) : undefined,
         })
         if (!response.ok) {
@@ -62,10 +80,10 @@ export const api = {
         const response = await fetch(`${API_BASE_URL}${path}`, {
             ...options,
             method: 'PUT',
-            headers: {
+            headers: this._getHeaders({
                 'Content-Type': 'application/json',
                 ...options?.headers,
-            },
+            }),
             body: data ? JSON.stringify(data) : undefined,
         })
         if (!response.ok) {
@@ -81,6 +99,7 @@ export const api = {
         const response = await fetch(`${API_BASE_URL}${path}`, {
             ...options,
             method: 'DELETE',
+            headers: this._getHeaders(options?.headers)
         })
         if (!response.ok) {
             throw new ApiError(response.status, await response.text())
@@ -97,6 +116,7 @@ export const api = {
             ...options,
             method: 'POST',
             body: formData,
+            headers: this._getHeaders(options?.headers)
             // 不要设置 Content-Type，让浏览器自动设置 multipart/form-data boundary
         })
         if (!response.ok) {
@@ -109,7 +129,10 @@ export const api = {
      * 原始 fetch (用于需要自定义处理响应的场景)
      */
     async raw(path: string, options?: RequestInit): Promise<Response> {
-        return fetch(`${API_BASE_URL}${path}`, options)
+        return fetch(`${API_BASE_URL}${path}`, {
+            ...options,
+            headers: this._getHeaders(options?.headers)
+        })
     }
 }
 
@@ -142,6 +165,8 @@ export const API_PATHS = {
     // AI
     AI_CHAT: '/api/ai/chat',
     AI_CHAT_STREAM: '/api/ai/chat/stream',
+    AI_CHAT_SESSIONS: '/api/ai/chat-sessions',
+    AI_CHAT_SESSION_DELETE: (id: string) => `/api/ai/chat-sessions/${encodeURIComponent(id)}`,
     AI_GENERATE_SENTENCES: '/api/ai/generate-sentences',
     AI_TRANSLATE: '/api/ai/translate',
     AI_TRANSLATIONS: '/api/ai/translations/history',
@@ -153,4 +178,10 @@ export const API_PATHS = {
     // Import
     IMPORT_UPLOAD: '/api/import/upload',
     IMPORT_WORDS: '/api/import/words',
+
+    // Cloud Auth & Pay (Note: points to cloud server port 8001 by default unless configured)
+    CLOUD_LOGIN: 'http://localhost:8001/token',
+    CLOUD_REGISTER: 'http://localhost:8001/register',
+    CLOUD_ME: 'http://localhost:8001/users/me',
+    CLOUD_PAY_PRECREATE: 'http://localhost:8001/api/pay/alipay/precreate'
 } as const

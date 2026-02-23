@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from wechatpayv3 import WeChatPay, WeChatPayType
+from alipay.aop.api.AlipayClientConfig import AlipayClientConfig
+from alipay.aop.api.DefaultAlipayClient import DefaultAlipayClient
+from alipay.aop.api.domain.AlipayTradePrecreateModel import AlipayTradePrecreateModel
+from alipay.aop.api.request.AlipayTradePrecreateRequest import AlipayTradePrecreateRequest
+from alipay.aop.api.util.SignatureUtils import verify_with_rsa
 
 from base import get_db
 from models import User, Order
@@ -72,78 +76,105 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 async def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
-# --- WeChat Pay Routes ---
+# --- Alipay Routes ---
 
-# Initialize WeChatPay only if config is present (Lazy init or conditional)
-wxpay = None
-if settings.WECHAT_MCHID:
+# Initialize AlipayClient
+alipay_client = None
+if settings.ALIPAY_APP_ID:
     try:
-        with open(settings.WECHAT_PRIVATE_KEY_PATH) as f:
-            private_key = f.read()
-        wxpay = WeChatPay(
-            wechatpay_type=WeChatPayType.NATIVE,
-            mchid=settings.WECHAT_MCHID,
-            private_key=private_key,
-            cert_serial_no=settings.WECHAT_CERT_SERIAL_NO,
-            apiv3_key=settings.WECHAT_APIV3_KEY,
-            appid=settings.WECHAT_APPID,
-            notify_url=settings.WECHAT_NOTIFY_URL
-        )
+        with open(settings.ALIPAY_PRIVATE_KEY_PATH) as f:
+            app_private_key = f.read()
+        with open(settings.ALIPAY_PUBLIC_KEY_PATH) as f:
+            alipay_public_key = f.read()
+            
+        alipay_client_config = AlipayClientConfig()
+        alipay_client_config.server_url = settings.ALIPAY_GATEWAY_URL
+        alipay_client_config.app_id = settings.ALIPAY_APP_ID
+        alipay_client_config.app_private_key = app_private_key
+        alipay_client_config.alipay_public_key = alipay_public_key
+        
+        alipay_client = DefaultAlipayClient(alipay_client_config)
     except Exception as e:
-        print(f"WeChat Pay init failed (Expected during dev): {e}")
+        print(f"Alipay init failed (Expected if files are missing during dev): {e}")
 
-@app_router.post("/api/pay/native", response_model=PayResponse)
+@app_router.post("/api/pay/alipay/precreate", response_model=PayResponse)
 async def create_payment(req: PayRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not wxpay:
-        # Mock for Dev
-        return {"code_url": "weixin://wxpay/bizpayurl?pr=mock_qr_code", "out_trade_no": f"MOCK_{int(time.time())}"}
+    if not alipay_client:
+        # Mock for Dev if keys are missing
+        return {"code_url": "https://qr.alipay.com/mock_qr_code", "out_trade_no": f"MOCK_{int(time.time())}"}
     
     out_trade_no = f"ORDER_{current_user.id}_{int(time.time())}"
     
-    code, message = wxpay.pay(
-        description=req.description,
-        out_trade_no=out_trade_no,
-        amount={'total': req.amount_fen},
-        attach=current_user.id 
-    )
+    # 支付宝 Precreate Model (当面付 - 扫码支付)
+    model = AlipayTradePrecreateModel()
+    model.out_trade_no = out_trade_no
+    model.total_amount = f"{req.amount_fen / 100:.2f}" # Alipay requires Yuan format e.g., "29.00"
+    model.subject = req.description
+    model.timeout_express = "30m" # 30 minutes until expiration
     
-    if code in [200, 202]: # 200 OK, 202 Accepted
-        res_data = json.loads(message)
-        # Save Order
-        new_order = Order(
-            user_id=current_user.id,
-            out_trade_no=out_trade_no,
-            amount_fen=req.amount_fen,
-            status="PENDING",
-            description=req.description
-        )
-        db.add(new_order)
-        await db.commit()
-        
-        return {"code_url": res_data.get('code_url'), "out_trade_no": out_trade_no}
-    else:
-        raise HTTPException(status_code=400, detail=f"WeChat Pay Error: {message}")
-
-@app_router.post("/api/pay/notify")
-async def pay_notify(request: Request, db: Session = Depends(get_db)):
-    """Callback from WeChat Pay Server"""
-    if not wxpay:
-        return {"code": "FAIL", "message": "Config missing"}
-        
-    headers = request.headers
-    body = await request.body()
+    request = AlipayTradePrecreateRequest(biz_model=model)
+    request.notify_url = settings.ALIPAY_NOTIFY_URL
     
     try:
-        result = wxpay.callback(headers, body)
-    except Exception as e:
-        return {"code": "FAIL", "message": f"Sign Verify Failed: {e}"}
-
-    if result and result.get('event_type') == 'TRANSACTION.SUCCESS':
-        resource = result.get('resource')
-        # resource is generic dict, 'decrypt_resource' handled by library? 
-        # Actually wechatpay-py callback returns the DECRYPTED resource directly if verify passes
+        response_content = alipay_client.execute(request)
+        # response_content is a JSON string (already extracted by SDK)
+        api_response = json.loads(response_content)
         
-        out_trade_no = resource.get('out_trade_no')
+        if api_response.get("code") == "10000": # 10000 means Success in Alipay API
+            # Save Order
+            new_order = Order(
+                user_id=current_user.id,
+                out_trade_no=out_trade_no,
+                amount_fen=req.amount_fen,
+                status="PENDING",
+                description=req.description
+            )
+            db.add(new_order)
+            await db.commit()
+            
+            # qr_code field contains the URL to generate QR locally
+            return {"code_url": api_response.get("qr_code"), "out_trade_no": out_trade_no}
+        else:
+            print(f"Alipay API Failed. Raw Response: {response_content}")
+            raise HTTPException(status_code=400, detail=f"Alipay API Error: {response_content}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Payment execution failed: {e}")
+
+@app_router.post("/api/pay/alipay/notify")
+async def pay_notify(request: Request, db: Session = Depends(get_db)):
+    """Callback from Alipay Server"""
+    form_data = await request.form()
+    params = dict(form_data)
+    
+    if not params:
+        return {"msg": "fail"}
+    
+    # Extract signature and sign_type
+    signature = params.pop("sign", None)
+    params.pop("sign_type", None) # Typically RSA2, verify function might not need it in dict
+    
+    # Verify Signature
+    try:
+        with open(settings.ALIPAY_PUBLIC_KEY_PATH) as f:
+            alipay_public_key = f.read()
+        # Verify RSA2 signature
+        is_valid = verify_with_rsa(alipay_public_key, params, signature)
+        if not is_valid:
+            print("Alipay Signature Verification Failed")
+            return "fail"
+    except Exception as e:
+        print(f"Alipay verification error: {e}")
+        return "fail"
+
+    # Signature is valid, Check trade status
+    trade_status = params.get("trade_status")
+    if trade_status in ["TRADE_SUCCESS", "TRADE_FINISHED"]:
+        out_trade_no = params.get("out_trade_no")
+        trade_no = params.get("trade_no") # Alipay's internal ID
         
         # 1. Update Order
         result = await db.execute(select(Order).where(Order.out_trade_no == out_trade_no))
@@ -151,6 +182,8 @@ async def pay_notify(request: Request, db: Session = Depends(get_db)):
         
         if order and order.status != 'SUCCESS':
             order.status = 'SUCCESS'
+            order.trade_no = trade_no
+            from datetime import datetime
             order.updated_at = datetime.utcnow()
             
             # 2. Update User License
@@ -158,10 +191,11 @@ async def pay_notify(request: Request, db: Session = Depends(get_db)):
             user = u_res.scalars().first()
             if user:
                 user.tier = 'premium'
-                # user.license_expiry = ... (if subscription)
+                # Optionally set license_expiry
             
             await db.commit()
             
-        return {"code": "SUCCESS", "message": "OK"}
+        # VERY IMPORTANT: return 'success' plain text so Alipay stops retrying
+        return "success"
         
-    return {"code": "SUCCESS", "message": "Ignored"}
+    return "success"

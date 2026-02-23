@@ -27,3 +27,6 @@ Thumbs.db
 # Database
 *.db
 *.sqlite3
+backend/temp_audio/
+cloud_server/*.pem
+*公钥私钥*.txt

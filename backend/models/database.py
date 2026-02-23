@@ -190,6 +190,28 @@ class DatabaseManager:
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_translations_created ON translations(created_at)')
 
+        # AI Chat Sessions table (Persistent Chat History)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id TEXT PRIMARY KEY,
+                title TEXT,
+                messages TEXT,
+                updated_at REAL,
+                created_at REAL
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at)')
+        
+        # User Limits table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_limits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                feature TEXT UNIQUE NOT NULL,
+                used_count INTEGER DEFAULT 0,
+                last_reset_date TEXT
+            )
+        ''')
+
         conn.commit()
         # 注意：不再关闭连接，使用长连接
 
@@ -696,6 +718,76 @@ class DatabaseManager:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('DELETE FROM translations WHERE id = ?', (translation_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+    # --- Chat Sessions Operations (Persistent AI Chat) ---
+
+    def save_chat_session(self, session_data):
+        """Upsert a chat session."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                INSERT INTO chat_sessions (id, title, messages, updated_at, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET 
+                    title = excluded.title, 
+                    messages = excluded.messages, 
+                    updated_at = excluded.updated_at
+            ''', (
+                session_data['id'],
+                session_data['title'],
+                json.dumps(session_data['messages'], ensure_ascii=False),
+                session_data['updatedAt'],
+                session_data['createdAt']
+            ))
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Save chat session error: {e}")
+            return False
+
+    def get_all_chat_sessions(self):
+        """Retrieve all chat sessions, parsed."""
+        conn = self.get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM chat_sessions ORDER BY updated_at DESC')
+        rows = cursor.fetchall()
+
+        result = []
+        for row in rows:
+            d = dict(row)
+            try:
+                d['messages'] = json.loads(d['messages'])
+            except json.JSONDecodeError:
+                d['messages'] = []
+            
+            # Map Python snake_case to JS camelCase
+            session = {
+                 'id': d['id'],
+                 'title': d['title'],
+                 'messages': d['messages'],
+                 'updatedAt': d['updated_at'],
+                 'createdAt': d['created_at']
+            }
+            result.append(session)
+        return result
+
+    def delete_chat_session(self, session_id):
+        """Delete a chat session."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM chat_sessions WHERE id = ?', (session_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def clear_all_chat_sessions(self):
+        """Delete all chat sessions."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM chat_sessions')
         conn.commit()
         return cursor.rowcount > 0
 

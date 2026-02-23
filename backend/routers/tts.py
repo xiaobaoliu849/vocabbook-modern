@@ -6,9 +6,9 @@ import os
 import asyncio
 import hashlib
 import re
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from fastapi.responses import FileResponse, StreamingResponse
-from fastapi import HTTPException
+from fastapi import HTTPException, Header
 import edge_tts
 
 router = APIRouter()
@@ -100,11 +100,17 @@ def get_audio_filename(text: str) -> str:
     return f"{text_hash}.mp3"
 
 @router.get("/speak")
-async def text_to_speech(text: str):
+async def text_to_speech(
+    text: str, 
+    authorization: str = Header(None)
+):
     """
     将文本转换为语音并返回音频文件
     如果已存在则直接返回缓存文件
     """
+    from services.limit_service import LimitService, LimitException
+    from main import get_db
+    
     try:
         ensure_output_dir()
         
@@ -116,6 +122,18 @@ async def text_to_speech(text: str):
         
         if not cleaned_text:
             raise HTTPException(status_code=400, detail="No valid English text found")
+            
+        # Check limits (only if generating new file to save costs!)
+        filename = get_audio_filename(cleaned_text)
+        filepath = os.path.join(OUTPUT_DIR, filename)
+        
+        if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+            try:
+                limit_service = LimitService(db=get_db())
+                token = authorization.split(" ")[1] if authorization and authorization.startswith("Bearer ") else None
+                await limit_service.check_and_consume("tts", token=token)
+            except LimitException as le:
+                raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
         
         # 生成文件名
         filename = get_audio_filename(cleaned_text)

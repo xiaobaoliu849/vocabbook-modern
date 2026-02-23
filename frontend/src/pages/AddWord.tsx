@@ -11,7 +11,8 @@ export default function AddWord() {
     const [aiSentences, setAiSentences] = useState<string[]>([])
     const [isGeneratingAI, setIsGeneratingAI] = useState(false)
     const [activeTab, setActiveTab] = useState('youdao')
-    
+    const [isSaved, setIsSaved] = useState(false)
+
     const { notifyWordAdded } = useGlobalState()
 
     // Auto features state
@@ -59,6 +60,7 @@ export default function AddWord() {
         setIsSearching(true)
         setSearchResult(null)
         setAiSentences([])
+        setIsSaved(false)
 
         const enabledDicts = ['youdao'];
         ['cambridge', 'bing', 'freedict'].forEach(id => {
@@ -80,7 +82,17 @@ export default function AddWord() {
             }
 
             if (autoSave) {
-                saveWord(data, true)
+                const res = await saveWord(data, true)
+                if (res === 'success' || res === 'exist') {
+                    setIsSaved(true)
+                }
+            } else {
+                try {
+                    const savedWord = await api.get(API_PATHS.WORD(data.word))
+                    setIsSaved(!!savedWord && !savedWord.error)
+                } catch (err) {
+                    setIsSaved(false)
+                }
             }
         } catch (error) {
             if (error instanceof ApiError && error.status === 404) {
@@ -147,10 +159,8 @@ export default function AddWord() {
     const handleAddWord = async () => {
         if (!searchResult || searchResult.error) return
         const result = await saveWord(searchResult, false, aiSentences)
-        if (result === 'success') {
-            setSearchWord('')
-            setSearchResult(null)
-            setAiSentences([])
+        if (result === 'success' || result === 'exist') {
+            setIsSaved(true)
         }
     }
 
@@ -163,13 +173,13 @@ export default function AddWord() {
             const aiApiKey = localStorage.getItem('ai_api_key') || ''
             const aiModel = localStorage.getItem('ai_model') || 'qwen-plus'
 
-            const data = await api.post(API_PATHS.AI_GENERATE_SENTENCES, 
+            const data = await api.post(API_PATHS.AI_GENERATE_SENTENCES,
                 { word: searchWord, count: 3 },
                 {
                     headers: {
-                    'X-AI-Provider': aiProvider,
-                    'X-AI-Key': aiApiKey,
-                    'X-AI-Model': aiModel
+                        'X-AI-Provider': aiProvider,
+                        'X-AI-Key': aiApiKey,
+                        'X-AI-Model': aiModel
                     }
                 }
             )
@@ -289,10 +299,15 @@ export default function AddWord() {
                                         audioSrc={currentData.audio}
                                         className="btn-secondary !p-2 h-auto"
                                     />
-                                    <button onClick={handleAddWord} className="btn-primary flex items-center gap-2">
-                                        <Plus size={18} />
-                                        <span>添加到生词本</span>
-                                    </button>
+                                    {!isSaved && (
+                                        <button
+                                            onClick={handleAddWord}
+                                            className="btn-primary flex items-center gap-2 transition-all duration-300"
+                                        >
+                                            <Plus size={18} />
+                                            <span>添加到生词本</span>
+                                        </button>
+                                    )}
                                 </div>                                                        </div>
 
                             {/* Global Context (Roots & Synonyms) - Always Visible */}

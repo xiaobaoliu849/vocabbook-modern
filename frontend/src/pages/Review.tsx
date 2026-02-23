@@ -78,11 +78,11 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         if (!currentWord) return
 
         try {
-        setSessionRatings(prev => [...prev, {
-            word: currentWord,
-            quality,
-            timestamp: Date.now()
-        }])
+            setSessionRatings(prev => [...prev, {
+                word: currentWord,
+                quality,
+                timestamp: Date.now()
+            }])
 
             await api.post(API_PATHS.REVIEW_SUBMIT, {
                 word: currentWord.word,
@@ -410,7 +410,10 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 {(reviewMode === 'flashcard' || reviewMode === 'spelling') && (
                     <div
                         className={`w-full h-full cursor-pointer flip-card ${isFlipped ? 'flipped' : ''}`}
-                        onClick={() => setIsFlipped(!isFlipped)}
+                        onClick={() => {
+                            if (window.getSelection()?.toString()) return;
+                            setIsFlipped(!isFlipped);
+                        }}
                     >
                         <div className="flip-card-inner w-full h-full relative" style={{ transformStyle: 'preserve-3d', transition: 'transform 0.6s' }}>
                             {/* Front */}
@@ -428,7 +431,6 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                             className="!w-16 !h-16 !text-2xl !bg-secondary-100 hover:!bg-secondary-200 text-secondary-700 dark:!bg-secondary-900/30 dark:text-secondary-400 border-none"
                                             size={28}
                                         />
-                                        <p className="absolute bottom-6 text-slate-400 text-sm opacity-60">点击卡片查看释义</p>
                                     </>
                                 ) : reviewMode === 'spelling' ? (
                                     // Spelling Mode Front

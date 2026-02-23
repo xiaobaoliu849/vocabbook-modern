@@ -25,6 +25,8 @@ class Order(Base):
     user_id = Column(String, ForeignKey("users.id"))
     
     out_trade_no = Column(String, unique=True, index=True) # Our system's order ID
+    trade_no = Column(String, nullable=True) # Alipay's transaction ID (populated after payment)
+    payment_method = Column(String, default="alipay")
     amount_fen = Column(Integer) # Amount in cents (fen)
     status = Column(String, default="PENDING") # PENDING, SUCCESS, FAIL
     

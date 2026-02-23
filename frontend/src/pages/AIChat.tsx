@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { Send, Bot, User, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2 } from 'lucide-react'
+import { Send, Bot, User, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser } from 'lucide-react'
 import { API_PATHS, API_BASE_URL } from '../utils/api'
 import AudioButton from '../components/AudioButton'
+
+const generateId = () => {
+    return (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9);
+};
 
 interface Message {
     id: string
@@ -28,6 +34,8 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     const [loading, setLoading] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
+    const [editingTitle, setEditingTitle] = useState('')
 
     // Config state
     const [provider, setProvider] = useState('')
@@ -37,41 +45,79 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     // Memory activity toast
     const [memoryToast, setMemoryToast] = useState<string | null>(null)
 
-    // Load sessions from local storage
+    // Load sessions from API and fallback to local storage
     useEffect(() => {
-        const savedSessions = localStorage.getItem('chat_sessions')
-        if (savedSessions) {
+        const loadInitialData = async () => {
+            let loadedSessions: ChatSession[] = []
+
             try {
-                const parsed = JSON.parse(savedSessions)
-                setSessions(parsed)
-                if (parsed.length > 0 && !activeSessionId) {
-                    setActiveSessionId(parsed[0].id)
-                }
-            } catch (e) {
-                console.error("Failed to load chat sessions", e)
-            }
-        } else {
-            // Migrate old history if exists
-            const oldHistory = localStorage.getItem('chat_history')
-            if (oldHistory) {
-                try {
-                    const parsedMessages = JSON.parse(oldHistory)
-                    const migratedSession: ChatSession = {
-                        id: Date.now().toString(),
-                        title: 'Migrated Chat',
-                        messages: parsedMessages,
-                        updatedAt: Date.now(),
-                        createdAt: Date.now()
+                // Try to load from Backend API
+                const response = await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`)
+                if (response.ok) {
+                    const dbSessions = await response.json()
+                    if (Array.isArray(dbSessions) && dbSessions.length > 0) {
+                        loadedSessions = dbSessions
                     }
-                    setSessions([migratedSession])
-                    setActiveSessionId(migratedSession.id)
-                    localStorage.setItem('chat_sessions', JSON.stringify([migratedSession]))
+                }
+            } catch (err) {
+                console.error("Failed to load chat sessions from API", err)
+            }
+
+            // Fallback to localStorage if API empty or failed
+            if (loadedSessions.length === 0) {
+                const savedSessions = localStorage.getItem('chat_sessions')
+                if (savedSessions) {
+                    try {
+                        loadedSessions = JSON.parse(savedSessions)
+                    } catch (e) {
+                        console.error("Failed to load chat sessions from localStorage", e)
+                    }
+                }
+            }
+
+            // Migrate old single history if absolutely empty
+            if (loadedSessions.length === 0) {
+                const oldHistory = localStorage.getItem('chat_history')
+                if (oldHistory) {
+                    try {
+                        const parsedMessages = JSON.parse(oldHistory)
+                        if (parsedMessages.length > 0) {
+                            loadedSessions = [{
+                                id: generateId(),
+                                title: 'Migrated Chat',
+                                messages: parsedMessages,
+                                updatedAt: Date.now(),
+                                createdAt: Date.now()
+                            }]
+                        }
+                    } catch (e) { }
+                }
+            }
+
+            if (loadedSessions.length > 0) {
+                setSessions(loadedSessions)
+                if (!activeSessionId) {
+                    setActiveSessionId(loadedSessions[0].id)
+                }
+
+                // Sync to DB if we loaded from LocalStorage fallback
+                try {
+                    for (const s of loadedSessions) {
+                        await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(s)
+                        })
+                    }
                 } catch (e) { }
             } else {
                 createNewSession()
             }
+
+            setIsInitialized(true)
         }
-        setIsInitialized(true)
+
+        loadInitialData()
     }, [])
 
     useEffect(() => {
@@ -81,7 +127,17 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         }
     }, [isActive])
 
-    // Save sessions to localStorage whenever they change
+    // Save sessions to DB (and localStorage for quick cache) whenever they change
+    const saveSessionToDB = async (session: ChatSession) => {
+        try {
+            await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(session)
+            })
+        } catch (e) { console.error("Failed to sync session to DB", e) }
+    }
+
     useEffect(() => {
         if (!isInitialized) return
         if (sessions.length > 0) {
@@ -152,21 +208,37 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     const messages = activeSession?.messages || []
 
     const createNewSession = () => {
-        const newSession: ChatSession = {
-            id: Date.now().toString(),
-            title: 'New Chat',
-            messages: [],
-            updatedAt: Date.now(),
-            createdAt: Date.now()
-        }
-        setSessions(prev => [newSession, ...prev])
-        setActiveSessionId(newSession.id)
-        setSidebarOpen(false)
+        setSessions(prev => {
+            if (prev.length > 0 && prev[0].messages.length === 0 && prev[0].title === 'New Chat') {
+                setTimeout(() => {
+                    setActiveSessionId(prev[0].id)
+                    setSidebarOpen(false)
+                }, 0)
+                return prev;
+            }
+            const newSession: ChatSession = {
+                id: generateId(),
+                title: 'New Chat',
+                messages: [],
+                updatedAt: Date.now(),
+                createdAt: Date.now()
+            }
+            setTimeout(() => {
+                setActiveSessionId(newSession.id)
+                setSidebarOpen(false)
+                saveSessionToDB(newSession)
+            }, 0)
+            return [newSession, ...prev]
+        })
     }
 
-    const deleteSession = (e: React.MouseEvent, id: string) => {
+    const deleteSession = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation()
         if (window.confirm('Are you sure you want to delete this chat session?')) {
+            try {
+                await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSION_DELETE(id)}`, { method: 'DELETE' })
+            } catch (err) { console.error("Failed to delete session from DB", err) }
+
             setSessions(prev => {
                 const filtered = prev.filter(s => s.id !== id)
                 if (activeSessionId === id) {
@@ -180,17 +252,42 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         }
     }
 
-    const renameSession = (e: React.MouseEvent, id: string) => {
+    const startRenameSession = (e: React.MouseEvent, session: ChatSession) => {
+        e.preventDefault()
         e.stopPropagation()
-        const session = sessions.find(s => s.id === id)
-        if (!session) return
-        const newTitle = window.prompt('Rename chat session', session.title)
-        if (newTitle && newTitle.trim()) {
-            setSessions(prev => prev.map(s =>
-                s.id === id ? { ...s, title: newTitle.trim(), updatedAt: Date.now() } : s
-            ))
+        setEditingSessionId(session.id)
+        setEditingTitle(session.title)
+    }
+
+    const commitRename = (id: string) => {
+        if (editingTitle.trim()) {
+            const updatedTitle = editingTitle.trim()
+            setSessions(prev => {
+                const updated = prev.map(s => s.id === id ? { ...s, title: updatedTitle, updatedAt: Date.now() } : s)
+                const target = updated.find(s => s.id === id)
+                if (target) saveSessionToDB(target)
+                return updated
+            })
+        }
+        setEditingSessionId(null)
+    }
+
+    const cancelRename = () => {
+        setEditingSessionId(null)
+    }
+
+    const clearSession = () => {
+        if (!activeSessionId) return;
+        if (window.confirm('确定要清空当前对话的所有消息吗？(上下文记忆将重置)')) {
+            setSessions(prev => {
+                const updated = prev.map(s => s.id === activeSessionId ? { ...s, messages: [], updatedAt: Date.now() } : s)
+                const target = updated.find(s => s.id === activeSessionId)
+                if (target) saveSessionToDB(target)
+                return updated
+            })
         }
     }
+
 
     const handleSend = async () => {
         if (!input.trim() || loading || !activeSessionId) return
@@ -206,18 +303,25 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         }
 
         const userMsg: Message = {
-            id: Date.now().toString(),
+            id: generateId(),
             role: 'user',
             content: userContent,
             timestamp: Date.now()
         }
 
-        setSessions(prev => prev.map(s => {
-            if (s.id === activeSessionId) {
-                return { ...s, messages: [...s.messages, userMsg], updatedAt: Date.now() }
-            }
-            return s
-        }))
+        setSessions(prev => {
+            const updated = prev.map(s => {
+                if (s.id === activeSessionId) {
+                    return { ...s, messages: [...s.messages, userMsg], updatedAt: Date.now() }
+                }
+                return s
+            })
+            // Wait to sync until bot replies, or sync user msg immediately.
+            // We'll sync at the very end to avoid multiple writes, but for safety:
+            const target = updated.find(s => s.id === activeSessionId)
+            if (target) saveSessionToDB(target)
+            return updated
+        })
 
         setInput('')
         setLoading(true)
@@ -229,7 +333,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             }))
             history.push({ role: userMsg.role, content: userMsg.content })
 
-            const botMsgId = (Date.now() + 1).toString()
+            const botMsgId = generateId()
             const initialBotMsg: Message = {
                 id: botMsgId,
                 role: 'assistant',
@@ -305,28 +409,33 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             }
 
             // Final update with metadata
-            setSessions(prev => prev.map(s => {
-                if (s.id === activeSessionId) {
-                    const updatedMessages = [...s.messages]
-                    let lastUserIdx = -1;
-                    let lastBotIdx = -1;
+            setSessions(prev => {
+                const updated = prev.map(s => {
+                    if (s.id === activeSessionId) {
+                        const updatedMessages = [...s.messages]
+                        let lastUserIdx = -1;
+                        let lastBotIdx = -1;
 
-                    for (let i = updatedMessages.length - 1; i >= 0; i--) {
-                        if (updatedMessages[i].role === 'user' && lastUserIdx === -1) lastUserIdx = i;
-                        if (updatedMessages[i].id === botMsgId) lastBotIdx = i;
-                    }
+                        for (let i = updatedMessages.length - 1; i >= 0; i--) {
+                            if (updatedMessages[i].role === 'user' && lastUserIdx === -1) lastUserIdx = i;
+                            if (updatedMessages[i].id === botMsgId) lastBotIdx = i;
+                        }
 
-                    if (lastUserIdx >= 0) {
-                        updatedMessages[lastUserIdx] = { ...updatedMessages[lastUserIdx], memorySaved }
-                    }
-                    if (lastBotIdx >= 0) {
-                        updatedMessages[lastBotIdx] = { ...updatedMessages[lastBotIdx], memoriesUsed: memoriesRetrieved }
-                    }
+                        if (lastUserIdx >= 0) {
+                            updatedMessages[lastUserIdx] = { ...updatedMessages[lastUserIdx], memorySaved }
+                        }
+                        if (lastBotIdx >= 0) {
+                            updatedMessages[lastBotIdx] = { ...updatedMessages[lastBotIdx], memoriesUsed: memoriesRetrieved }
+                        }
 
-                    return { ...s, messages: updatedMessages, updatedAt: Date.now() }
-                }
-                return s
-            }))
+                        return { ...s, messages: updatedMessages, updatedAt: Date.now() }
+                    }
+                    return s
+                })
+                const target = updated.find(s => s.id === activeSessionId)
+                if (target) saveSessionToDB(target)
+                return updated
+            })
 
             if (memoriesRetrieved > 0 || memorySaved) {
                 const parts = []
@@ -337,7 +446,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         } catch (error: any) {
             console.error('Chat stream failed:', error)
             const errorMsg: Message = {
-                id: (Date.now() + 1).toString(),
+                id: generateId(),
                 role: 'assistant',
                 content: `Error: ${error.message || 'Failed to get response'}`,
                 timestamp: Date.now()
@@ -375,17 +484,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 transition-transform duration-300 ease-out
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
-                <div className="p-4 flex-none">
-                    <button
-                        onClick={createNewSession}
-                        className="w-full flex items-center gap-2 justify-center py-3 px-4 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/30 dark:hover:bg-primary-900/50 text-primary-600 dark:text-primary-400 font-medium rounded-xl transition-colors border border-primary-100 dark:border-primary-800/50"
-                    >
-                        <Plus size={18} />
-                        New Chat
-                    </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-1 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1 custom-scrollbar">
                     {sessions.sort((a, b) => b.updatedAt - a.updatedAt).map(session => (
                         <div
                             key={session.id}
@@ -401,27 +500,52 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                 }
                             `}
                         >
-                            <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="flex items-center gap-3 overflow-hidden flex-1">
                                 <MessageSquare size={16} className="flex-shrink-0" />
-                                <span className="truncate text-sm font-medium">{session.title}</span>
+                                {editingSessionId === session.id ? (
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        value={editingTitle}
+                                        onChange={(e) => setEditingTitle(e.target.value)}
+                                        onBlur={() => commitRename(session.id)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                commitRename(session.id);
+                                            } else if (e.key === 'Escape') {
+                                                cancelRename();
+                                            }
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-full bg-white dark:bg-slate-900 border border-primary-500 rounded px-2 py-0.5 text-sm text-slate-800 dark:text-white outline-none"
+                                    />
+                                ) : (
+                                    <span className="truncate text-sm font-medium">{session.title}</span>
+                                )}
                             </div>
 
-                            <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${activeSessionId === session.id ? 'opacity-100' : ''}`}>
-                                <button
-                                    onClick={(e) => renameSession(e, session.id)}
-                                    className="p-1.5 text-slate-400 hover:text-primary-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors"
-                                    title="Rename"
-                                >
-                                    <Edit2 size={14} />
-                                </button>
-                                <button
-                                    onClick={(e) => deleteSession(e, session.id)}
-                                    className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors"
-                                    title="Delete"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
+                            {editingSessionId !== session.id && (
+                                <div className={`relative z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${activeSessionId === session.id ? 'opacity-100' : ''}`}>
+                                    <button
+                                        onClick={(e) => startRenameSession(e, session)}
+                                        className="p-1.5 text-slate-400 hover:text-primary-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors cursor-pointer"
+                                        title="Rename"
+                                    >
+                                        <Edit2 size={14} />
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            deleteSession(e, session.id)
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors cursor-pointer"
+                                        title="Delete"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -458,11 +582,70 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={(e) => { if (activeSessionId) deleteSession(e, activeSessionId) }}
-                            className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            title="删除当前对话"
+                            onClick={createNewSession}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition-colors shadow-sm shadow-primary-500/20"
+                            title="新建对话 (New Chat)"
                         >
-                            <Trash2 size={18} />
+                            <Plus size={16} />
+                            <span className="text-sm hidden sm:inline">新对话</span>
+                        </button>
+
+                        <div className="relative">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const dropdown = document.getElementById('chat-actions-dropdown');
+                                    if (dropdown) {
+                                        if (dropdown.style.display === 'block') {
+                                            dropdown.style.display = 'none';
+                                        } else {
+                                            dropdown.style.display = 'block';
+                                            dropdown.style.top = `${rect.bottom + 8}px`;
+                                            dropdown.style.right = `${window.innerWidth - rect.right}px`;
+                                        }
+                                    }
+                                }}
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                title="更多选项"
+                            >
+                                <MoreHorizontal size={18} />
+                            </button>
+
+                            {/* Dropdown Menu - Click Outside to Close Handled by a global listener ideally, simplified here for pure React state or vanilla if preferred */}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Global Dropdown (Absolute to body or container) */}
+                <div
+                    id="chat-actions-dropdown"
+                    className="hidden fixed z-50 min-w-[160px] bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm"
+                    style={{ display: 'none' }}
+                >
+                    <div className="p-1">
+                        <button
+                            className="w-full flex items-center gap-2 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors text-left"
+                            onClick={() => {
+                                document.getElementById('chat-actions-dropdown')!.style.display = 'none';
+                                clearSession();
+                            }}
+                        >
+                            <Eraser size={14} className="text-slate-400" />
+                            <span>清空当前消息</span>
+                        </button>
+
+                        <div className="h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
+
+                        <button
+                            className="w-full flex items-center gap-2 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-left font-medium"
+                            onClick={(e) => {
+                                document.getElementById('chat-actions-dropdown')!.style.display = 'none';
+                                if (activeSessionId) deleteSession(e, activeSessionId);
+                            }}
+                        >
+                            <Trash2 size={14} className="text-red-500" />
+                            <span>删除对话记录</span>
                         </button>
                     </div>
                 </div>
@@ -584,7 +767,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                 }
                             }}
                             placeholder="输入消息 (Enter 发送, Shift+Enter 换行)..."
-                            className="flex-1 bg-transparent border-none focus:ring-0 p-3 max-h-48 min-h-[52px] resize-none text-[15px] text-slate-800 dark:text-white placeholder-slate-400 custom-scrollbar"
+                            className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 p-3 max-h-48 min-h-[52px] resize-none text-[15px] text-slate-800 dark:text-white placeholder-slate-400 custom-scrollbar"
                             rows={1}
                         />
                         <button

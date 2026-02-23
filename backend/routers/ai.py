@@ -45,11 +45,22 @@ async def generate_sentences(
     request: GenerateSentencesRequest,
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
-    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    authorization: Optional[str] = Header(None) # Make sure to catch the token
 ):
     """AI 生成例句"""
     from services.ai_service import AIService
+    from services.limit_service import LimitService, LimitException
+    from main import get_db
     
+    # Check limit locally
+    try:
+        limit_service = LimitService(db=get_db())
+        token = authorization.split(" ")[1] if authorization and authorization.startswith("Bearer ") else None
+        await limit_service.check_and_consume("ai_generate", token=token)
+    except LimitException as le:
+        raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
+        
     ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
     try:
         sentences = await ai.generate_sentences(
@@ -98,10 +109,21 @@ async def chat(
     x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"), # header defaults to string in some frameworks/proxies
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
-    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key")
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    authorization: Optional[str] = Header(None)
 ):
     """AI 对话练习"""
     from services.ai_service import AIService
+    from services.limit_service import LimitService, LimitException
+    from main import get_db
+    
+    # Check limit locally
+    try:
+        limit_service = LimitService(db=get_db())
+        token = authorization.split(" ")[1] if authorization and authorization.startswith("Bearer ") else None
+        await limit_service.check_and_consume("ai_chat", token=token)
+    except LimitException as le:
+        raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
     
     # Check if evermem is enabled (header comes as string "true"/"false")
     evermem_enabled = str(x_evermem_enabled).lower() == "true"
@@ -142,11 +164,22 @@ async def chat_stream(
     x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
-    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key")
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    authorization: Optional[str] = Header(None)
 ):
     """AI 对话练习 (流式)"""
     from services.ai_service import AIService
+    from services.limit_service import LimitService, LimitException
+    from main import get_db
     from fastapi.responses import StreamingResponse
+    
+    # Check limit locally
+    try:
+        limit_service = LimitService(db=get_db())
+        token = authorization.split(" ")[1] if authorization and authorization.startswith("Bearer ") else None
+        await limit_service.check_and_consume("ai_chat", token=token)
+    except LimitException as le:
+        raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
     
     evermem_enabled = str(x_evermem_enabled).lower() == "true"
 
@@ -269,3 +302,59 @@ async def delete_translation_record(record_id: int):
     db = get_db()
     success = db.delete_translation(record_id)
     return {"success": success}
+
+# --- Chat Sessions Endpoints (Persistent Chat History) ---
+
+class ChatSessionData(BaseModel):
+    """对话记录数据模型"""
+    id: str
+    title: str
+    messages: list
+    updatedAt: float
+    createdAt: float
+
+@router.get("/chat-sessions")
+async def get_chat_sessions():
+    """获取所有持久化的聊天会话"""
+    from main import get_db
+    db = get_db()
+    try:
+        sessions = db.get_all_chat_sessions()
+        return sessions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch chat sessions: {str(e)}")
+
+@router.post("/chat-sessions")
+async def save_chat_session(session: ChatSessionData):
+    """保存/更斯聊天会话"""
+    from main import get_db
+    db = get_db()
+    try:
+        success = db.save_chat_session(session.dict())
+        if not success:
+            raise HTTPException(status_code=500, detail="Database save failed")
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save chat session: {str(e)}")
+
+@router.delete("/chat-sessions/{session_id}")
+async def delete_chat_session(session_id: str):
+    """删除聊天会话"""
+    from main import get_db
+    db = get_db()
+    try:
+        success = db.delete_chat_session(session_id)
+        return {"success": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete chat session: {str(e)}")
+
+@router.delete("/chat-sessions")
+async def clear_all_chat_sessions():
+    """清空所有聊天会话"""
+    from main import get_db
+    db = get_db()
+    try:
+        success = db.clear_all_chat_sessions()
+        return {"success": success}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear chat sessions: {str(e)}")
