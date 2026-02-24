@@ -78,20 +78,22 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 
 # --- Alipay Routes ---
 
-# Initialize AlipayClient
+# Initialize Alipay
 alipay_client = None
+ALIPAY_PUBLIC_KEY = None
+
 if settings.ALIPAY_APP_ID:
     try:
         with open(settings.ALIPAY_PRIVATE_KEY_PATH) as f:
             app_private_key = f.read()
         with open(settings.ALIPAY_PUBLIC_KEY_PATH) as f:
-            alipay_public_key = f.read()
+            ALIPAY_PUBLIC_KEY = f.read()
             
         alipay_client_config = AlipayClientConfig()
         alipay_client_config.server_url = settings.ALIPAY_GATEWAY_URL
         alipay_client_config.app_id = settings.ALIPAY_APP_ID
         alipay_client_config.app_private_key = app_private_key
-        alipay_client_config.alipay_public_key = alipay_public_key
+        alipay_client_config.alipay_public_key = ALIPAY_PUBLIC_KEY
         
         alipay_client = DefaultAlipayClient(alipay_client_config)
     except Exception as e:
@@ -159,10 +161,14 @@ async def pay_notify(request: Request, db: Session = Depends(get_db)):
     
     # Verify Signature
     try:
-        with open(settings.ALIPAY_PUBLIC_KEY_PATH) as f:
-            alipay_public_key = f.read()
+        # Use cached public key if available, otherwise try to read it (fallback)
+        public_key = ALIPAY_PUBLIC_KEY
+        if not public_key:
+            with open(settings.ALIPAY_PUBLIC_KEY_PATH) as f:
+                public_key = f.read()
+
         # Verify RSA2 signature
-        is_valid = verify_with_rsa(alipay_public_key, params, signature)
+        is_valid = verify_with_rsa(public_key, params, signature)
         if not is_valid:
             print("Alipay Signature Verification Failed")
             return "fail"
