@@ -87,7 +87,8 @@ if settings.ALIPAY_APP_ID:
         with open(settings.ALIPAY_PRIVATE_KEY_PATH) as f:
             app_private_key = f.read()
         with open(settings.ALIPAY_PUBLIC_KEY_PATH) as f:
-            ALIPAY_PUBLIC_KEY = f.read()
+            public_key_content = f.read()
+            ALIPAY_PUBLIC_KEY = public_key_content
             
         alipay_client_config = AlipayClientConfig()
         alipay_client_config.server_url = settings.ALIPAY_GATEWAY_URL
