@@ -3,8 +3,9 @@ AI API Router
 AI 增强功能
 """
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Depends
 from pydantic import BaseModel
+from services.auth_service import get_current_user
 
 router = APIRouter()
 
@@ -46,7 +47,8 @@ async def generate_sentences(
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
     x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
-    authorization: Optional[str] = Header(None) # Make sure to catch the token
+    current_user: dict = Depends(get_current_user),
+    authorization: str = Header(...)
 ):
     """AI 生成例句"""
     from services.ai_service import AIService
@@ -82,7 +84,8 @@ async def generate_memory_tips(
     request: MemoryTipsRequest,
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
-    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    current_user: dict = Depends(get_current_user)
 ):
     """AI 生成记忆技巧"""
     from services.ai_service import AIService
@@ -110,7 +113,8 @@ async def chat(
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"), # header defaults to string in some frameworks/proxies
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
-    authorization: Optional[str] = Header(None)
+    current_user: dict = Depends(get_current_user),
+    authorization: str = Header(...)
 ):
     """AI 对话练习"""
     from services.ai_service import AIService
@@ -165,7 +169,8 @@ async def chat_stream(
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
-    authorization: Optional[str] = Header(None)
+    current_user: dict = Depends(get_current_user),
+    authorization: str = Header(...)
 ):
     """AI 对话练习 (流式)"""
     from services.ai_service import AIService
@@ -206,7 +211,10 @@ async def chat_stream(
 
 
 @router.post("/evaluate-pronunciation")
-async def evaluate_pronunciation(request: PronunciationRequest):
+async def evaluate_pronunciation(
+    request: PronunciationRequest,
+    current_user: dict = Depends(get_current_user)
+):
     """发音评测"""
     from services.ai_service import AIService
     
@@ -222,7 +230,7 @@ async def evaluate_pronunciation(request: PronunciationRequest):
 
 
 @router.get("/config")
-async def get_ai_config():
+async def get_ai_config(current_user: dict = Depends(get_current_user)):
     """获取 AI 配置"""
     from services.ai_service import AIService
     
@@ -252,12 +260,23 @@ async def translate(
     request: TranslationRequest,
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
-    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    current_user: dict = Depends(get_current_user),
+    authorization: str = Header(...)
 ):
     """AI 翻译并保存记录"""
     from services.ai_service import AIService
+    from services.limit_service import LimitService, LimitException
     from main import get_db
     
+    # Check limit
+    try:
+        limit_service = LimitService(db=get_db())
+        token = authorization.split(" ")[1] if authorization and authorization.startswith("Bearer ") else None
+        await limit_service.check_and_consume("ai_translate", token=token)
+    except LimitException as le:
+        raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
+
     ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
     db = get_db()
     
@@ -288,7 +307,11 @@ async def translate(
 
 
 @router.get("/translations/history")
-async def get_translation_history(limit: int = 20, offset: int = 0):
+async def get_translation_history(
+    limit: int = 20,
+    offset: int = 0,
+    current_user: dict = Depends(get_current_user)
+):
     """获取翻译历史"""
     from main import get_db
     db = get_db()
@@ -296,7 +319,10 @@ async def get_translation_history(limit: int = 20, offset: int = 0):
 
 
 @router.delete("/translations/{record_id}")
-async def delete_translation_record(record_id: int):
+async def delete_translation_record(
+    record_id: int,
+    current_user: dict = Depends(get_current_user)
+):
     """删除翻译记录"""
     from main import get_db
     db = get_db()
@@ -314,7 +340,7 @@ class ChatSessionData(BaseModel):
     createdAt: float
 
 @router.get("/chat-sessions")
-async def get_chat_sessions():
+async def get_chat_sessions(current_user: dict = Depends(get_current_user)):
     """获取所有持久化的聊天会话"""
     from main import get_db
     db = get_db()
@@ -325,7 +351,10 @@ async def get_chat_sessions():
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat sessions: {str(e)}")
 
 @router.post("/chat-sessions")
-async def save_chat_session(session: ChatSessionData):
+async def save_chat_session(
+    session: ChatSessionData,
+    current_user: dict = Depends(get_current_user)
+):
     """保存/更斯聊天会话"""
     from main import get_db
     db = get_db()
@@ -338,7 +367,10 @@ async def save_chat_session(session: ChatSessionData):
         raise HTTPException(status_code=500, detail=f"Failed to save chat session: {str(e)}")
 
 @router.delete("/chat-sessions/{session_id}")
-async def delete_chat_session(session_id: str):
+async def delete_chat_session(
+    session_id: str,
+    current_user: dict = Depends(get_current_user)
+):
     """删除聊天会话"""
     from main import get_db
     db = get_db()
@@ -349,7 +381,7 @@ async def delete_chat_session(session_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to delete chat session: {str(e)}")
 
 @router.delete("/chat-sessions")
-async def clear_all_chat_sessions():
+async def clear_all_chat_sessions(current_user: dict = Depends(get_current_user)):
     """清空所有聊天会话"""
     from main import get_db
     db = get_db()
