@@ -13,7 +13,7 @@ from services.evermem_service import EverMemService
 class AIService:
     """AI 服务封装，支持多 Provider 切换"""
     
-    def __init__(self, provider: str = None, api_key: str = None, model: str = None,
+    def __init__(self, provider: str = None, api_key: str = None, model: str = None, api_base: str = None,
                  evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None):
         """
         初始化 AI 服务
@@ -44,7 +44,7 @@ class AIService:
         else:
             self.api_key = os.environ.get("AI_API_KEY", "")
             
-        self.api_base = os.environ.get("AI_API_BASE", "")
+        self.api_base = api_base or os.environ.get("AI_API_BASE", "")
         self.model = model or os.environ.get("AI_MODEL", "gpt-4o-mini")
         
         # EverMemOS setup
@@ -78,8 +78,10 @@ class AIService:
             }
         elif self.provider == "ollama":
             return {
-                "base_url": self.api_base or "http://localhost:11434/api",
-                "headers": {}
+                "base_url": self.api_base or "http://localhost:11434/v1",
+                "headers": {
+                    "Authorization": f"Bearer {self.api_key or 'ollama'}"
+                }
             }
         elif self.provider == "dashscope":
             headers = {}
@@ -104,7 +106,7 @@ class AIService:
         config = self._get_client_config()
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            if self.provider in ["openai", "custom", "dashscope"]:
+            if self.provider in ["openai", "custom", "dashscope", "ollama"]:
                 try:
                     response = await client.post(
                         f"{config['base_url']}/chat/completions",
@@ -139,19 +141,6 @@ class AIService:
                 data = response.json()
                 return data.get("content", [{}])[0].get("text", "")
                 
-            elif self.provider == "ollama":
-                response = await client.post(
-                    f"{config['base_url']}/chat",
-                    headers=config['headers'],
-                    json={
-                        "model": self.model or "llama2",
-                        "messages": messages,
-                        "stream": False
-                    }
-                )
-                data = response.json()
-                return data.get("message", {}).get("content", "")
-                
         return ""
 
     async def _call_llm_stream(self, messages: List[Dict], temperature: float = 0.7):
@@ -159,7 +148,7 @@ class AIService:
         config = self._get_client_config()
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            if self.provider in ["openai", "custom", "dashscope"]:
+            if self.provider in ["openai", "custom", "dashscope", "ollama"]:
                 try:
                     async with client.stream(
                         "POST",
@@ -190,7 +179,7 @@ class AIService:
                     print(f"LLM Stream API Error: {e}")
                     yield ""
             
-            # Streaming for anthropic/ollama is not fully implemented here as dashscope/openai are primary
+            # Streaming for anthropic is not fully implemented here as dashscope/openai/ollama are primary
             else:
                 yield await self._call_llm(messages, temperature)
     
@@ -323,7 +312,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return True
         return False
 
-    async def chat(self, messages: List[Dict], context_word: str = "") -> Dict:
+    async def chat(self, messages: List[Dict], context_word: str = "", session_id: str = None) -> Dict:
         """
         AI 对话练习 (optimized with EverMemOS official pattern)
         
@@ -332,6 +321,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         Args:
             messages: 对话历史
             context_word: 当前学习的单词（可选）
+            session_id: The ID of the current chat session (optional)
         
         Returns:
             Dict with 'response', 'memories_retrieved', 'memory_saved'
@@ -409,7 +399,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 "memory_saved": False
             }
 
-    async def chat_stream(self, messages: List[Dict], context_word: str = ""):
+    async def chat_stream(self, messages: List[Dict], context_word: str = "", session_id: str = None):
         """
         AI 对话练习 (流式输出)
         Flow: Store user msg → Retrieve context → Stream response → Store assistant msg
@@ -537,3 +527,34 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         except Exception as e:
             print(f"Translate error: {e}")
             return "翻译失败，请稍后重试。", ""
+
+    async def test_connection(self) -> Dict:
+        """
+        测试 AI 连接
+        
+        Returns:
+            Dict with 'success', 'message', and optional 'details'
+        """
+        try:
+            response = await self._call_llm([
+                {"role": "user", "content": "Hello, please reply with 'OK' if you can hear me."}
+            ], temperature=0.1)
+            
+            if response and len(response.strip()) > 0:
+                return {
+                    "success": True,
+                    "message": "连接成功！",
+                    "details": f"AI 响应: {response[:50]}..."
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "AI 响应为空，请检查模型名称是否正确。",
+                    "details": ""
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"连接失败: {str(e)}",
+                "details": f"Provider: {self.provider}, Base: {self.api_base}, Model: {self.model}"
+            }

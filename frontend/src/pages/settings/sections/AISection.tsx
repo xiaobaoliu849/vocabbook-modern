@@ -4,12 +4,17 @@ import { Eye, EyeOff } from 'lucide-react'
 export default function AISection() {
     const [aiProvider, setAiProvider] = useState('dashscope')
     const [aiApiKey, setAiApiKey] = useState('')
-    const [aiModel, setAiModel] = useState('qwen-plus')
+    const [aiModel, setAiModel] = useState('qwen3.5-flash')
     const [showApiKey, setShowApiKey] = useState(false)
+    const [isTesting, setIsTesting] = useState(false)
+    const [testResult, setTestResult] = useState<{ success: boolean; message: string; details?: string } | null>(null)
     // Store API keys for each provider separately
     const [apiKeys, setApiKeys] = useState<Record<string, string>>({})
     // Store Models for each provider separately
     const [aiModels, setAiModels] = useState<Record<string, string>>({})
+    // Store Base URLs for each provider separately
+    const [aiBases, setAiBases] = useState<Record<string, string>>({})
+    const [aiBase, setAiBase] = useState('')
 
     // EverMemOS State
     const [evermemEnabled, setEvermemEnabled] = useState(false)
@@ -47,6 +52,17 @@ export default function AISection() {
             }
         }
 
+        // Load all saved bases map
+        const savedBasesStr = localStorage.getItem('ai_bases_map')
+        let basesMap: Record<string, string> = {}
+        if (savedBasesStr) {
+            try {
+                basesMap = JSON.parse(savedBasesStr)
+            } catch (e) {
+                console.error('Failed to parse ai bases map', e)
+            }
+        }
+
         // Legacy support: check if there is a single key saved in 'ai_api_key'
         const legacyKey = localStorage.getItem('ai_api_key')
         if (legacyKey && !keysMap[provider] && Object.keys(keysMap).length === 0) {
@@ -61,10 +77,22 @@ export default function AISection() {
         }
 
         setApiKeys(keysMap)
-        setAiModels(modelsMap)
 
+        let loadedModel = modelsMap[provider] || getDefaultModel(provider)
+        // Auto-migrate qwen-plus to qwen3.5-flash once if user hasn't explicitly saved after this update
+        if (provider === 'dashscope' && loadedModel === 'qwen-plus' && !localStorage.getItem('qwen_flash_migrated')) {
+            loadedModel = 'qwen3.5-flash'
+            modelsMap[provider] = loadedModel
+            localStorage.setItem('qwen_flash_migrated', 'true')
+            localStorage.setItem('ai_models_map', JSON.stringify(modelsMap))
+            localStorage.setItem('ai_model', loadedModel)
+        }
+
+        setAiModels(modelsMap)
+        setAiBases(basesMap)
         setAiApiKey(keysMap[provider] || '')
-        setAiModel(modelsMap[provider] || getDefaultModel(provider))
+        setAiModel(loadedModel)
+        setAiBase(basesMap[provider] || '')
 
         // Load EverMem settings
         setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
@@ -74,11 +102,11 @@ export default function AISection() {
 
     const getDefaultModel = (provider: string) => {
         switch (provider) {
-            case 'dashscope': return 'qwen-plus'
-            case 'openai': return 'gpt-5-mini'
+            case 'dashscope': return 'qwen3.5-flash' // Latest Qwen native multimodal high-speed model
+            case 'openai': return 'gpt-4o-mini'
             case 'anthropic': return 'claude-4.5-sonnet'
-            case 'gemini': return 'gemini-3-flash-preview'
-            case 'ollama': return 'llama4'
+            case 'gemini': return 'gemini-1.5-flash'
+            case 'ollama': return 'qwen2.5'
             default: return ''
         }
     }
@@ -96,6 +124,11 @@ export default function AISection() {
         setAiModels(newModelsMap)
         localStorage.setItem('ai_models_map', JSON.stringify(newModelsMap))
 
+        // Update bases map
+        const newBasesMap = { ...aiBases, [aiProvider]: aiBase }
+        setAiBases(newBasesMap)
+        localStorage.setItem('ai_bases_map', JSON.stringify(newBasesMap))
+
         // Also save to legacy key for backward compatibility or immediate usage in other parts
         localStorage.setItem('ai_api_key', aiApiKey)
 
@@ -110,6 +143,33 @@ export default function AISection() {
         alert('✅ AI 设置已保存')
     }
 
+    const testConnection = async () => {
+        setIsTesting(true)
+        setTestResult(null)
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/ai/test-connection`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AI-Provider': aiProvider,
+                    'X-AI-Key': aiApiKey,
+                    'X-AI-Model': aiModel,
+                    'X-AI-Base': aiBase
+                }
+            })
+            const data = await response.json()
+            setTestResult(data)
+        } catch (e) {
+            setTestResult({
+                success: false,
+                message: '无法连接到后端服务器',
+                details: String(e)
+            })
+        } finally {
+            setIsTesting(false)
+        }
+    }
+
     // Auto-set default model when provider changes to DashScope
     const handleProviderChange = (provider: string) => {
         setAiProvider(provider)
@@ -119,6 +179,9 @@ export default function AISection() {
         // Switch to model for this provider or default
         const savedModel = aiModels[provider]
         setAiModel(savedModel || getDefaultModel(provider))
+
+        // Switch to base for this provider
+        setAiBase(aiBases[provider] || '')
     }
 
     return (
@@ -188,25 +251,8 @@ export default function AISection() {
                         </p>
                     </div>
 
-                    {(aiProvider === 'dashscope' || aiProvider === 'openai' || aiProvider === 'custom') && (
-                        <div className="animate-fade-in">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                模型名称 (Model Name)
-                            </label>
-                            <input
-                                type="text"
-                                value={aiModel}
-                                onChange={(e) => {
-                                    setAiModel(e.target.value)
-                                    setAiModels(prev => ({ ...prev, [aiProvider]: e.target.value }))
-                                }}
-                                placeholder={aiProvider === 'dashscope' ? 'e.g., qwen-plus' : '输入模型名称...'}
-                                className="input-field w-full"
-                            />
-                        </div>
-                    )}
-                    {/* Ensure Gemini and Anthropic etc can also set model */}
-                    {(aiProvider === 'anthropic' || aiProvider === 'gemini' || aiProvider === 'ollama') && (
+                    {/* Ensure All can set model */}
+                    {(aiProvider !== 'custom') && (
                         <div className="animate-fade-in">
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                                 模型名称 (Model Name)
@@ -221,14 +267,68 @@ export default function AISection() {
                                 placeholder={getDefaultModel(aiProvider)}
                                 className="input-field w-full"
                             />
+                            {aiProvider === 'ollama' && (
+                                <p className="text-xs text-indigo-500 mt-1">
+                                    💡 提示：在命令行运行 <code>ollama list</code> 查看确切的模型名称（如 <code>qwen2.5:32b</code>）
+                                </p>
+                            )}
                         </div>
                     )}
 
-                    <div className="pt-2">
-                        <button onClick={saveAiSettings} className="btn-primary w-full md:w-auto">
+                    {(aiProvider === 'ollama' || aiProvider === 'custom') && (
+                        <div className="animate-fade-in">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                API 地址 (Base URL)
+                            </label>
+                            <input
+                                type="text"
+                                value={aiBase}
+                                onChange={(e) => {
+                                    setAiBase(e.target.value)
+                                    setAiBases(prev => ({ ...prev, [aiProvider]: e.target.value }))
+                                }}
+                                placeholder={aiProvider === 'ollama' ? 'http://localhost:11434/v1' : 'https://api.example.com/v1'}
+                                className="input-field w-full"
+                            />
+                            {aiProvider === 'ollama' && (
+                                <p className="text-xs text-slate-500 mt-1">
+                                    默认地址为 <code>http://localhost:11434/v1</code>
+                                </p>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="pt-2 flex flex-col md:flex-row gap-3">
+                        <button onClick={saveAiSettings} className="btn-primary flex-1 md:flex-none">
                             保存 AI 设置
                         </button>
+                        <button
+                            onClick={testConnection}
+                            disabled={isTesting}
+                            className={`px-6 py-2 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${testResult?.success
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                        >
+                            {isTesting ? '正在测试...' : '测试连接'}
+                        </button>
                     </div>
+
+                    {testResult && (
+                        <div className={`p-4 rounded-xl border animate-fade-in ${testResult.success
+                            ? 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300'
+                            : 'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
+                            }`}>
+                            <div className="font-bold flex items-center gap-2">
+                                {testResult.success ? '✅' : '❌'} {testResult.message}
+                            </div>
+                            {testResult.details && (
+                                <div className="mt-1 text-xs opacity-80 break-all font-mono">
+                                    {testResult.details}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 

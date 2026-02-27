@@ -12,6 +12,7 @@ interface SubscriptionModalProps {
 export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
     const { user, token } = useAuthStore();
     const [loading, setLoading] = useState(false);
+    const [mockLoading, setMockLoading] = useState(false);
     const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
     const [orderNo, setOrderNo] = useState<string | null>(null);
     const [error, setError] = useState('');
@@ -88,9 +89,33 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
         }
     };
 
+    const handleMockPayment = async () => {
+        if (!token) return;
+        setMockLoading(true);
+        try {
+            // Using a hardcoded URL since this is a new endpoint only on the mock server
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+            const mockUrl = apiUrl.includes('8000') ? 'http://localhost:8001' : apiUrl; // simple fallback
+
+            const res = await fetch(`${mockUrl}/api/pay/mock_success`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                await handleCheckStatus();
+            } else {
+                setError('Mock payment failed: ' + await res.text());
+            }
+        } catch (err: any) {
+            setError('Mock payment error: ' + err.message);
+        } finally {
+            setMockLoading(false);
+        }
+    };
+
     return createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
-            <div className="bg-white/10 dark:bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/20 dark:border-white/10 p-8 rounded-3xl w-full max-w-2xl shadow-2xl relative overflow-hidden">
+            <div className="bg-white/10 dark:bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/20 dark:border-white/10 p-8 rounded-3xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto flex flex-col">
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
@@ -113,54 +138,56 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                     </div>
                 )}
 
-                <div className="grid md:grid-cols-2 gap-6 mb-8">
-                    {/* Free Tier */}
-                    <div className="bg-black/20 border border-white/5 rounded-2xl p-6 relative">
-                        {user?.tier === 'free' && (
-                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-xs px-3 py-1 rounded-full font-medium">
-                                Current Plan
-                            </div>
-                        )}
-                        <h3 className="text-xl font-semibold text-white mb-2">Free</h3>
-                        <div className="text-3xl font-bold text-white mb-6">¥0 <span className="text-sm text-gray-400 font-normal">/ forever</span></div>
-                        <ul className="space-y-3 text-gray-300">
-                            <li className="flex items-center"><span className="text-green-400 mr-2">✓</span> Basic Vocabulary Sync</li>
-                            <li className="flex items-center"><span className="text-green-400 mr-2">✓</span> SM-2 Review Algorithm</li>
-                            <li className="flex items-center"><span className="text-gray-500 mr-2 border rounded-full px-1 text-xs">!</span> AI Chat (10 msgs/day)</li>
-                            <li className="flex items-center"><span className="text-gray-500 mr-2 border rounded-full px-1 text-xs">!</span> Edge TTS (30 /day)</li>
-                            <li className="flex items-center"><span className="text-gray-500 mr-2 border rounded-full px-1 text-xs">!</span> AI Sentences (15/day)</li>
-                        </ul>
-                    </div>
-
-                    {/* Premium Tier */}
-                    <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border border-blue-500/30 rounded-2xl p-6 relative transform md:-translate-y-2 shadow-xl shadow-blue-500/10">
-                        {user?.tier === 'premium' && (
-                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs px-3 py-1 rounded-full font-bold shadow-lg">
-                                Active Plan
-                            </div>
-                        )}
-                        <h3 className="text-xl font-semibold text-blue-300 mb-2">Premium</h3>
-                        <div className="text-3xl font-bold text-white mb-6">¥29 <span className="text-sm text-blue-200/50 font-normal">/ month</span></div>
-                        <ul className="space-y-3 text-blue-100">
-                            <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Unlimited AI Chat</li>
-                            <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Unlimited Edge TTS</li>
-                            <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Unlimited AI Generation</li>
-                            <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Priority Support</li>
-                            <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Sync across all devices</li>
-                        </ul>
-                    </div>
-                </div>
-
                 {!qrCodeUrl ? (
-                    <div className="text-center">
-                        <button
-                            onClick={handleSubscribe}
-                            disabled={loading || user?.tier === 'premium'}
-                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 px-12 rounded-2xl transition-all shadow-lg shadow-blue-500/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-lg"
-                        >
-                            {loading ? 'Processing...' : (user?.tier === 'premium' ? 'Already Premium' : 'Subscribe Now with Alipay')}
-                        </button>
-                    </div>
+                    <>
+                        <div className="grid md:grid-cols-2 gap-6 mb-8">
+                            {/* Free Tier */}
+                            <div className="bg-black/20 border border-white/5 rounded-2xl p-6 relative">
+                                {user?.tier === 'free' && (
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-xs px-3 py-1 rounded-full font-medium">
+                                        Current Plan
+                                    </div>
+                                )}
+                                <h3 className="text-xl font-semibold text-white mb-2">Free</h3>
+                                <div className="text-3xl font-bold text-white mb-6">¥0 <span className="text-sm text-gray-400 font-normal">/ forever</span></div>
+                                <ul className="space-y-3 text-gray-300">
+                                    <li className="flex items-center"><span className="text-green-400 mr-2">✓</span> Basic Vocabulary Sync</li>
+                                    <li className="flex items-center"><span className="text-green-400 mr-2">✓</span> SM-2 Review Algorithm</li>
+                                    <li className="flex items-center"><span className="text-gray-500 mr-2 border rounded-full px-1 text-xs">!</span> AI Chat (10 msgs/day)</li>
+                                    <li className="flex items-center"><span className="text-gray-500 mr-2 border rounded-full px-1 text-xs">!</span> Edge TTS (30 /day)</li>
+                                    <li className="flex items-center"><span className="text-gray-500 mr-2 border rounded-full px-1 text-xs">!</span> AI Sentences (15/day)</li>
+                                </ul>
+                            </div>
+
+                            {/* Premium Tier */}
+                            <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border border-blue-500/30 rounded-2xl p-6 relative transform md:-translate-y-2 shadow-xl shadow-blue-500/10">
+                                {user?.tier === 'premium' && (
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs px-3 py-1 rounded-full font-bold shadow-lg">
+                                        Active Plan
+                                    </div>
+                                )}
+                                <h3 className="text-xl font-semibold text-blue-300 mb-2">Premium</h3>
+                                <div className="text-3xl font-bold text-white mb-6">¥29 <span className="text-sm text-blue-200/50 font-normal">/ month</span></div>
+                                <ul className="space-y-3 text-blue-100">
+                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Unlimited AI Chat</li>
+                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Unlimited Edge TTS</li>
+                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Unlimited AI Generation</li>
+                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Priority Support</li>
+                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> Sync across all devices</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div className="text-center">
+                            <button
+                                onClick={handleSubscribe}
+                                disabled={loading || user?.tier === 'premium'}
+                                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 px-12 rounded-2xl transition-all shadow-lg shadow-blue-500/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+                            >
+                                {loading ? 'Processing...' : (user?.tier === 'premium' ? 'Already Premium' : 'Subscribe Now with Alipay')}
+                            </button>
+                        </div>
+                    </>
                 ) : (
                     <div className="bg-white rounded-2xl p-8 flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
                         <h3 className="text-gray-800 font-bold mb-4 text-xl">Scan with Alipay</h3>
@@ -173,11 +200,27 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                         </p>
                         <button
                             onClick={handleCheckStatus}
-                            disabled={loading}
+                            disabled={loading || mockLoading}
                             className="text-blue-600 font-medium hover:bg-blue-50 py-2 px-6 rounded-lg transition-colors"
                         >
                             {loading ? 'Checking...' : "I've completed the payment"}
                         </button>
+
+                        <div className="flex gap-4 mt-3">
+                            <button
+                                onClick={handleMockPayment}
+                                disabled={loading || mockLoading}
+                                className="text-emerald-600 text-sm hover:text-emerald-700 transition-colors bg-emerald-50 px-3 py-1.5 rounded-md border border-emerald-200"
+                            >
+                                {mockLoading ? 'Mocking...' : '🔧 [Dev] Mock Success'}
+                            </button>
+                            <button
+                                onClick={() => { setQrCodeUrl(null); setOrderNo(null); setError(''); }}
+                                className="text-gray-400 text-sm hover:text-gray-600 transition-colors py-1.5"
+                            >
+                                Cancel Payment
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

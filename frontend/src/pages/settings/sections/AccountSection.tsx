@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Crown, Cloud, LogOut, Mail, Shield, Smartphone } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext'
-import { PaymentModal } from '../../../components/pay/PaymentModal'
+import { SubscriptionModal } from '../../../components/SubscriptionModal'
 
 export default function AccountSection() {
     const { user, logout } = useAuth()
@@ -166,7 +166,7 @@ export default function AccountSection() {
                 </button>
             </div>
 
-            <PaymentModal isOpen={showPay} onClose={() => setShowPay(false)} />
+            <SubscriptionModal isOpen={showPay} onClose={() => setShowPay(false)} />
         </div>
     )
 }

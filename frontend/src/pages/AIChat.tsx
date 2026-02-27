@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Send, Bot, User, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser } from 'lucide-react'
+import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser } from 'lucide-react'
 import { API_PATHS, API_BASE_URL } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 
@@ -36,6 +36,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
     const [editingTitle, setEditingTitle] = useState('')
+    const inputRef = useRef<HTMLTextAreaElement>(null)
 
     // Config state
     const [provider, setProvider] = useState('')
@@ -183,6 +184,16 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         const headers: Record<string, string> = {}
         if (provider) headers['X-AI-Provider'] = provider
         if (model) headers['X-AI-Model'] = model
+
+        const savedBasesStr = localStorage.getItem('ai_bases_map')
+        let basesMap: Record<string, string> = {}
+        if (savedBasesStr) {
+            try {
+                basesMap = JSON.parse(savedBasesStr)
+            } catch (e) { }
+        }
+        const apiBase = basesMap[provider] || ''
+        if (apiBase) headers['X-AI-Base'] = apiBase
 
         const savedKeysStr = localStorage.getItem('ai_api_keys_map')
         let keysMap: Record<string, string> = {}
@@ -474,6 +485,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             <div
                 className={`absolute inset-0 z-40 bg-slate-900/20 dark:bg-slate-900/50 backdrop-blur-[2px] transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                     }`}
+                style={{ display: sidebarOpen ? 'block' : 'none' }}
                 onClick={() => setSidebarOpen(false)}
             />
 
@@ -664,7 +676,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar scroll-smooth">
                     {messages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                            <Bot size={56} className="mb-4 text-slate-300 dark:text-slate-600" />
+                            <Sparkles size={48} className="mb-4 text-indigo-200 dark:text-indigo-900/50" />
                             <p className="text-base font-medium text-slate-500 dark:text-slate-400">开始和 AI 练习英语对话吧！</p>
                             {evermemEnabled && (
                                 <div className="mt-6 px-5 py-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800/50 text-center max-w-sm">
@@ -684,23 +696,39 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             key={msg.id}
                             className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
                         >
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm
-                                ${msg.role === 'user'
-                                    ? 'bg-gradient-to-br from-primary-100 to-primary-200 text-primary-600 dark:from-primary-900/60 dark:to-primary-800/40 dark:text-primary-300'
-                                    : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 dark:from-slate-800 dark:to-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                                }`}
-                            >
-                                {msg.role === 'user' ? <User size={18} /> : <Bot size={18} />}
-                            </div>
+                            {msg.role === 'assistant' && (
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20">
+                                    <Sparkles size={18} />
+                                </div>
+                            )}
 
                             <div className={`flex flex-col gap-1.5 max-w-[85%] md:max-w-[75%]`}>
-                                <div className={`rounded-2xl px-5 py-3.5 shadow-sm text-[15px] leading-[1.6] whitespace-pre-wrap relative group/msg
+                                <div className={`rounded-2xl px-5 py-3.5 shadow-sm text-[16.5px] leading-[1.7] whitespace-pre-wrap relative group/msg
                                     ${msg.role === 'user'
                                         ? 'bg-primary-500 text-white rounded-tr-sm shadow-primary-500/20'
                                         : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-tl-sm border border-slate-100 dark:border-slate-700/60'
                                     }`}
                                 >
-                                    {msg.content}
+                                    {msg.content ? (
+                                        msg.content
+                                    ) : (
+                                        msg.role === 'assistant' && loading && (
+                                            <div className="flex gap-1.5 items-center h-6">
+                                                {evermemEnabled ? (
+                                                    <span className="text-[13px] font-medium text-indigo-500 dark:text-indigo-400 flex items-center gap-1.5">
+                                                        <Brain size={14} className="animate-pulse" />
+                                                        思考中...
+                                                    </span>
+                                                ) : (
+                                                    <>
+                                                        <div className="w-1.5 h-1.5 bg-indigo-400 dark:bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                        <div className="w-1.5 h-1.5 bg-indigo-400 dark:bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                        <div className="w-1.5 h-1.5 bg-indigo-400 dark:bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                                    </>
+                                                )}
+                                            </div>
+                                        )
+                                    )}
 
                                     {/* TTS Button for Assistant Messages */}
                                     {msg.role === 'assistant' && msg.content && (
@@ -730,34 +758,15 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         </div>
                     ))}
 
-                    {loading && (
-                        <div className="flex gap-4 max-w-4xl mx-auto">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center text-slate-400 border border-slate-200 dark:border-slate-700 shadow-sm">
-                                <Bot size={18} />
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 rounded-2xl rounded-tl-sm px-6 py-4 border border-slate-100 dark:border-slate-700/60 shadow-sm flex gap-2 items-center">
-                                {evermemEnabled ? (
-                                    <span className="text-[13px] font-medium text-indigo-500 dark:text-indigo-400 flex items-center gap-2">
-                                        <Brain size={14} className="animate-pulse" />
-                                        思考中...
-                                    </span>
-                                ) : (
-                                    <>
-                                        <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                        <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                        <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    )}
                     <div ref={messagesEndRef} className="h-4" />
                 </div>
 
                 {/* Input Area */}
                 <div className="flex-none p-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur border-t border-slate-200 dark:border-slate-800">
-                    <div className="max-w-4xl mx-auto flex gap-3 items-end bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-2 relative focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500/50 transition-all">
+                    <div className="max-w-4xl mx-auto flex gap-3 items-end bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-2 relative focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500/50 transition-all cursor-text" onClick={() => inputRef.current?.focus()}>
                         <textarea
+                            ref={inputRef}
+                            autoFocus
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={(e) => {

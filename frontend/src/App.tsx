@@ -10,6 +10,7 @@ import ImportWords from './pages/ImportWords'
 import TranslationPage from './pages/TranslationPage'
 import StatisticsPage from './pages/StatisticsPage'
 import AIChat from './pages/AIChat'
+import DictionaryPopup from './components/DictionaryPopup'
 import './App.css'
 
 type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat'
@@ -18,14 +19,6 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('add')
   const [showHelp, setShowHelp] = useState(false)
   const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined)
-
-  useEffect(() => {
-    const handleSearchWord = () => {
-      setCurrentPage('add')
-    }
-    window.addEventListener('search-word', handleSearchWord)
-    return () => window.removeEventListener('search-word', handleSearchWord)
-  }, [])
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -124,6 +117,9 @@ function AppContent() {
           </div>
         </div>
       </main>
+
+      {/* Global Inline Popup */}
+      <DictionaryPopup />
 
       {/* Keyboard Shortcuts Help Panel */}
       {showHelp && (

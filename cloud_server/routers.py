@@ -206,3 +206,11 @@ async def pay_notify(request: Request, db: Session = Depends(get_db)):
         return "success"
         
     return "success"
+
+@app_router.post("/api/pay/mock_success")
+async def mock_pay_success(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Mock endpoint for developers to bypass Alipay Sandbox issues"""
+    current_user.tier = 'premium'
+    db.add(current_user)
+    await db.commit()
+    return {"msg": "success"}

@@ -32,6 +32,7 @@ class ChatRequest(BaseModel):
     """对话请求"""
     messages: List[ChatMessage]
     context_word: str = ""  # 当前学习的单词
+    session_id: Optional[str] = None # Current chat session ID
 
 
 class PronunciationRequest(BaseModel):
@@ -46,6 +47,7 @@ async def generate_sentences(
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
     x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    x_ai_base: Optional[str] = Header(None, alias="X-AI-Base"),
     authorization: Optional[str] = Header(None) # Make sure to catch the token
 ):
     """AI 生成例句"""
@@ -61,7 +63,7 @@ async def generate_sentences(
     except LimitException as le:
         raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
         
-    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
+    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model, api_base=x_ai_base)
     try:
         sentences = await ai.generate_sentences(
             word=request.word,
@@ -82,12 +84,13 @@ async def generate_memory_tips(
     request: MemoryTipsRequest,
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
-    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    x_ai_base: Optional[str] = Header(None, alias="X-AI-Base")
 ):
     """AI 生成记忆技巧"""
     from services.ai_service import AIService
     
-    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
+    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model, api_base=x_ai_base)
     try:
         tips = await ai.generate_memory_tips(
             word=request.word,
@@ -107,6 +110,7 @@ async def chat(
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
     x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    x_ai_base: Optional[str] = Header(None, alias="X-AI-Base"),
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"), # header defaults to string in some frameworks/proxies
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
@@ -137,6 +141,7 @@ async def chat(
         provider=x_ai_provider,
         api_key=x_ai_key,
         model=x_ai_model,
+        api_base=x_ai_base,
         evermem_enabled=evermem_enabled,
         evermem_url=x_evermem_url,
         evermem_key=x_evermem_key
@@ -144,7 +149,8 @@ async def chat(
     try:
         result = await ai.chat(
             messages=[{"role": m.role, "content": m.content} for m in request.messages],
-            context_word=request.context_word
+            context_word=request.context_word,
+            session_id=request.session_id
         )
         return {
             "response": result["text"],
@@ -162,6 +168,7 @@ async def chat_stream(
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
     x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    x_ai_base: Optional[str] = Header(None, alias="X-AI-Base"),
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
@@ -191,6 +198,7 @@ async def chat_stream(
         provider=x_ai_provider,
         api_key=x_ai_key,
         model=x_ai_model,
+        api_base=x_ai_base,
         evermem_enabled=evermem_enabled,
         evermem_url=x_evermem_url,
         evermem_key=x_evermem_key
@@ -198,7 +206,7 @@ async def chat_stream(
     try:
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
         return StreamingResponse(
-            ai.chat_stream(messages=messages, context_word=request.context_word),
+            ai.chat_stream(messages=messages, context_word=request.context_word, session_id=request.session_id),
             media_type="text/event-stream"
         )
     except Exception as e:
@@ -238,6 +246,25 @@ async def get_ai_config():
         }
     }
 
+
+@router.post("/test-connection")
+async def test_connection(
+    x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
+    x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    x_ai_base: Optional[str] = Header(None, alias="X-AI-Base")
+):
+    """测试 AI 连接"""
+    from services.ai_service import AIService
+    
+    ai = AIService(
+        provider=x_ai_provider,
+        api_key=x_ai_key,
+        model=x_ai_model,
+        api_base=x_ai_base
+    )
+    return await ai.test_connection()
+
 # --- Translation Endpoints ---
 
 class TranslationRequest(BaseModel):
@@ -252,13 +279,14 @@ async def translate(
     request: TranslationRequest,
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
-    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model")
+    x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
+    x_ai_base: Optional[str] = Header(None, alias="X-AI-Base")
 ):
     """AI 翻译并保存记录"""
     from services.ai_service import AIService
     from main import get_db
     
-    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model)
+    ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model, api_base=x_ai_base)
     db = get_db()
     
     try:

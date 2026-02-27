@@ -63,7 +63,7 @@ class EverMemService:
             return None
 
     async def search_memories(self, query: str, user_id: str = "user_001",
-                              min_score: float = 0.3) -> List[Dict]:
+                               min_score: float = 0.3) -> List[Dict]:
         """
         Search for relevant memories in EverMemOS (v0 API).
         Uses direct REST call instead of SDK to avoid parameter validation
@@ -124,7 +124,7 @@ class EverMemService:
                 if content:
                     type_label = {
                         'episodic_memory': '历史对话',
-                        'foresight': '提醒/待办',
+                        'foresight': '提醒/行动',
                         'profile': '用户画像'
                     }.get(mem_type, '记忆')
                     extracted_memories.append({
@@ -162,7 +162,7 @@ class EverMemService:
             if not result:
                 return []
                 
-            memories_list = result.memories if result.memories else []
+            memories_list = result.memories if hasattr(result, 'memories') and result.memories else []
             extracted_memories = []
             for mem in memories_list:
                 content = getattr(mem, 'episode', None) or getattr(mem, 'summary', None) or getattr(mem, 'content', None)

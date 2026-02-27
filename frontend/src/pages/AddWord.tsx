@@ -105,19 +105,6 @@ export default function AddWord() {
         }
     }, [searchWord, autoPlay, autoSave]);
 
-    // Listen for global search events (e.g. from context menu)
-    useEffect(() => {
-        const handleSearchRequest = (event: Event) => {
-            const customEvent = event as CustomEvent
-            if (customEvent.detail) {
-                setSearchWord(customEvent.detail)
-                handleSearch(customEvent.detail)
-            }
-        }
-
-        window.addEventListener('search-word', handleSearchRequest)
-        return () => window.removeEventListener('search-word', handleSearchRequest)
-    }, [handleSearch])
 
     // Keyboard shortcuts for AddWord page
     useEffect(() => {
