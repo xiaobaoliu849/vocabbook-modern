@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/cloudApi';
+import { useAuthStore } from '../stores/useAuthStore';
 
 interface User {
     id: string;
@@ -10,35 +11,47 @@ interface User {
 
 interface AuthContextType {
     user: User | null;
+    token: string | null;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string) => Promise<void>;
     logout: () => void;
-    checkAuth: () => Promise<void>;
+    checkAuth: (tokenOverride?: string | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
+    const [token, setToken] = useState<string | null>(localStorage.getItem('vocab_token'));
     const [isLoading, setIsLoading] = useState(true);
+    const setStoreToken = useAuthStore((state) => state.setToken);
+    const setStoreUser = useAuthStore((state) => state.setUser);
+    const clearStoreAuth = useAuthStore((state) => state.logout);
 
-    const checkAuth = async () => {
+    const checkAuth = async (tokenOverride?: string | null) => {
         try {
-            const token = localStorage.getItem('vocab_token');
+            const token = tokenOverride ?? localStorage.getItem('vocab_token');
             if (token) {
+                setToken(token);
+                setStoreToken(token);
                 // If we have a token, fetch user details
                 try {
-                    const userData = await authService.getCurrentUser();
+                    const userData = await authService.getCurrentUser(token ?? undefined);
                     setUser(userData);
+                    setStoreUser(userData);
                 } catch (e) {
                      // Token might be expired
                      console.warn("Token expired or invalid", e);
                      localStorage.removeItem('vocab_token');
+                     setToken(null);
                      setUser(null);
+                     clearStoreAuth();
                 }
             } else {
+                setToken(null);
                 setUser(null);
+                clearStoreAuth();
             }
         } catch (error) {
             console.error("Auth check failed:", error);
@@ -52,8 +65,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const login = async (email: string, password: string) => {
-        await authService.login(email, password);
-        await checkAuth();
+        const loginResult = await authService.login(email, password);
+        if (loginResult?.access_token) {
+            setToken(loginResult.access_token);
+            setStoreToken(loginResult.access_token);
+        }
+        await checkAuth(loginResult?.access_token ?? null);
     };
 
     const register = async (email: string, password: string) => {
@@ -64,11 +81,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = () => {
         authService.logout();
+        setToken(null);
         setUser(null);
+        clearStoreAuth();
     };
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, login, register, logout, checkAuth }}>
+        <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, checkAuth }}>
             {children}
         </AuthContext.Provider>
     );

@@ -194,6 +194,7 @@ class DatabaseManager:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chat_sessions (
                 id TEXT PRIMARY KEY,
+                owner_key TEXT DEFAULT 'guest',
                 title TEXT,
                 messages TEXT,
                 updated_at REAL,
@@ -201,6 +202,12 @@ class DatabaseManager:
             )
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at)')
+        # Backward compatibility: old DBs may have chat_sessions without owner_key.
+        # check_schema_updates() will add the column and create index afterward.
+        cursor.execute("PRAGMA table_info(chat_sessions)")
+        chat_columns = [info[1] for info in cursor.fetchall()]
+        if 'owner_key' in chat_columns:
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner ON chat_sessions(owner_key)')
         
         # User Limits table
         cursor.execute('''
@@ -244,6 +251,15 @@ class DatabaseManager:
             if 'note' not in columns:
                 print("Adding 'note' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN note TEXT")
+
+            # Ensure chat_sessions has owner_key for per-user isolation
+            cursor.execute("PRAGMA table_info(chat_sessions)")
+            chat_columns = [info[1] for info in cursor.fetchall()]
+            if 'owner_key' not in chat_columns:
+                print("Adding 'owner_key' column to chat_sessions table...")
+                cursor.execute("ALTER TABLE chat_sessions ADD COLUMN owner_key TEXT DEFAULT 'guest'")
+                cursor.execute("UPDATE chat_sessions SET owner_key = 'guest' WHERE owner_key IS NULL OR owner_key = ''")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner ON chat_sessions(owner_key)")
 
             conn.commit()
         except Exception as e:
@@ -723,20 +739,23 @@ class DatabaseManager:
 
     # --- Chat Sessions Operations (Persistent AI Chat) ---
 
-    def save_chat_session(self, session_data):
+    def save_chat_session(self, session_data, owner_key='guest'):
         """Upsert a chat session."""
         conn = self.get_connection()
         cursor = conn.cursor()
+        resolved_owner_key = session_data.get('owner_key') or owner_key or 'guest'
         try:
             cursor.execute('''
-                INSERT INTO chat_sessions (id, title, messages, updated_at, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO chat_sessions (id, owner_key, title, messages, updated_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET 
+                    owner_key = excluded.owner_key,
                     title = excluded.title, 
                     messages = excluded.messages, 
                     updated_at = excluded.updated_at
             ''', (
                 session_data['id'],
+                resolved_owner_key,
                 session_data['title'],
                 json.dumps(session_data['messages'], ensure_ascii=False),
                 session_data['updatedAt'],
@@ -748,12 +767,15 @@ class DatabaseManager:
             print(f"Save chat session error: {e}")
             return False
 
-    def get_all_chat_sessions(self):
+    def get_all_chat_sessions(self, owner_key=None):
         """Retrieve all chat sessions, parsed."""
         conn = self.get_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM chat_sessions ORDER BY updated_at DESC')
+        if owner_key is None:
+            cursor.execute('SELECT * FROM chat_sessions ORDER BY updated_at DESC')
+        else:
+            cursor.execute('SELECT * FROM chat_sessions WHERE owner_key = ? ORDER BY updated_at DESC', (owner_key,))
         rows = cursor.fetchall()
 
         result = []
@@ -775,19 +797,25 @@ class DatabaseManager:
             result.append(session)
         return result
 
-    def delete_chat_session(self, session_id):
+    def delete_chat_session(self, session_id, owner_key=None):
         """Delete a chat session."""
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM chat_sessions WHERE id = ?', (session_id,))
+        if owner_key is None:
+            cursor.execute('DELETE FROM chat_sessions WHERE id = ?', (session_id,))
+        else:
+            cursor.execute('DELETE FROM chat_sessions WHERE id = ? AND owner_key = ?', (session_id, owner_key))
         conn.commit()
         return cursor.rowcount > 0
 
-    def clear_all_chat_sessions(self):
+    def clear_all_chat_sessions(self, owner_key=None):
         """Delete all chat sessions."""
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM chat_sessions')
+        if owner_key is None:
+            cursor.execute('DELETE FROM chat_sessions')
+        else:
+            cursor.execute('DELETE FROM chat_sessions WHERE owner_key = ?', (owner_key,))
         conn.commit()
         return cursor.rowcount > 0
 

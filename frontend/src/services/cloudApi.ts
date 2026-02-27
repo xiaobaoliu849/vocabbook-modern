@@ -47,8 +47,10 @@ export const authService = {
         localStorage.removeItem('vocab_token');
     },
 
-    getCurrentUser: async () => {
-        const response = await api.get('/users/me');
+    getCurrentUser: async (token?: string) => {
+        const response = await api.get('/users/me', token ? {
+            headers: { Authorization: `Bearer ${token}` },
+        } : undefined);
         return response.data;
     }
 };

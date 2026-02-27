@@ -1,5 +1,7 @@
 import json
 import time
+from datetime import datetime
+from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -13,7 +15,7 @@ from alipay.aop.api.util.SignatureUtils import verify_with_rsa
 
 from base import get_db
 from models import User, Order
-from schemas import UserCreate, UserResponse, Token, PayRequest, PayResponse
+from schemas import UserCreate, UserResponse, Token, PayRequest, PayResponse, MockPaySuccessRequest
 import auth
 from config import settings
 
@@ -78,6 +80,14 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 
 # --- Alipay Routes ---
 
+
+def _build_out_trade_no(prefix: str, user_id: int) -> str:
+    """Build a collision-resistant order ID within Alipay length limits."""
+    # Alipay requires out_trade_no length <= 64
+    short_user = str(user_id).replace("-", "")[:12]
+    return f"{prefix}_{short_user}_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
+
+
 # Initialize Alipay
 alipay_client = None
 ALIPAY_PUBLIC_KEY = None
@@ -103,10 +113,20 @@ if settings.ALIPAY_APP_ID:
 @app_router.post("/api/pay/alipay/precreate", response_model=PayResponse)
 async def create_payment(req: PayRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not alipay_client:
-        # Mock for Dev if keys are missing
-        return {"code_url": "https://qr.alipay.com/mock_qr_code", "out_trade_no": f"MOCK_{int(time.time())}"}
-    
-    out_trade_no = f"ORDER_{current_user.id}_{int(time.time())}"
+        # Mock for Dev if keys are missing - still persist order for status polling.
+        out_trade_no = _build_out_trade_no("MOCK", current_user.id)
+        new_order = Order(
+            user_id=current_user.id,
+            out_trade_no=out_trade_no,
+            amount_fen=req.amount_fen,
+            status="PENDING",
+            description=req.description
+        )
+        db.add(new_order)
+        await db.commit()
+        return {"code_url": "https://qr.alipay.com/mock_qr_code", "out_trade_no": out_trade_no}
+
+    out_trade_no = _build_out_trade_no("ORDER", current_user.id)
     
     # 支付宝 Precreate Model (当面付 - 扫码支付)
     model = AlipayTradePrecreateModel()
@@ -208,9 +228,26 @@ async def pay_notify(request: Request, db: Session = Depends(get_db)):
     return "success"
 
 @app_router.post("/api/pay/mock_success")
-async def mock_pay_success(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Mock endpoint for developers to bypass Alipay Sandbox issues"""
+async def mock_pay_success(req: MockPaySuccessRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Mock endpoint for developers to mark a specific pending order as paid."""
+    result = await db.execute(
+        select(Order).where(
+            Order.out_trade_no == req.out_trade_no,
+            Order.user_id == current_user.id
+        )
+    )
+    order = result.scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found for current user")
+
+    if order.status != "PENDING":
+        raise HTTPException(status_code=400, detail=f"Order status is {order.status}, expected PENDING")
+
+    order.status = "SUCCESS"
+    order.trade_no = f"MOCK_TRADE_{uuid4().hex[:16]}"
+    order.updated_at = datetime.utcnow()
     current_user.tier = 'premium'
+    db.add(order)
     db.add(current_user)
     await db.commit()
-    return {"msg": "success"}
+    return {"msg": "success", "out_trade_no": req.out_trade_no}

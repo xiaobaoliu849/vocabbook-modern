@@ -4,7 +4,7 @@ import AudioButton from './AudioButton';
 import { useGlobalState } from '../context/GlobalStateContext';
 import { X, Search, Heart, Loader2, Plus, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { useAuthStore } from '../stores/useAuthStore';
+import { useAuth } from '../context/AuthContext';
 
 interface Position {
     top: number;
@@ -58,8 +58,7 @@ export default function DictionaryPopup() {
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     };
 
-    // To check if they have a token
-    const token = useAuthStore(state => state.token);
+    const { token } = useAuth();
 
     useEffect(() => {
         setAutoPlay(localStorage.getItem('auto_play') !== 'false');

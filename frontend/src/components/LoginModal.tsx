@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useAuthStore } from '../stores/useAuthStore';
-import { API_PATHS } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 interface LoginModalProps {
     isOpen: boolean;
@@ -16,8 +15,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const setToken = useAuthStore(state => state.setToken);
-    const setUser = useAuthStore(state => state.setUser);
+    const { login, register } = useAuth();
 
     if (!isOpen) return null;
 
@@ -28,57 +26,30 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
         try {
             if (isLogin) {
-                // Login Request
-                const params = new URLSearchParams();
-                params.append('username', email);
-                params.append('password', password);
-
-                const res = await fetch(API_PATHS.CLOUD_LOGIN, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: params
-                });
-
-                if (!res.ok) throw new Error(await res.text() || 'Login failed');
-                const data = await res.json();
-
-                setToken(data.access_token);
-                await fetchUserMe(data.access_token);
+                await login(email, password);
+                onClose();
             } else {
-                // Register Request
-                const res = await fetch(API_PATHS.CLOUD_REGISTER, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-
-                if (!res.ok) throw new Error(await res.text() || 'Registration failed');
+                await register(email, password);
 
                 // Switch to login automatically
                 setIsLogin(true);
                 setError('Registration successful! Please login.');
             }
         } catch (err: any) {
-            // Check if it's a detail format from FastAPI
-            try {
-                const msg = JSON.parse(err.message).detail;
-                setError(typeof msg === 'string' ? msg : 'Error occurred');
-            } catch {
-                setError(err.message || 'Error occurred');
+            let errorMsg = err?.message || 'Error occurred';
+            if (err?.response?.data?.detail) {
+                const detail = err.response.data.detail;
+                if (Array.isArray(detail)) {
+                    errorMsg = detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ');
+                } else if (typeof detail === 'object') {
+                    errorMsg = detail.msg || JSON.stringify(detail);
+                } else {
+                    errorMsg = String(detail);
+                }
             }
+            setError(errorMsg);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const fetchUserMe = async (token: string) => {
-        const res = await fetch(API_PATHS.CLOUD_ME, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-            const userData = await res.json();
-            setUser(userData);
-            onClose();
         }
     };
 

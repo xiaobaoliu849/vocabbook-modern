@@ -2,11 +2,95 @@
 AI API Router
 AI 增强功能
 """
+import base64
+import hashlib
+import json
+import re
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Header
+import httpx
 from pydantic import BaseModel
 
 router = APIRouter()
+
+
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    """Extract Bearer token from authorization header."""
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ", 1)[1]
+    return None
+
+
+def _is_enabled(value: Optional[str]) -> bool:
+    """Parse common boolean header values."""
+    return str(value).strip().lower() == "true"
+
+
+def _normalize_scope_value(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+    return normalized or "guest"
+
+
+def _extract_sub_from_jwt(token: str) -> Optional[str]:
+    try:
+        payload_part = token.split(".")[1]
+        padded = payload_part + ("=" * (-len(payload_part) % 4))
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
+        sub = payload.get("sub")
+        if isinstance(sub, str) and sub.strip():
+            return sub.strip()
+    except Exception:
+        pass
+    return None
+
+
+def _owner_key_from_identity(identity: str) -> str:
+    return f"cloud_{_normalize_scope_value(identity)}"
+
+
+def _owner_key_from_token(token: str) -> str:
+    sub = _extract_sub_from_jwt(token)
+    if sub:
+        return _owner_key_from_identity(sub)
+    token_fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+    return f"token_{token_fingerprint}"
+
+
+async def _resolve_chat_owner_key(authorization: Optional[str]) -> str:
+    token = _extract_bearer_token(authorization)
+    if not token:
+        return "guest"
+
+    fallback_owner_key = _owner_key_from_token(token)
+
+    # Prefer verified identity from cloud auth service; fallback to token-derived scope.
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "http://localhost:8001/users/me",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=3.0
+            )
+        if resp.status_code == 200:
+            email = resp.json().get("email")
+            if isinstance(email, str) and email.strip():
+                return _owner_key_from_identity(email)
+    except Exception:
+        pass
+
+    return fallback_owner_key
+
+
+async def _check_ai_limit(action: str, authorization: Optional[str]) -> None:
+    """Check and consume local AI quota for current user token."""
+    from services.limit_service import LimitService, LimitException
+    from main import get_db
+
+    try:
+        limit_service = LimitService(db=get_db())
+        await limit_service.check_and_consume(action, token=_extract_bearer_token(authorization))
+    except LimitException as le:
+        raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
 
 
 class GenerateSentencesRequest(BaseModel):
@@ -52,16 +136,7 @@ async def generate_sentences(
 ):
     """AI 生成例句"""
     from services.ai_service import AIService
-    from services.limit_service import LimitService, LimitException
-    from main import get_db
-    
-    # Check limit locally
-    try:
-        limit_service = LimitService(db=get_db())
-        token = authorization.split(" ")[1] if authorization and authorization.startswith("Bearer ") else None
-        await limit_service.check_and_consume("ai_generate", token=token)
-    except LimitException as le:
-        raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
+    await _check_ai_limit("ai_generate", authorization)
         
     ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model, api_base=x_ai_base)
     try:
@@ -118,19 +193,10 @@ async def chat(
 ):
     """AI 对话练习"""
     from services.ai_service import AIService
-    from services.limit_service import LimitService, LimitException
-    from main import get_db
-    
-    # Check limit locally
-    try:
-        limit_service = LimitService(db=get_db())
-        token = authorization.split(" ")[1] if authorization and authorization.startswith("Bearer ") else None
-        await limit_service.check_and_consume("ai_chat", token=token)
-    except LimitException as le:
-        raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
+    await _check_ai_limit("ai_chat", authorization)
     
     # Check if evermem is enabled (header comes as string "true"/"false")
-    evermem_enabled = str(x_evermem_enabled).lower() == "true"
+    evermem_enabled = _is_enabled(x_evermem_enabled)
 
     # Persist evermem config so other routers (e.g. review) can access it
     if evermem_enabled and x_evermem_key:
@@ -176,19 +242,11 @@ async def chat_stream(
 ):
     """AI 对话练习 (流式)"""
     from services.ai_service import AIService
-    from services.limit_service import LimitService, LimitException
-    from main import get_db
     from fastapi.responses import StreamingResponse
-    
-    # Check limit locally
-    try:
-        limit_service = LimitService(db=get_db())
-        token = authorization.split(" ")[1] if authorization and authorization.startswith("Bearer ") else None
-        await limit_service.check_and_consume("ai_chat", token=token)
-    except LimitException as le:
-        raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
-    
-    evermem_enabled = str(x_evermem_enabled).lower() == "true"
+
+    await _check_ai_limit("ai_chat", authorization)
+
+    evermem_enabled = _is_enabled(x_evermem_enabled)
 
     if evermem_enabled and x_evermem_key:
         from services.evermem_config import save_config
@@ -342,23 +400,25 @@ class ChatSessionData(BaseModel):
     createdAt: float
 
 @router.get("/chat-sessions")
-async def get_chat_sessions():
+async def get_chat_sessions(authorization: Optional[str] = Header(None)):
     """获取所有持久化的聊天会话"""
     from main import get_db
     db = get_db()
+    owner_key = await _resolve_chat_owner_key(authorization)
     try:
-        sessions = db.get_all_chat_sessions()
+        sessions = db.get_all_chat_sessions(owner_key=owner_key)
         return sessions
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat sessions: {str(e)}")
 
 @router.post("/chat-sessions")
-async def save_chat_session(session: ChatSessionData):
-    """保存/更斯聊天会话"""
+async def save_chat_session(session: ChatSessionData, authorization: Optional[str] = Header(None)):
+    """保存/更新聊天会话"""
     from main import get_db
     db = get_db()
+    owner_key = await _resolve_chat_owner_key(authorization)
     try:
-        success = db.save_chat_session(session.dict())
+        success = db.save_chat_session(session.model_dump(), owner_key=owner_key)
         if not success:
             raise HTTPException(status_code=500, detail="Database save failed")
         return {"success": True}
@@ -366,23 +426,25 @@ async def save_chat_session(session: ChatSessionData):
         raise HTTPException(status_code=500, detail=f"Failed to save chat session: {str(e)}")
 
 @router.delete("/chat-sessions/{session_id}")
-async def delete_chat_session(session_id: str):
+async def delete_chat_session(session_id: str, authorization: Optional[str] = Header(None)):
     """删除聊天会话"""
     from main import get_db
     db = get_db()
+    owner_key = await _resolve_chat_owner_key(authorization)
     try:
-        success = db.delete_chat_session(session_id)
+        success = db.delete_chat_session(session_id, owner_key=owner_key)
         return {"success": success}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete chat session: {str(e)}")
 
 @router.delete("/chat-sessions")
-async def clear_all_chat_sessions():
+async def clear_all_chat_sessions(authorization: Optional[str] = Header(None)):
     """清空所有聊天会话"""
     from main import get_db
     db = get_db()
+    owner_key = await _resolve_chat_owner_key(authorization)
     try:
-        success = db.clear_all_chat_sessions()
+        success = db.clear_all_chat_sessions(owner_key=owner_key)
         return {"success": success}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear chat sessions: {str(e)}")

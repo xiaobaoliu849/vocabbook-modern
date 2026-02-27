@@ -2,12 +2,40 @@ import { useState, useEffect, useRef } from 'react'
 import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser } from 'lucide-react'
 import { API_PATHS, API_BASE_URL } from '../utils/api'
 import AudioButton from '../components/AudioButton'
+import { useAuth } from '../context/AuthContext'
 
 const generateId = () => {
     return (typeof crypto !== 'undefined' && crypto.randomUUID)
         ? crypto.randomUUID()
         : Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9);
 };
+
+const CHAT_SCOPE_SEPARATOR = '::'
+
+const normalizeScopeValue = (value: string) => {
+    const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+    return normalized || 'guest'
+}
+
+const resolveChatScope = (token?: string | null) => {
+    if (!token) return 'guest'
+
+    try {
+        const payload = token.split('.')[1]
+        if (!payload) return 'guest'
+        const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, '=').replace(/-/g, '+').replace(/_/g, '/')
+        const decoded = JSON.parse(atob(padded))
+        const sub = typeof decoded?.sub === 'string' ? decoded.sub.trim() : ''
+        if (!sub) return 'guest'
+        return `cloud_${normalizeScopeValue(sub)}`
+    } catch {
+        return 'guest'
+    }
+}
+
+const getScopedStorageKey = (scope: string) => `chat_sessions_${scope}`
+const buildScopedSessionId = (scope: string) => `${scope}${CHAT_SCOPE_SEPARATOR}${generateId()}`
+const isSessionInScope = (sessionId: string, scope: string) => sessionId.startsWith(`${scope}${CHAT_SCOPE_SEPARATOR}`)
 
 interface Message {
     id: string
@@ -27,12 +55,15 @@ interface ChatSession {
 }
 
 export default function AIChat({ isActive }: { isActive?: boolean }) {
+    const { token } = useAuth()
     const [sessions, setSessions] = useState<ChatSession[]>([])
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
     const [isInitialized, setIsInitialized] = useState(false)
+    const [chatScope, setChatScope] = useState(() => resolveChatScope(token))
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    const wasActiveRef = useRef(false)
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
     const [editingTitle, setEditingTitle] = useState('')
@@ -46,10 +77,16 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     // Memory activity toast
     const [memoryToast, setMemoryToast] = useState<string | null>(null)
 
-    // Load sessions from API and fallback to local storage
+    // Load sessions from API and fallback to local storage (scoped by current auth user)
     useEffect(() => {
+        let cancelled = false
         const loadInitialData = async () => {
             let loadedSessions: ChatSession[] = []
+            let loadedFromFallback = false
+
+            setIsInitialized(false)
+            setSessions([])
+            setActiveSessionId(null)
 
             try {
                 // Try to load from Backend API
@@ -57,7 +94,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 if (response.ok) {
                     const dbSessions = await response.json()
                     if (Array.isArray(dbSessions) && dbSessions.length > 0) {
-                        loadedSessions = dbSessions
+                        loadedSessions = dbSessions.filter((s: ChatSession) => isSessionInScope(s.id, chatScope))
                     }
                 }
             } catch (err) {
@@ -66,67 +103,109 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
             // Fallback to localStorage if API empty or failed
             if (loadedSessions.length === 0) {
-                const savedSessions = localStorage.getItem('chat_sessions')
+                const savedSessions = localStorage.getItem(getScopedStorageKey(chatScope))
                 if (savedSessions) {
                     try {
                         loadedSessions = JSON.parse(savedSessions)
+                        loadedFromFallback = loadedSessions.length > 0
                     } catch (e) {
                         console.error("Failed to load chat sessions from localStorage", e)
                     }
                 }
             }
 
-            // Migrate old single history if absolutely empty
-            if (loadedSessions.length === 0) {
+            // Only migrate legacy shared local keys for guest scope.
+            if (chatScope === 'guest' && loadedSessions.length === 0) {
+                const legacySessions = localStorage.getItem('chat_sessions')
+                if (legacySessions) {
+                    try {
+                        const parsed = JSON.parse(legacySessions)
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            loadedSessions = parsed.map((s: ChatSession) => ({
+                                ...s,
+                                id: isSessionInScope(s.id, chatScope) ? s.id : buildScopedSessionId(chatScope)
+                            }))
+                            loadedFromFallback = true
+                        }
+                    } catch {
+                        // Ignore malformed legacy payload
+                    }
+                }
+            }
+
+            if (chatScope === 'guest' && loadedSessions.length === 0) {
                 const oldHistory = localStorage.getItem('chat_history')
                 if (oldHistory) {
                     try {
                         const parsedMessages = JSON.parse(oldHistory)
                         if (parsedMessages.length > 0) {
                             loadedSessions = [{
-                                id: generateId(),
+                                id: buildScopedSessionId(chatScope),
                                 title: 'Migrated Chat',
                                 messages: parsedMessages,
                                 updatedAt: Date.now(),
                                 createdAt: Date.now()
                             }]
+                            loadedFromFallback = true
                         }
                     } catch (e) { }
                 }
             }
 
+            if (cancelled) return
+
             if (loadedSessions.length > 0) {
                 setSessions(loadedSessions)
-                if (!activeSessionId) {
-                    setActiveSessionId(loadedSessions[0].id)
-                }
+                setActiveSessionId(loadedSessions[0].id)
 
                 // Sync to DB if we loaded from LocalStorage fallback
-                try {
-                    for (const s of loadedSessions) {
-                        await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(s)
-                        })
-                    }
-                } catch (e) { }
-            } else {
-                createNewSession()
+                if (loadedFromFallback) {
+                    try {
+                        for (const s of loadedSessions) {
+                            await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(s)
+                            })
+                        }
+                    } catch (e) { }
+                }
             }
 
             setIsInitialized(true)
         }
 
         loadInitialData()
-    }, [])
+        return () => { cancelled = true }
+    }, [chatScope])
 
     useEffect(() => {
         if (isActive) {
+            const nextScope = resolveChatScope(token)
+            if (nextScope !== chatScope) {
+                wasActiveRef.current = false
+                setChatScope(nextScope)
+                return
+            }
             loadConfig()
             scrollToBottom()
         }
-    }, [isActive])
+    }, [isActive, chatScope, token])
+
+    // Entering AI chat starts a fresh session for the current account scope.
+    useEffect(() => {
+        if (!isActive) {
+            wasActiveRef.current = false
+            return
+        }
+        if (!isInitialized || wasActiveRef.current) return
+        wasActiveRef.current = true
+
+        const active = sessions.find(s => s.id === activeSessionId)
+        if (!active || active.messages.length > 0) {
+            createNewSession()
+        }
+    }, [isActive, isInitialized, sessions, activeSessionId, chatScope])
 
     // Save sessions to DB (and localStorage for quick cache) whenever they change
     const saveSessionToDB = async (session: ChatSession) => {
@@ -141,12 +220,13 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
     useEffect(() => {
         if (!isInitialized) return
+        const scopedStorageKey = getScopedStorageKey(chatScope)
         if (sessions.length > 0) {
-            localStorage.setItem('chat_sessions', JSON.stringify(sessions))
+            localStorage.setItem(scopedStorageKey, JSON.stringify(sessions))
         } else {
-            localStorage.removeItem('chat_sessions')
+            localStorage.removeItem(scopedStorageKey)
         }
-    }, [sessions, isInitialized])
+    }, [sessions, isInitialized, chatScope])
 
     // Scroll to bottom when active session or its messages change
     useEffect(() => {
@@ -182,6 +262,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
     const getApiHeaders = () => {
         const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
         if (provider) headers['X-AI-Provider'] = provider
         if (model) headers['X-AI-Model'] = model
 
@@ -228,7 +309,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 return prev;
             }
             const newSession: ChatSession = {
-                id: generateId(),
+                id: buildScopedSessionId(chatScope),
                 title: 'New Chat',
                 messages: [],
                 updatedAt: Date.now(),
@@ -497,7 +578,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
                 <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1 custom-scrollbar">
-                    {sessions.sort((a, b) => b.updatedAt - a.updatedAt).map(session => (
+                    {[...sessions].sort((a, b) => b.updatedAt - a.updatedAt).map(session => (
                         <div
                             key={session.id}
                             onClick={() => {

@@ -2,13 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight, Upload, Languages, User as UserIcon, LogOut, Crown, BarChart2, Bot } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useGlobalState } from '../context/GlobalStateContext'
-import { useAuthStore } from '../stores/useAuthStore'
+import { useAuth } from '../context/AuthContext'
 import { LoginModal } from './LoginModal'
 import { SubscriptionModal } from './SubscriptionModal'
 
 // User Avatar with Dropdown (rendered via Portal for proper positioning)
 function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateToSettings?: (tab?: string) => void, isCollapsed: boolean }) {
-    const { user, logout } = useAuthStore()
+    const { user, logout } = useAuth()
     const [showAuth, setShowAuth] = useState(false)
     const [showDropdown, setShowDropdown] = useState(false)
     const [showPay, setShowPay] = useState(false)

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useAuthStore } from '../stores/useAuthStore';
+import { useAuth } from '../context/AuthContext';
 import { API_PATHS } from '../utils/api';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -10,7 +10,7 @@ interface SubscriptionModalProps {
 }
 
 export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
-    const { user, token } = useAuthStore();
+    const { user, token, checkAuth } = useAuth();
     const [loading, setLoading] = useState(false);
     const [mockLoading, setMockLoading] = useState(false);
     const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
@@ -75,12 +75,14 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
             });
             if (res.ok) {
                 const userData = await res.json();
-                useAuthStore.getState().setUser(userData);
+                await checkAuth(token);
                 if (userData.tier === 'premium') {
                     onClose();
                 } else {
                     setError('Payment not yet received. Please wait a moment and try again.');
                 }
+            } else {
+                setError('Failed to check payment status.');
             }
         } catch (err) {
             console.error(err);
@@ -91,6 +93,10 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
 
     const handleMockPayment = async () => {
         if (!token) return;
+        if (!orderNo) {
+            setError('No pending order found. Please create a payment order first.');
+            return;
+        }
         setMockLoading(true);
         try {
             // Using a hardcoded URL since this is a new endpoint only on the mock server
@@ -99,7 +105,11 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
 
             const res = await fetch(`${mockUrl}/api/pay/mock_success`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ out_trade_no: orderNo })
             });
             if (res.ok) {
                 await handleCheckStatus();

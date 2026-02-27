@@ -37,3 +37,7 @@ class PayRequest(BaseModel):
 class PayResponse(BaseModel):
     code_url: str
     out_trade_no: str
+
+
+class MockPaySuccessRequest(BaseModel):
+    out_trade_no: str
