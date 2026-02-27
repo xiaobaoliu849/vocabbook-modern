@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Languages, ArrowRightLeft, Copy, Check, Trash2, Clock, Loader2, Play, PanelRight } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Languages, ArrowRightLeft, Copy, Check, Trash2, Clock, Loader2, PanelRight, Eraser } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
+import AudioButton from '../components/AudioButton'
 
 interface TranslationRecord {
     id: number
@@ -9,6 +10,13 @@ interface TranslationRecord {
     source_lang: string
     target_lang: string
     created_at: string
+}
+
+interface AISettings {
+    provider: string
+    apiKey: string
+    model: string
+    apiBase: string
 }
 
 const LANGUAGES = [
@@ -23,6 +31,11 @@ const LANGUAGES = [
     { code: 'Russian', name: '俄语' },
 ]
 
+const LANGUAGE_NAME_MAP: Record<string, string> = LANGUAGES.reduce((acc, item) => {
+    acc[item.code] = item.name
+    return acc
+}, {} as Record<string, string>)
+
 export default function TranslationPage() {
     const [sourceText, setSourceText] = useState('')
     const [targetText, setTargetText] = useState('')
@@ -31,17 +44,10 @@ export default function TranslationPage() {
     const [loading, setLoading] = useState(false)
     const [history, setHistory] = useState<TranslationRecord[]>([])
     const [showHistory, setShowHistory] = useState(false)
+    const [sourceCopied, setSourceCopied] = useState(false)
     const [copied, setCopied] = useState(false)
-    const [playing, setPlaying] = useState(false)
 
-    // Load AI settings from local storage
-    const [aiSettings, setAiSettings] = useState({
-        provider: 'openai',
-        apiKey: '',
-        model: 'gpt-4o-mini'
-    })
-
-    useEffect(() => {
+    const loadAiSettings = useCallback((): AISettings => {
         const provider = localStorage.getItem('ai_provider') || 'openai'
         
         // Try to get API key from map
@@ -78,11 +84,24 @@ export default function TranslationPage() {
              model = localStorage.getItem('ai_model') || 'gpt-4o-mini'
         }
 
-        setAiSettings({
+        // Try to get base url from map
+        let apiBase = ''
+        const savedBasesStr = localStorage.getItem('ai_bases_map')
+        if (savedBasesStr) {
+            try {
+                const basesMap = JSON.parse(savedBasesStr)
+                apiBase = basesMap[provider] || ''
+            } catch (e) {
+                console.error('Failed to parse ai bases map', e)
+            }
+        }
+
+        return {
             provider,
             apiKey,
-            model
-        })
+            model,
+            apiBase
+        }
     }, [])
 
     const fetchHistory = useCallback(async () => {
@@ -98,20 +117,76 @@ export default function TranslationPage() {
         fetchHistory()
     }, [fetchHistory])
 
-    const handleTranslate = async () => {
+    const detectLanguage = useCallback((text: string): string => {
+        const input = text.trim()
+        if (!input) return 'Auto'
+
+        const chineseCount = (input.match(/[\u4e00-\u9fff]/g) || []).length
+        const japaneseKanaCount = (input.match(/[\u3040-\u30ff]/g) || []).length
+        const koreanCount = (input.match(/[\uac00-\ud7af]/g) || []).length
+        const russianCount = (input.match(/[\u0400-\u04ff]/g) || []).length
+        const latinCount = (input.match(/[A-Za-z]/g) || []).length
+        const letterLikeCount = chineseCount + japaneseKanaCount + koreanCount + russianCount + latinCount
+        const zhLatinTotal = chineseCount + latinCount
+
+        if (japaneseKanaCount > 0) return 'Japanese'
+        if (koreanCount > 0) return 'Korean'
+        if (russianCount > 0 && russianCount >= latinCount) return 'Russian'
+        if (chineseCount > 0) {
+            if (latinCount === 0) return 'Chinese'
+            if (zhLatinTotal > 0 && (chineseCount / zhLatinTotal) >= 0.2) return 'Chinese'
+            if (chineseCount >= 2 && chineseCount * 3 >= latinCount) return 'Chinese'
+        }
+        if (latinCount > 0) return 'English'
+        if (letterLikeCount > 0) return 'English'
+
+        return 'Auto'
+    }, [])
+
+    const inferredSourceLang = useMemo(() => {
+        if (sourceLang !== 'Auto') return sourceLang
+        return detectLanguage(sourceText)
+    }, [sourceLang, sourceText, detectLanguage])
+
+    const resolveAutoTargetLang = useCallback((detectedSourceLang: string, currentTargetLang: string): string => {
+        if (currentTargetLang !== detectedSourceLang) return currentTargetLang
+        if (detectedSourceLang === 'Chinese') return 'English'
+        if (detectedSourceLang === 'English') return 'Chinese'
+        return 'English'
+    }, [])
+
+    useEffect(() => {
+        if (sourceLang !== 'Auto') return
         if (!sourceText.trim()) return
+
+        const nextTargetLang = resolveAutoTargetLang(inferredSourceLang, targetLang)
+        if (nextTargetLang !== targetLang) {
+            setTargetLang(nextTargetLang)
+        }
+    }, [sourceLang, sourceText, inferredSourceLang, targetLang, resolveAutoTargetLang])
+
+    const handleTranslate = async () => {
+        const input = sourceText.trim()
+        if (!input) return
 
         setLoading(true)
         try {
+            const effectiveSourceLang = sourceLang === 'Auto' ? inferredSourceLang : sourceLang
+            const effectiveTargetLang = sourceLang === 'Auto'
+                ? resolveAutoTargetLang(effectiveSourceLang, targetLang)
+                : targetLang
+
+            const latestAiSettings = loadAiSettings()
             const result = await api.post(API_PATHS.AI_TRANSLATE, {
-                text: sourceText,
-                source_lang: sourceLang,
-                target_lang: targetLang
+                text: input,
+                source_lang: effectiveSourceLang,
+                target_lang: effectiveTargetLang
             }, {
                 headers: {
-                    'X-AI-Provider': aiSettings.provider,
-                    'X-AI-Key': aiSettings.apiKey,
-                    'X-AI-Model': aiSettings.model
+                    'X-AI-Provider': latestAiSettings.provider,
+                    'X-AI-Key': latestAiSettings.apiKey,
+                    'X-AI-Model': latestAiSettings.model,
+                    ...(latestAiSettings.apiBase ? { 'X-AI-Base': latestAiSettings.apiBase } : {})
                 }
             })
             setTargetText(result.translation)
@@ -122,6 +197,13 @@ export default function TranslationPage() {
         } finally {
             setLoading(false)
         }
+    }
+
+    const handleCopySource = async () => {
+        if (!sourceText) return
+        await navigator.clipboard.writeText(sourceText)
+        setSourceCopied(true)
+        setTimeout(() => setSourceCopied(false), 2000)
     }
 
     const handleCopy = async () => {
@@ -151,17 +233,21 @@ export default function TranslationPage() {
         setTargetText(sourceText)
     }
 
-    const handleTTS = (text: string) => {
-        if (!text) return
-        setPlaying(true)
-        const accent = (localStorage.getItem('preferred_accent') || 'us') === 'uk' ? '1' : '2'
-        const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&type=${accent}`)
-        audio.onended = () => setPlaying(false)
-        audio.onerror = () => setPlaying(false)
-        audio.play().catch(e => {
-            console.error(e)
-            setPlaying(false)
-        })
+    const handleClearSource = () => {
+        setSourceText('')
+        setSourceCopied(false)
+    }
+
+    const handleClearTarget = () => {
+        setTargetText('')
+        setCopied(false)
+    }
+
+    const handleClearAll = () => {
+        setSourceText('')
+        setTargetText('')
+        setSourceCopied(false)
+        setCopied(false)
     }
 
     return (
@@ -188,15 +274,22 @@ export default function TranslationPage() {
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col flex-1">
                     {/* Controls */}
                     <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50">
-                        <select
-                            value={sourceLang}
-                            onChange={(e) => setSourceLang(e.target.value)}
-                            className="input-field w-32 py-1.5 text-sm"
-                        >
-                            {LANGUAGES.map(l => (
-                                <option key={l.code} value={l.code}>{l.name}</option>
-                            ))}
-                        </select>
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={sourceLang}
+                                onChange={(e) => setSourceLang(e.target.value)}
+                                className="input-field w-32 py-1.5 text-sm"
+                            >
+                                {LANGUAGES.map(l => (
+                                    <option key={l.code} value={l.code}>{l.name}</option>
+                                ))}
+                            </select>
+                            {sourceLang === 'Auto' && sourceText.trim() && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 text-[11px] text-primary-700 dark:text-primary-300 whitespace-nowrap">
+                                    检测：{LANGUAGE_NAME_MAP[inferredSourceLang] || inferredSourceLang}
+                                </span>
+                            )}
+                        </div>
 
                         <button
                             onClick={handleSwapLanguages}
@@ -224,6 +317,17 @@ export default function TranslationPage() {
                         >
                             {loading ? <Loader2 className="animate-spin" size={18} /> : '翻译'}
                         </button>
+                        <button
+                            onClick={handleClearAll}
+                            disabled={!sourceText && !targetText}
+                            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300
+                                       hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed
+                                       transition-all font-medium flex items-center gap-2"
+                            title="清空输入和译文"
+                        >
+                            <Eraser size={16} />
+                            清空
+                        </button>
                     </div>
 
                     {/* Input/Output Area */}
@@ -232,7 +336,10 @@ export default function TranslationPage() {
                         <div className="flex-1 flex flex-col p-4 relative group">
                             <textarea
                                 value={sourceText}
-                                onChange={(e) => setSourceText(e.target.value)}
+                                onChange={(e) => {
+                                    setSourceText(e.target.value)
+                                    setSourceCopied(false)
+                                }}
                                 placeholder="输入要翻译的文本..."
                                 className="w-full h-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-200 text-lg leading-relaxed placeholder-slate-400"
                                 onKeyDown={e => {
@@ -242,14 +349,30 @@ export default function TranslationPage() {
                                 }}
                             />
                             {sourceText && (
-                                <button
-                                    onClick={() => handleTTS(sourceText)}
-                                    className={`absolute bottom-4 right-4 p-2 rounded-lg 
-                                               transition-all duration-300
-                                               ${playing ? 'text-primary-500 scale-110' : 'text-slate-500 hover:text-primary-500 opacity-0 group-hover:opacity-100'}`}
-                                >
-                                    <Play size={16} className={playing ? 'animate-pulse' : ''} />
-                                </button>
+                                <div className="absolute bottom-4 right-4 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                    <AudioButton
+                                        text={sourceText}
+                                        useTTS={true}
+                                        size={16}
+                                        className="bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"
+                                    />
+                                    <button
+                                        onClick={handleCopySource}
+                                        className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
+                                                   text-slate-500 hover:text-green-500 transition-colors"
+                                        title="复制原文"
+                                    >
+                                        {sourceCopied ? <Check size={16} /> : <Copy size={16} />}
+                                    </button>
+                                    <button
+                                        onClick={handleClearSource}
+                                        className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
+                                                   text-slate-500 hover:text-amber-500 transition-colors"
+                                        title="清空原文"
+                                    >
+                                        <Eraser size={16} />
+                                    </button>
+                                </div>
                             )}
                         </div>
 
@@ -271,15 +394,13 @@ export default function TranslationPage() {
                             </div>
 
                             {targetText && !loading && (
-                                <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={() => handleTTS(targetText)}
-                                        className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
-                                                   text-slate-500 hover:text-primary-500"
-                                        title="朗读"
-                                    >
-                                        <Play size={16} />
-                                    </button>
+                                <div className="absolute bottom-4 right-4 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                    <AudioButton
+                                        text={targetText}
+                                        useTTS={true}
+                                        size={16}
+                                        className="bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"
+                                    />
                                     <button
                                         onClick={handleCopy}
                                         className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
@@ -287,6 +408,14 @@ export default function TranslationPage() {
                                         title="复制译文"
                                     >
                                         {copied ? <Check size={16} /> : <Copy size={16} />}
+                                    </button>
+                                    <button
+                                        onClick={handleClearTarget}
+                                        className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
+                                                   text-slate-500 hover:text-amber-500 transition-colors"
+                                        title="清空译文"
+                                    >
+                                        <Eraser size={16} />
                                     </button>
                                 </div>
                             )}
@@ -336,7 +465,8 @@ export default function TranslationPage() {
                                     </div>
                                     <button
                                         onClick={(e) => handleDelete(item.id, e)}
-                                        className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="text-slate-400 hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                                        title="删除记录"
                                     >
                                         <Trash2 size={14} />
                                     </button>

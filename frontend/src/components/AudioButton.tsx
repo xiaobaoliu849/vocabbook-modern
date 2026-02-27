@@ -26,6 +26,7 @@ export default function AudioButton({
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   const getTextToSpeak = useCallback(() => {
     return text || word || ''
@@ -37,8 +38,73 @@ export default function AudioButton({
         audioRef.current.pause()
         audioRef.current = null
       }
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+      }
+      utteranceRef.current = null
     }
   }, [])
+
+  const stopCurrentPlayback = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+    utteranceRef.current = null
+  }, [])
+
+  const detectSpeechLang = useCallback((value: string) => {
+    if (/[\u4e00-\u9fff]/.test(value)) return 'zh-CN'
+    if (/[\u3040-\u30ff]/.test(value)) return 'ja-JP'
+    if (/[\uac00-\ud7af]/.test(value)) return 'ko-KR'
+    if (/[\u0400-\u04ff]/.test(value)) return 'ru-RU'
+    return 'en-US'
+  }, [])
+
+  const speakWithBrowser = useCallback((value: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false
+    if (!value.trim()) return false
+
+    try {
+      const synth = window.speechSynthesis
+      const lang = detectSpeechLang(value)
+      const utterance = new SpeechSynthesisUtterance(value)
+      utterance.lang = lang
+
+      const voices = synth.getVoices()
+      const exactVoice = voices.find(v => v.lang.toLowerCase() === lang.toLowerCase())
+      const familyVoice = voices.find(v => v.lang.toLowerCase().startsWith(lang.slice(0, 2).toLowerCase()))
+      if (exactVoice || familyVoice) {
+        utterance.voice = exactVoice || familyVoice || null
+      }
+
+      utterance.onstart = () => {
+        setIsLoading(false)
+        setIsPlaying(true)
+      }
+      utterance.onend = () => {
+        setIsPlaying(false)
+        setIsLoading(false)
+        utteranceRef.current = null
+      }
+      utterance.onerror = () => {
+        setIsPlaying(false)
+        setIsLoading(false)
+        utteranceRef.current = null
+      }
+
+      utteranceRef.current = utterance
+      synth.cancel()
+      synth.speak(utterance)
+      return true
+    } catch (err) {
+      console.error('Browser speech failed:', err)
+      return false
+    }
+  }, [detectSpeechLang])
 
   const doPlay = useCallback(async () => {
     const textToSpeak = getTextToSpeak()
@@ -48,10 +114,7 @@ export default function AudioButton({
     }
 
     // 停止之前的播放
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current = null
-    }
+    stopCurrentPlayback()
     setIsPlaying(false)
     setIsLoading(true)
 
@@ -72,6 +135,37 @@ export default function AudioButton({
     audioRef.current = audio
 
     // 关键修复：使用 canplay 事件
+    const handleAudioFailure = () => {
+      audioRef.current = null
+      if ((useTTS || isExample) && speakWithBrowser(textToSpeak)) {
+        return
+      }
+
+      // TTS失败时回退到有道（仅单词场景）
+      if ((useTTS || isExample) && word) {
+        const fallback = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=1`)
+        fallback.onended = () => {
+          setIsPlaying(false)
+          setIsLoading(false)
+        }
+        fallback.onerror = () => {
+          setIsPlaying(false)
+          setIsLoading(false)
+        }
+        fallback.play().then(() => {
+          setIsLoading(false)
+          setIsPlaying(true)
+        }).catch(() => {
+          setIsPlaying(false)
+          setIsLoading(false)
+        })
+        return
+      }
+
+      setIsPlaying(false)
+      setIsLoading(false)
+    }
+
     audio.oncanplay = () => {
       console.log('Audio can play now')
       setIsLoading(false)
@@ -79,7 +173,7 @@ export default function AudioButton({
         setIsPlaying(true)
       }).catch((err) => {
         console.error('Play failed:', err)
-        setIsPlaying(false)
+        handleAudioFailure()
       })
     }
 
@@ -91,21 +185,12 @@ export default function AudioButton({
 
     audio.onerror = (e) => {
       console.error('Audio error:', e)
-      setIsPlaying(false)
-      setIsLoading(false)
-      audioRef.current = null
-
-      // TTS失败时回退到有道
-      if ((useTTS || isExample) && word) {
-        console.log('Trying fallback...')
-        const fallback = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=1`)
-        fallback.play().catch(() => { })
-      }
+      handleAudioFailure()
     }
 
     // 开始加载
     audio.load()
-  }, [getTextToSpeak, audioSrc, word, useTTS, isExample])
+  }, [getTextToSpeak, audioSrc, word, useTTS, isExample, speakWithBrowser, stopCurrentPlayback])
 
   // Track previous word/text to detect actual content changes
   const prevTextRef = useRef<string>('')

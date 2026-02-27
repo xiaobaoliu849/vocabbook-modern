@@ -3,23 +3,18 @@ TTS Router - 文本转语音播放
 支持 Edge-TTS 生成高质量英文语音
 """
 import os
-import asyncio
 import hashlib
 import re
-from fastapi import APIRouter, Header
-from fastapi.responses import FileResponse, StreamingResponse
-from fastapi import HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header
+from fastapi.responses import FileResponse
 import edge_tts
 
 router = APIRouter()
 
 # 配置
-VOICE = "en-US-JennyNeural"  # 标准英文女声
+DEFAULT_VOICE = "en-US-JennyNeural"  # 标准英文女声
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "temp_audio")
 RATE = "+0%"  # 正常语速
-
-# 临时目录
-TEMP_DIR = os.path.dirname(os.path.dirname(__file__))
 
 def ensure_output_dir():
     """确保音频输出目录存在"""
@@ -29,9 +24,9 @@ def ensure_output_dir():
 def clean_text_for_tts(text: str) -> str:
     """
     清理文本以便TTS处理：
-    1. 提取英文字符
-    2. 去除多余换行
-    3. 限制长度 (放大至适用长对话)
+    1. 去除 markdown 噪声
+    2. 去除 emoji
+    3. 保留多语言文本并限制长度
     """
     if not text:
         return ""
@@ -56,47 +51,36 @@ def clean_text_for_tts(text: str) -> str:
     text = re.sub(r'[\U0001f900-\U0001f9ff]', '', text) # Supplemental Symbols and Pictographs
     text = re.sub(r'💡|🌟|😊|✅|⚠️|⭐|✨|🎯|📚|📝|🎉|👍', '', text) # 额外写死一些常见的高频 emoji 保底
     
-    # 策略：只保留连续英文句子（至少2个单词）
-    english_sentences = []
-    lines = text.split('\n')
-    
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-            
-        # 如果行主要是中文字符（中文字符占比>30%），跳过该行
-        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', line))
-        total_chars = len(line)
-        if total_chars > 0 and (chinese_chars / total_chars) > 0.3:
-            continue
-        
-        # 移除剩余的少量中文
-        line = re.sub(r'[\u4e00-\u9fff]', '', line)
-        
-        # 清理多余空格
-        line = ' '.join(line.split())
-        
-        # 如果清理后还有内容，保留
-        if len(line.split()) >= 2:  # 至少2个单词才算一句话
-            english_sentences.append(line)
-    
-    # 合并所有英文句子
-    result = ' '.join(english_sentences)
-    
-    # 最终清理多余空格
-    result = re.sub(r'\s+', ' ', result)
+    # 保留可读文本，移除控制字符
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', ' ', text)
+
+    # 统一空白
+    result = re.sub(r'\s+', ' ', text)
     result = result.strip()
     
     # 限制长度（放宽至 4000 个字符）
     if len(result) > 4000:
-        result = result[:4000].rsplit(' ', 1)[0] + '.'
+        result = result[:4000].rstrip()
     
     return result
 
-def get_audio_filename(text: str) -> str:
+def detect_voice(text: str) -> str:
+    """根据文本特征自动选择语音。"""
+    if re.search(r'[\u4e00-\u9fff]', text):
+        return "zh-CN-XiaoxiaoNeural"
+    if re.search(r'[\u3040-\u30ff]', text):
+        return "ja-JP-NanamiNeural"
+    if re.search(r'[\uac00-\ud7af]', text):
+        return "ko-KR-SunHiNeural"
+    if re.search(r'[\u0400-\u04ff]', text):
+        return "ru-RU-SvetlanaNeural"
+    return DEFAULT_VOICE
+
+
+def get_audio_filename(text: str, voice: str) -> str:
     """根据文本生成唯一的文件名"""
-    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()[:12]
+    cache_key = f"{voice}:{text}"
+    text_hash = hashlib.md5(cache_key.encode('utf-8')).hexdigest()[:12]
     return f"{text_hash}.mp3"
 
 @router.get("/speak")
@@ -116,15 +100,17 @@ async def text_to_speech(
         
         # 清理文本
         cleaned_text = clean_text_for_tts(text)
+        voice = detect_voice(cleaned_text)
         
         print(f"[TTS] Original text length: {len(text)}")
         print(f"[TTS] Cleaned text: {cleaned_text[:100]}...")
+        print(f"[TTS] Voice: {voice}")
         
         if not cleaned_text:
-            raise HTTPException(status_code=400, detail="No valid English text found")
+            raise HTTPException(status_code=400, detail="No valid text found")
             
         # Check limits (only if generating new file to save costs!)
-        filename = get_audio_filename(cleaned_text)
+        filename = get_audio_filename(cleaned_text, voice)
         filepath = os.path.join(OUTPUT_DIR, filename)
         
         if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
@@ -136,7 +122,7 @@ async def text_to_speech(
                 raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
         
         # 生成文件名
-        filename = get_audio_filename(cleaned_text)
+        filename = get_audio_filename(cleaned_text, voice)
         filepath = os.path.join(OUTPUT_DIR, filename)
         
         # 如果文件已存在，直接返回缓存
@@ -147,14 +133,15 @@ async def text_to_speech(
                 media_type="audio/mpeg",
                 headers={
                     "Content-Disposition": f"inline; filename={filename}",
-                    "X-Cache": "HIT"
+                    "X-Cache": "HIT",
+                    "X-TTS-Voice": voice
                 }
             )
         
         print(f"[TTS] Generating audio for: {cleaned_text}")
         
         # 使用 Edge-TTS 生成音频
-        communicate = edge_tts.Communicate(cleaned_text, VOICE, rate=RATE)
+        communicate = edge_tts.Communicate(cleaned_text, voice, rate=RATE)
         await communicate.save(filepath)
         
         if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
@@ -167,10 +154,12 @@ async def text_to_speech(
             media_type="audio/mpeg",
             headers={
                 "Content-Disposition": f"inline; filename={filename}",
-                "X-Cache": "MISS"
+                "X-Cache": "MISS",
+                "X-TTS-Voice": voice
             }
         )
-        
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[TTS] Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
@@ -183,7 +172,7 @@ async def list_voices():
         en_voices = voices_manager.find(Gender="Female", Locale="en-US")
         
         return {
-            "current_voice": VOICE,
+            "current_voice": DEFAULT_VOICE,
             "available_voices": [
                 {
                     "name": v["Name"],

@@ -5,6 +5,7 @@ AI 增强功能服务
 """
 import os
 import json
+import re
 from typing import List, Dict, Optional, Tuple
 import httpx
 from services.evermem_service import EverMemService
@@ -506,23 +507,63 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         Returns:
             翻译结果
         """
-        prompt = f"""请将以下文本从{source_lang}翻译成{target_lang}。
-        
-        文本：
-        {text}
-        
-        要求：
-        1. 翻译准确、流畅
-        2. 只输出翻译后的文本，不要包含任何解释或额外内容
-        """
+        def _looks_like_prompt_leak(content: str) -> bool:
+            leaked_markers = [
+                "要求：",
+                "要求:",
+                "文本：",
+                "文本:",
+                "只输出翻译后的文本",
+                "SOURCE_TEXT_START",
+                "SOURCE_TEXT_END",
+                "请将以下文本从"
+            ]
+            return any(marker in content for marker in leaked_markers)
+
+        def _clean_translation(content: str) -> str:
+            cleaned = content.strip().strip("`").strip()
+            cleaned = re.sub(r"^\s*(翻译结果|translation)\s*[:：]\s*", "", cleaned, flags=re.IGNORECASE)
+            return cleaned.strip()
+
+        prompt = (
+            f"请将下面的原文从{source_lang}翻译成{target_lang}。\n"
+            "只返回译文，不要解释，不要重复题目。\n\n"
+            "如果原文包含代码、HTML/JSX 标签、属性名、变量名、className，请保持这些代码结构原样不变，只翻译自然语言文本。\n"
+            "不要输出 Markdown 代码围栏。\n\n"
+            "SOURCE_TEXT_START\n"
+            f"{text}\n"
+            "SOURCE_TEXT_END"
+        )
         
         try:
-            content = await self._call_llm([
+            messages = [
                 {"role": "system", "content": "你是一位专业的翻译助手。"},
                 {"role": "user", "content": prompt}
-            ])
-            
-            return content.strip(), ""
+            ]
+            content = await self._call_llm(messages, temperature=0.2)
+            cleaned = _clean_translation(content)
+
+            # 某些模型会把提示词原样吐出，检测到后重试一次
+            if not cleaned or _looks_like_prompt_leak(cleaned):
+                retry_prompt = (
+                    f"仅输出{target_lang}译文。禁止输出“要求/文本/说明”等词。\n"
+                    "代码与标签原样保留，仅翻译自然语言。\n"
+                    "SOURCE_TEXT_START\n"
+                    f"{text}\n"
+                    "SOURCE_TEXT_END"
+                )
+                retry_content = await self._call_llm([
+                    {"role": "system", "content": "你是翻译引擎，只输出译文。"},
+                    {"role": "user", "content": retry_prompt}
+                ], temperature=0.0)
+                retry_cleaned = _clean_translation(retry_content)
+                if retry_cleaned:
+                    cleaned = retry_cleaned
+
+            if not cleaned:
+                return "翻译失败，请稍后重试。", ""
+
+            return cleaned, ""
             
         except Exception as e:
             print(f"Translate error: {e}")
