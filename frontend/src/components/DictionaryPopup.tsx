@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { api, ApiError, API_PATHS } from '../utils/api';
+import { api, ApiError, API_PATHS, getClientId } from '../utils/api';
 import AudioButton from './AudioButton';
 import { useGlobalState } from '../context/GlobalStateContext';
 import { X, Search, Heart, Loader2, Plus, Sparkles } from 'lucide-react';
@@ -234,6 +234,7 @@ export default function DictionaryPopup() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-Client-Id': getClientId(),
                     'X-AI-Provider': provider,
                     'X-AI-Key': apiKey,
                     'X-AI-Model': model,

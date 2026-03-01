@@ -5,6 +5,23 @@
 
 // API 基础 URL - 支持环境变量覆盖
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const CLIENT_ID_STORAGE_KEY = 'vocabbook_client_id'
+
+export function getClientId(): string {
+    try {
+        const existing = localStorage.getItem(CLIENT_ID_STORAGE_KEY)
+        if (existing) return existing
+
+        const generated = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+        localStorage.setItem(CLIENT_ID_STORAGE_KEY, generated)
+        return generated
+    } catch {
+        return 'guest_local'
+    }
+}
 
 export class ApiError extends Error {
     status: number
@@ -30,6 +47,7 @@ export const api = {
     _getHeaders(customHeaders?: HeadersInit): HeadersInit {
         const token = useAuthStore.getState().token
         const headers: Record<string, string> = {}
+        headers['X-Client-Id'] = getClientId()
         if (token) {
             headers['Authorization'] = `Bearer ${token}`
         }

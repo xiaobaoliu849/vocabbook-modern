@@ -3,11 +3,15 @@ Review API Router
 复习相关操作
 """
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Query, Header
+from pydantic import BaseModel, Field
 from datetime import datetime
 import time
 import sqlite3 # Import at top level
+import base64
+import hashlib
+import json
+import re
 
 from services.multi_dict_service import clean_chinese_text
 
@@ -17,7 +21,7 @@ router = APIRouter()
 class ReviewSubmit(BaseModel):
     """提交复习结果"""
     word: str
-    quality: int  # 0-5 SM-2 rating
+    quality: int = Field(..., ge=1, le=5)  # 1-5 SM-2 rating
     time_spent: float = 0  # 花费时间（秒）
 
 
@@ -30,6 +34,45 @@ class ReviewSession(BaseModel):
 def get_db():
     from main import get_db as main_get_db
     return main_get_db()
+
+
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ", 1)[1]
+    return None
+
+
+def _normalize_scope_value(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+    return normalized or "guest"
+
+
+def _extract_sub_from_jwt(token: str) -> Optional[str]:
+    try:
+        payload_part = token.split(".")[1]
+        padded = payload_part + ("=" * (-len(payload_part) % 4))
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
+        sub = payload.get("sub")
+        if isinstance(sub, str) and sub.strip():
+            return sub.strip()
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_evermem_user_id(authorization: Optional[str], x_client_id: Optional[str] = None) -> str:
+    token = _extract_bearer_token(authorization)
+    if not token:
+        if isinstance(x_client_id, str) and x_client_id.strip():
+            return f"guest_{_normalize_scope_value(x_client_id)}"
+        return "guest"
+
+    sub = _extract_sub_from_jwt(token)
+    if sub:
+        return f"cloud_{_normalize_scope_value(sub)}"
+
+    token_fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+    return f"token_{token_fingerprint}"
 
 
 def _clean_review_words(words: List[dict]) -> List[dict]:
@@ -73,7 +116,7 @@ async def get_new_words(limit: int = Query(10, ge=1, le=50)):
     
     words, total = db.search_words(
         status_filter="new",
-        sort_by="date",
+        sort_by="date_added",
         sort_order="DESC",
         limit=limit,
         offset=0
@@ -122,9 +165,14 @@ async def get_difficult_words(limit: int = Query(20, ge=1, le=100)):
 
 
 @router.post("/submit")
-async def submit_review(review: ReviewSubmit):
+async def submit_review(
+    review: ReviewSubmit,
+    authorization: Optional[str] = Header(None),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
+):
     """提交单词复习结果（SM-2 算法）"""
     db = get_db()
+    evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id)
     
     word_data = db.get_word(review.word)
     if not word_data:
@@ -135,7 +183,8 @@ async def submit_review(review: ReviewSubmit):
     
     # Calculate SM-2
     easiness, interval, repetitions = ReviewService.calculate_sm2(review.quality, word_data)
-    next_time = ReviewService.calculate_next_review_time(interval)
+    next_time = ReviewService.calculate_next_review_time(interval, review.quality)
+    next_review_in_hours = round(max(0, next_time - time.time()) / 3600, 1)
     
     # Update database
     db.update_sm2_status(
@@ -160,14 +209,16 @@ async def submit_review(review: ReviewSubmit):
                 3: "有些犹豫但答对了", 4: "比较熟悉", 5: "完全掌握"
             }
             label = quality_labels.get(review.quality, f"评分{review.quality}")
+            interval_text = f"{next_review_in_hours}小时后" if review.quality <= 2 else f"{interval}天后"
             record = (
                 f"复习单词 '{review.word}' ({meaning}). "
                 f"评分: {review.quality}/5 ({label}). "
-                f"下次复习间隔: {interval}天."
+                f"下次复习: {interval_text}."
             )
             asyncio.create_task(
                 evermem.add_memory(
                     content=record,
+                    user_id=evermem_user_id,
                     sender="tutor_vocab",
                     sender_name="VocabBook Tutor"
                 )
@@ -181,8 +232,9 @@ async def submit_review(review: ReviewSubmit):
         "quality": review.quality,
         "next_review": datetime.fromtimestamp(next_time).strftime('%Y-%m-%d %H:%M'),
         "interval_days": interval,
+        "next_review_in_hours": next_review_in_hours,
         "easiness": round(easiness, 2),
-        "error_count_incremented": review.quality == 1
+        "error_count_incremented": review.quality <= 2
     }
 
 

@@ -49,7 +49,15 @@ class ReviewService:
         return easiness, interval, repetitions
 
     @staticmethod
-    def calculate_next_review_time(interval):
+    def calculate_next_review_time(interval, quality=None):
+        """
+        Calculate next review timestamp.
+        For low ratings, use short same-day retry windows (less aggressive than minute-level).
+        """
+        if quality == 1:
+            return (datetime.now() + timedelta(hours=8)).timestamp()
+        if quality == 2:
+            return (datetime.now() + timedelta(hours=20)).timestamp()
         return (datetime.now() + timedelta(days=interval)).timestamp()
 
     @staticmethod

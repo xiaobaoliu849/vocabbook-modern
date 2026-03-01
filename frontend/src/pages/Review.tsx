@@ -78,6 +78,8 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         if (!currentWord) return
 
         try {
+            const nextReviewedCount = sessionStats.reviewed + 1
+
             setSessionRatings(prev => [...prev, {
                 word: currentWord,
                 quality,
@@ -90,7 +92,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 time_spent: 0
             })
 
-            setSessionStats(prev => ({ ...prev, reviewed: prev.reviewed + 1 }))
+            setSessionStats(prev => ({ ...prev, reviewed: nextReviewedCount }))
 
             setCurrentIndex(prev => prev + 1)
             setIsFlipped(false)
@@ -100,7 +102,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             setShowSpellingHint(false)
 
             if (currentIndex >= dueWords.length - 1) {
-                logSession()
+                logSession(nextReviewedCount)
             }
 
             // Refresh global due count
@@ -110,12 +112,12 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         }
     }
 
-    const logSession = async () => {
+    const logSession = async (reviewCount: number = sessionStats.reviewed) => {
         const duration = Math.floor((Date.now() - sessionStats.startTime) / 1000)
         try {
             await api.post(API_PATHS.REVIEW_SESSION, {
                 duration,
-                review_count: sessionStats.reviewed
+                review_count: reviewCount
             })
         } catch (error) {
             console.error('Failed to log session:', error)

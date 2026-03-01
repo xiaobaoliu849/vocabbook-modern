@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser } from 'lucide-react'
-import { API_PATHS, API_BASE_URL } from '../utils/api'
+import { API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import { useAuth } from '../context/AuthContext'
 
@@ -77,6 +77,14 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     // Memory activity toast
     const [memoryToast, setMemoryToast] = useState<string | null>(null)
 
+    const getCommonHeaders = () => {
+        const headers: Record<string, string> = {
+            'X-Client-Id': getClientId()
+        }
+        if (token) headers['Authorization'] = `Bearer ${token}`
+        return headers
+    }
+
     // Load sessions from API and fallback to local storage (scoped by current auth user)
     useEffect(() => {
         let cancelled = false
@@ -90,7 +98,9 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
             try {
                 // Try to load from Backend API
-                const response = await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`)
+                const response = await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
+                    headers: getCommonHeaders()
+                })
                 if (response.ok) {
                     const dbSessions = await response.json()
                     if (Array.isArray(dbSessions) && dbSessions.length > 0) {
@@ -164,7 +174,10 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         for (const s of loadedSessions) {
                             await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    ...getCommonHeaders()
+                                },
                                 body: JSON.stringify(s)
                             })
                         }
@@ -177,7 +190,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
         loadInitialData()
         return () => { cancelled = true }
-    }, [chatScope])
+    }, [chatScope, token])
 
     useEffect(() => {
         if (isActive) {
@@ -212,7 +225,10 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         try {
             await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getCommonHeaders()
+                },
                 body: JSON.stringify(session)
             })
         } catch (e) { console.error("Failed to sync session to DB", e) }
@@ -261,8 +277,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     }
 
     const getApiHeaders = () => {
-        const headers: Record<string, string> = {}
-        if (token) headers['Authorization'] = `Bearer ${token}`
+        const headers: Record<string, string> = getCommonHeaders()
         if (provider) headers['X-AI-Provider'] = provider
         if (model) headers['X-AI-Model'] = model
 
@@ -328,7 +343,10 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         e.stopPropagation()
         if (window.confirm('Are you sure you want to delete this chat session?')) {
             try {
-                await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSION_DELETE(id)}`, { method: 'DELETE' })
+                await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSION_DELETE(id)}`, {
+                    method: 'DELETE',
+                    headers: getCommonHeaders()
+                })
             } catch (err) { console.error("Failed to delete session from DB", err) }
 
             setSessions(prev => {

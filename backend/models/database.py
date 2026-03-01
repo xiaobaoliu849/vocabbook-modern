@@ -554,19 +554,19 @@ class DatabaseManager:
         # 这里为了保持与旧逻辑一致，暂时不自动设为 mastered，除非间隔极大
         mastered = 1 if interval > 180 else 0
 
-        # Increment error_count if rating is low (failure)
-        # Rating 0 or 1 usually means fail/hard in SM-2 concepts used here (though SM-2 uses 0-5)
-        # Assuming our frontend sends 1-4. Let's say 1=Again (Fail), 2=Hard, 3=Good, 4=Easy
-        # If rating is 1 (Again), we increment error_count.
-        error_increment = 1 if rating == 1 else 0
+        # Keep difficult-word signal dynamic:
+        # - rating <= 2: increase difficulty score
+        # - rating >= 4: decrease difficulty score (with floor at 0)
+        # - rating == 3: keep unchanged
+        error_delta = 1 if rating <= 2 else (-1 if rating >= 4 else 0)
 
         self.execute('''
             UPDATE words
             SET easiness = ?, interval = ?, repetitions = ?, next_review_time = ?,
                 mastered = ?, review_count = review_count + 1,
-                error_count = error_count + ?
+                error_count = MAX(0, error_count + ?)
             WHERE word = ?
-        ''', (easiness, interval, repetitions, next_time, mastered, error_increment, word))
+        ''', (easiness, interval, repetitions, next_time, mastered, error_delta, word))
 
         # Log history
         today = datetime.now().strftime('%Y-%m-%d')
@@ -618,7 +618,7 @@ class DatabaseManager:
 
         # 今日待复习数量
         now_ts = time.time()
-        cursor.execute('SELECT COUNT(*) FROM words WHERE mastered = 0 AND next_review_time <= ?', (now_ts,))
+        cursor.execute('SELECT COUNT(*) FROM words WHERE next_review_time > 0 AND next_review_time <= ?', (now_ts,))
         due_today = cursor.fetchone()[0]
 
         # 学习中的单词
@@ -936,8 +936,8 @@ class DatabaseManager:
         if status_filter:
             now_ts = time.time()
             if status_filter == "due":
-                # 待复习：未掌握 且 next_review_time > 0 且 <= 当前时间
-                conditions.append("mastered = 0 AND next_review_time > 0 AND next_review_time <= ?")
+                # 待复习：已进入复习流程且到期（不再被 mastered 状态排除）
+                conditions.append("next_review_time > 0 AND next_review_time <= ?")
                 params.append(now_ts)
             elif status_filter == "new":
                 # 新单词：next_review_time = 0

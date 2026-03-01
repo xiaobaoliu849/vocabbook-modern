@@ -57,6 +57,19 @@ cd ../electron
 npm start
 ```
 
+### 4. 运行后端测试
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+
+# 运行全部后端测试
+python -m pytest -q tests
+
+# 仅运行记忆/复习相关回归测试
+python -m pytest -q tests/test_review_memory_enhancements.py
+```
+
 ## 📁 项目结构
 
 ```

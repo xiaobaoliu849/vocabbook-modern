@@ -15,7 +15,8 @@ class AIService:
     """AI 服务封装，支持多 Provider 切换"""
     
     def __init__(self, provider: str = None, api_key: str = None, model: str = None, api_base: str = None,
-                 evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None):
+                 evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None,
+                 evermem_user_id: str = "guest"):
         """
         初始化 AI 服务
         
@@ -50,6 +51,7 @@ class AIService:
         
         # EverMemOS setup
         self.evermem_enabled = evermem_enabled
+        self.evermem_user_id = evermem_user_id or "guest"
         self.evermem_service = None
         if self.evermem_enabled and evermem_key:
             self.evermem_service = EverMemService(api_url=evermem_url or "https://api.evermind.ai", api_key=evermem_key)
@@ -345,6 +347,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 _asyncio.create_task(
                     self.evermem_service.add_memory(
                         content=last_user_msg,
+                        user_id=self.evermem_user_id,
+                        sender=self.evermem_user_id,
                         sender_name="User"
                     )
                 )
@@ -354,7 +358,9 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 if not self._should_skip_memory(last_user_msg):
                     try:
                         memories = await self.evermem_service.search_memories(
-                            query=last_user_msg, min_score=0.3
+                            query=last_user_msg,
+                            user_id=self.evermem_user_id,
+                            min_score=0.3
                         )
                         if memories:
                             memories_retrieved = len(memories)
@@ -381,6 +387,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 _asyncio.create_task(
                     self.evermem_service.add_memory(
                         content=response,
+                        user_id=self.evermem_user_id,
                         sender="assistant_001",
                         sender_name="Assistant"
                     )
@@ -423,6 +430,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 _asyncio.create_task(
                     self.evermem_service.add_memory(
                         content=last_user_msg,
+                        user_id=self.evermem_user_id,
+                        sender=self.evermem_user_id,
                         sender_name="User"
                     )
                 )
@@ -432,7 +441,9 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 if not self._should_skip_memory(last_user_msg):
                     try:
                         memories = await self.evermem_service.search_memories(
-                            query=last_user_msg, min_score=0.3
+                            query=last_user_msg,
+                            user_id=self.evermem_user_id,
+                            min_score=0.3
                         )
                         if memories:
                             memories_retrieved = len(memories)
@@ -460,6 +471,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 _asyncio.create_task(
                     self.evermem_service.add_memory(
                         content=full_response,
+                        user_id=self.evermem_user_id,
                         sender="assistant_001",
                         sender_name="Assistant"
                     )

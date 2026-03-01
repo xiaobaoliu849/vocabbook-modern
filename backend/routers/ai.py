@@ -48,6 +48,10 @@ def _owner_key_from_identity(identity: str) -> str:
     return f"cloud_{_normalize_scope_value(identity)}"
 
 
+def _owner_key_from_client_id(client_id: str) -> str:
+    return f"guest_{_normalize_scope_value(client_id)}"
+
+
 def _owner_key_from_token(token: str) -> str:
     sub = _extract_sub_from_jwt(token)
     if sub:
@@ -56,9 +60,11 @@ def _owner_key_from_token(token: str) -> str:
     return f"token_{token_fingerprint}"
 
 
-async def _resolve_chat_owner_key(authorization: Optional[str]) -> str:
+async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Optional[str] = None) -> str:
     token = _extract_bearer_token(authorization)
     if not token:
+        if isinstance(x_client_id, str) and x_client_id.strip():
+            return _owner_key_from_client_id(x_client_id)
         return "guest"
 
     fallback_owner_key = _owner_key_from_token(token)
@@ -189,6 +195,7 @@ async def chat(
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"), # header defaults to string in some frameworks/proxies
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
     authorization: Optional[str] = Header(None)
 ):
     """AI 对话练习"""
@@ -197,11 +204,15 @@ async def chat(
     
     # Check if evermem is enabled (header comes as string "true"/"false")
     evermem_enabled = _is_enabled(x_evermem_enabled)
+    evermem_user_id = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
 
     # Persist evermem config so other routers (e.g. review) can access it
     if evermem_enabled and x_evermem_key:
         from services.evermem_config import save_config
         save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
+    elif not evermem_enabled:
+        from services.evermem_config import save_config
+        save_config(enabled=False, url=x_evermem_url, key=None)
 
     ai = AIService(
         provider=x_ai_provider,
@@ -210,7 +221,8 @@ async def chat(
         api_base=x_ai_base,
         evermem_enabled=evermem_enabled,
         evermem_url=x_evermem_url,
-        evermem_key=x_evermem_key
+        evermem_key=x_evermem_key,
+        evermem_user_id=evermem_user_id
     )
     try:
         result = await ai.chat(
@@ -238,6 +250,7 @@ async def chat_stream(
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
     authorization: Optional[str] = Header(None)
 ):
     """AI 对话练习 (流式)"""
@@ -247,10 +260,14 @@ async def chat_stream(
     await _check_ai_limit("ai_chat", authorization)
 
     evermem_enabled = _is_enabled(x_evermem_enabled)
+    evermem_user_id = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
 
     if evermem_enabled and x_evermem_key:
         from services.evermem_config import save_config
         save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
+    elif not evermem_enabled:
+        from services.evermem_config import save_config
+        save_config(enabled=False, url=x_evermem_url, key=None)
 
     ai = AIService(
         provider=x_ai_provider,
@@ -259,7 +276,8 @@ async def chat_stream(
         api_base=x_ai_base,
         evermem_enabled=evermem_enabled,
         evermem_url=x_evermem_url,
-        evermem_key=x_evermem_key
+        evermem_key=x_evermem_key,
+        evermem_user_id=evermem_user_id
     )
     try:
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
@@ -400,11 +418,14 @@ class ChatSessionData(BaseModel):
     createdAt: float
 
 @router.get("/chat-sessions")
-async def get_chat_sessions(authorization: Optional[str] = Header(None)):
+async def get_chat_sessions(
+    authorization: Optional[str] = Header(None),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
+):
     """获取所有持久化的聊天会话"""
     from main import get_db
     db = get_db()
-    owner_key = await _resolve_chat_owner_key(authorization)
+    owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
         sessions = db.get_all_chat_sessions(owner_key=owner_key)
         return sessions
@@ -412,11 +433,15 @@ async def get_chat_sessions(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat sessions: {str(e)}")
 
 @router.post("/chat-sessions")
-async def save_chat_session(session: ChatSessionData, authorization: Optional[str] = Header(None)):
+async def save_chat_session(
+    session: ChatSessionData,
+    authorization: Optional[str] = Header(None),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
+):
     """保存/更新聊天会话"""
     from main import get_db
     db = get_db()
-    owner_key = await _resolve_chat_owner_key(authorization)
+    owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
         success = db.save_chat_session(session.model_dump(), owner_key=owner_key)
         if not success:
@@ -426,11 +451,15 @@ async def save_chat_session(session: ChatSessionData, authorization: Optional[st
         raise HTTPException(status_code=500, detail=f"Failed to save chat session: {str(e)}")
 
 @router.delete("/chat-sessions/{session_id}")
-async def delete_chat_session(session_id: str, authorization: Optional[str] = Header(None)):
+async def delete_chat_session(
+    session_id: str,
+    authorization: Optional[str] = Header(None),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
+):
     """删除聊天会话"""
     from main import get_db
     db = get_db()
-    owner_key = await _resolve_chat_owner_key(authorization)
+    owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
         success = db.delete_chat_session(session_id, owner_key=owner_key)
         return {"success": success}
@@ -438,11 +467,14 @@ async def delete_chat_session(session_id: str, authorization: Optional[str] = He
         raise HTTPException(status_code=500, detail=f"Failed to delete chat session: {str(e)}")
 
 @router.delete("/chat-sessions")
-async def clear_all_chat_sessions(authorization: Optional[str] = Header(None)):
+async def clear_all_chat_sessions(
+    authorization: Optional[str] = Header(None),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
+):
     """清空所有聊天会话"""
     from main import get_db
     db = get_db()
-    owner_key = await _resolve_chat_owner_key(authorization)
+    owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
         success = db.clear_all_chat_sessions(owner_key=owner_key)
         return {"success": success}
