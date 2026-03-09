@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 
 export default function AISection() {
     const [aiProvider, setAiProvider] = useState('dashscope')
@@ -15,6 +15,11 @@ export default function AISection() {
     // Store Base URLs for each provider separately
     const [aiBases, setAiBases] = useState<Record<string, string>>({})
     const [aiBase, setAiBase] = useState('')
+
+    // Ollama model auto-detection
+    const [ollamaModels, setOllamaModels] = useState<{ name: string; size: string; parameter_size: string; family: string }[]>([])
+    const [ollamaLoading, setOllamaLoading] = useState(false)
+    const [ollamaError, setOllamaError] = useState('')
 
     // EverMemOS State
     const [evermemEnabled, setEvermemEnabled] = useState(false)
@@ -184,6 +189,40 @@ export default function AISection() {
         setAiBase(aiBases[provider] || '')
     }
 
+    const fetchOllamaModels = useCallback(async (base?: string) => {
+        setOllamaLoading(true)
+        setOllamaError('')
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/ai/ollama-models`, {
+                headers: { 'X-AI-Base': base || aiBase || '' }
+            })
+            const data = await response.json()
+            if (data.error) {
+                setOllamaError(data.error)
+                setOllamaModels([])
+            } else {
+                setOllamaModels(data.models || [])
+                // Auto-select first model if current model is not in the list
+                if (data.models?.length > 0 && !data.models.some((m: any) => m.name === aiModel)) {
+                    setAiModel(data.models[0].name)
+                    setAiModels(prev => ({ ...prev, ollama: data.models[0].name }))
+                }
+            }
+        } catch {
+            setOllamaError('无法连接到后端服务器')
+            setOllamaModels([])
+        } finally {
+            setOllamaLoading(false)
+        }
+    }, [aiBase, aiModel])
+
+    // Fetch Ollama models when provider switches to ollama
+    useEffect(() => {
+        if (aiProvider === 'ollama') {
+            fetchOllamaModels()
+        }
+    }, [aiProvider])
+
     return (
         <div className="space-y-6 animate-fade-in">
             <div>
@@ -251,26 +290,73 @@ export default function AISection() {
                         </p>
                     </div>
 
-                    {/* Ensure All can set model */}
-                    {(aiProvider !== 'custom') && (
+                    {/* Model selector - dynamic dropdown for Ollama, text input for others */}
+                    {aiProvider !== 'custom' && (
                         <div className="animate-fade-in">
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                                 模型名称 (Model Name)
                             </label>
-                            <input
-                                type="text"
-                                value={aiModel}
-                                onChange={(e) => {
-                                    setAiModel(e.target.value)
-                                    setAiModels(prev => ({ ...prev, [aiProvider]: e.target.value }))
-                                }}
-                                placeholder={getDefaultModel(aiProvider)}
-                                className="input-field w-full"
-                            />
-                            {aiProvider === 'ollama' && (
-                                <p className="text-xs text-indigo-500 mt-1">
-                                    💡 提示：在命令行运行 <code>ollama list</code> 查看确切的模型名称（如 <code>qwen2.5:32b</code>）
-                                </p>
+
+                            {aiProvider === 'ollama' ? (
+                                <>
+                                    <div className="flex gap-2">
+                                        {ollamaModels.length > 0 && !ollamaError ? (
+                                            <select
+                                                value={aiModel}
+                                                onChange={(e) => {
+                                                    setAiModel(e.target.value)
+                                                    setAiModels(prev => ({ ...prev, ollama: e.target.value }))
+                                                }}
+                                                className="input-field w-full"
+                                            >
+                                                {ollamaModels.map(m => (
+                                                    <option key={m.name} value={m.name}>
+                                                        {m.name} ({m.size}{m.parameter_size ? ` · ${m.parameter_size}` : ''})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <input
+                                                type="text"
+                                                value={aiModel}
+                                                onChange={(e) => {
+                                                    setAiModel(e.target.value)
+                                                    setAiModels(prev => ({ ...prev, ollama: e.target.value }))
+                                                }}
+                                                placeholder="qwen3.5:9b"
+                                                className="input-field w-full"
+                                            />
+                                        )}
+                                        <button
+                                            onClick={() => fetchOllamaModels()}
+                                            disabled={ollamaLoading}
+                                            className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-1 shrink-0"
+                                            title="刷新模型列表"
+                                        >
+                                            <RefreshCw size={16} className={ollamaLoading ? 'animate-spin' : ''} />
+                                        </button>
+                                    </div>
+                                    {ollamaLoading && (
+                                        <p className="text-xs text-indigo-500 mt-1 animate-pulse">⏳ 正在获取 Ollama 模型列表...</p>
+                                    )}
+                                    {ollamaError && (
+                                        <p className="text-xs text-amber-500 mt-1">⚠️ {ollamaError}，请手动输入模型名称</p>
+                                    )}
+                                    {!ollamaLoading && !ollamaError && ollamaModels.length > 0 && (
+                                        <p className="text-xs text-green-500 mt-1">✅ 已检测到 {ollamaModels.length} 个本地模型</p>
+                                    )}
+                                </>
+                            ) : (
+                                <input
+                                    type="text"
+                                    value={aiModel}
+                                    onChange={(e) => {
+                                        setAiModel(e.target.value)
+                                        setAiModels(prev => ({ ...prev, [aiProvider]: e.target.value }))
+                                    }}
+                                    placeholder={getDefaultModel(aiProvider)}
+                                    className="input-field w-full"
+                                />
                             )}
                         </div>
                     )}

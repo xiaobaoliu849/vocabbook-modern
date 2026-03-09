@@ -56,6 +56,78 @@ class AIService:
         if self.evermem_enabled and evermem_key:
             self.evermem_service = EverMemService(api_url=evermem_url or "https://api.evermind.ai", api_key=evermem_key)
 
+    @staticmethod
+    def _coerce_stream_text(value) -> str:
+        """Coerce mixed stream payload shapes into plain text."""
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            for key in ("text", "content", "thinking", "reasoning_content", "reasoning"):
+                if key in value:
+                    return AIService._coerce_stream_text(value.get(key))
+            return ""
+        if isinstance(value, list):
+            chunks = []
+            for item in value:
+                text = AIService._coerce_stream_text(item)
+                if text:
+                    chunks.append(text)
+            return "".join(chunks)
+        return str(value)
+
+    @staticmethod
+    def _extract_text_content(content) -> str:
+        """Extract text from message content (handles both str and multimodal list format)."""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            return " ".join(
+                part.get("text", "") for part in content
+                if isinstance(part, dict) and part.get("type") == "text"
+            )
+        return str(content)
+
+    @staticmethod
+    def _extract_stream_text_parts(data: Dict) -> Tuple[str, str]:
+        """
+        Extract reasoning/content text chunks from OpenAI-compatible stream payloads.
+        Returns (reasoning_chunk, content_chunk).
+        """
+        payloads = []
+
+        choices = data.get("choices")
+        if isinstance(choices, list) and choices:
+            choice = choices[0] if isinstance(choices[0], dict) else {}
+            if isinstance(choice, dict):
+                delta = choice.get("delta")
+                if isinstance(delta, dict):
+                    payloads.append(delta)
+                message = choice.get("message")
+                if isinstance(message, dict):
+                    payloads.append(message)
+
+        top_message = data.get("message")
+        if isinstance(top_message, dict):
+            payloads.append(top_message)
+
+        reasoning_chunks = []
+        content_chunks = []
+        for payload in payloads:
+            reasoning = AIService._coerce_stream_text(
+                payload.get("reasoning_content")
+                or payload.get("reasoning")
+                or payload.get("thinking")
+            )
+            content = AIService._coerce_stream_text(payload.get("content"))
+            if reasoning:
+                reasoning_chunks.append(reasoning)
+            if content:
+                content_chunks.append(content)
+
+        return "".join(reasoning_chunks), "".join(content_chunks)
+
     def _get_client_config(self) -> Dict:
         """获取 HTTP 客户端配置"""
         if self.provider == "openai":
@@ -111,14 +183,17 @@ class AIService:
         async with httpx.AsyncClient(timeout=30.0) as client:
             if self.provider in ["openai", "custom", "dashscope", "ollama"]:
                 try:
+                    payload = {
+                        "model": self.model,
+                        "messages": messages,
+                        "temperature": temperature
+                    }
+                    if self.provider == "ollama":
+                        payload["think"] = True
                     response = await client.post(
                         f"{config['base_url']}/chat/completions",
                         headers=config['headers'],
-                        json={
-                            "model": self.model,
-                            "messages": messages,
-                            "temperature": temperature
-                        }
+                        json=payload
                     )
                     response.raise_for_status()
                     data = response.json()
@@ -153,16 +228,19 @@ class AIService:
         async with httpx.AsyncClient(timeout=30.0) as client:
             if self.provider in ["openai", "custom", "dashscope", "ollama"]:
                 try:
+                    payload = {
+                        "model": self.model,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "stream": True  # Enable streaming
+                    }
+                    if self.provider == "ollama":
+                        payload["think"] = True
                     async with client.stream(
                         "POST",
                         f"{config['base_url']}/chat/completions",
                         headers=config['headers'],
-                        json={
-                            "model": self.model,
-                            "messages": messages,
-                            "temperature": temperature,
-                            "stream": True # Enable streaming
-                        }
+                        json=payload
                     ) as response:
                         response.raise_for_status()
                         async for line in response.aiter_lines():
@@ -173,18 +251,22 @@ class AIService:
                                 import json
                                 try:
                                     data = json.loads(data_str)
-                                    chunk = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                                    if chunk:
-                                        yield chunk
+                                    reasoning_chunk, content_chunk = self._extract_stream_text_parts(data)
+                                    if reasoning_chunk:
+                                        yield {"type": "reasoning", "content": reasoning_chunk}
+                                    if content_chunk:
+                                        yield {"type": "token", "content": content_chunk}
                                 except json.JSONDecodeError:
                                     continue
                 except Exception as e:
                     print(f"LLM Stream API Error: {e}")
-                    yield ""
+                    yield {"type": "token", "content": ""}
             
             # Streaming for anthropic is not fully implemented here as dashscope/openai/ollama are primary
             else:
-                yield await self._call_llm(messages, temperature)
+                content = await self._call_llm(messages, temperature)
+                if content:
+                    yield {"type": "token", "content": content}
     
     async def generate_sentences(self, word: str, count: int = 3, difficulty: str = "intermediate") -> List[str]:
         """
@@ -340,7 +422,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         # EverMemOS integration (official pattern: store → retrieve → generate → store)
         if self.evermem_service:
             system_prompt += "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。记忆中可能包含用户的单词复习记录（含评分和薄弱点），请自然地利用这些信息来个性化教学，比如针对用户薄弱的单词多做练习。不要主动提及你在使用记忆系统，除非用户明确询问。"
-            last_user_msg = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+            last_user_msg = next((self._extract_text_content(m['content']) for m in reversed(messages) if m['role'] == 'user'), None)
             
             if last_user_msg:
                 # Step 1: Store user message (fire-and-forget)
@@ -423,7 +505,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         
         if self.evermem_service:
             system_prompt += "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。记忆中可能包含用户的单词复习记录（含评分和薄弱点），请自然地利用这些信息来个性化教学，比如针对用户薄弱的单词多做练习。不要主动提及你在使用记忆系统，除非用户明确询问。"
-            last_user_msg = next((m['content'] for m in reversed(messages) if m['role'] == 'user'), None)
+            last_user_msg = next((self._extract_text_content(m['content']) for m in reversed(messages) if m['role'] == 'user'), None)
             
             if last_user_msg:
                 # Step 1: Store user message
@@ -462,9 +544,20 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         try:
             # Step 3: Stream response
             payload_messages = [{"role": "system", "content": system_prompt}] + messages
-            async for chunk in self._call_llm_stream(payload_messages):
-                full_response += chunk
-                yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+            async for event in self._call_llm_stream(payload_messages):
+                if not isinstance(event, dict):
+                    continue
+                event_type = event.get("type")
+                event_content = event.get("content", "")
+                if not isinstance(event_content, str):
+                    event_content = str(event_content)
+
+                if event_type == "reasoning":
+                    yield f"data: {json.dumps({'type': 'reasoning', 'content': event_content})}\n\n"
+                    continue
+
+                full_response += event_content
+                yield f"data: {json.dumps({'type': 'token', 'content': event_content})}\n\n"
 
             # Step 4: Store assistant response
             if self.evermem_service and full_response:

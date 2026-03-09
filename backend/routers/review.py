@@ -38,8 +38,14 @@ def get_db():
 
 def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
     if authorization and authorization.startswith("Bearer "):
-        return authorization.split(" ", 1)[1]
+        token = authorization.split(" ", 1)[1].strip()
+        return token or None
     return None
+
+
+def _can_use_evermem(authorization: Optional[str]) -> bool:
+    """Long-term memory writes require authenticated requests."""
+    return _extract_bearer_token(authorization) is not None
 
 
 def _normalize_scope_value(value: str) -> str:
@@ -172,7 +178,7 @@ async def submit_review(
 ):
     """提交单词复习结果（SM-2 算法）"""
     db = get_db()
-    evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id)
+    evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id) if _can_use_evermem(authorization) else None
     
     word_data = db.get_word(review.word)
     if not word_data:
@@ -200,7 +206,7 @@ async def submit_review(
     try:
         from services.evermem_config import get_service
         evermem = get_service()
-        if evermem:
+        if evermem and evermem_user_id:
             import asyncio
             meaning = word_data.get('meaning', '')
             # Build structured learning record

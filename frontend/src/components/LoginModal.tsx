@@ -33,10 +33,10 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
                 // Switch to login automatically
                 setIsLogin(true);
-                setError('Registration successful! Please login.');
+                setError('注册成功！请登录。');
             }
         } catch (err: any) {
-            let errorMsg = err?.message || 'Error occurred';
+            let errorMsg = err?.message || '发生错误';
             if (err?.response?.data?.detail) {
                 const detail = err.response.data.detail;
                 if (Array.isArray(detail)) {
@@ -66,11 +66,11 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 </button>
 
                 <h2 className="text-2xl font-semibold mb-6 text-center text-gray-900 dark:text-white">
-                    {isLogin ? 'Welcome Back' : 'Create Account'}
+                    {isLogin ? '欢迎回来' : '创建账户'}
                 </h2>
 
                 {error && (
-                    <div className={`p-3 rounded-xl mb-4 text-sm ${error.includes('successful') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    <div className={`p-3 rounded-xl mb-4 text-sm ${error.includes('成功') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                         {error}
                     </div>
                 )}
@@ -79,7 +79,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     <div>
                         <input
                             type="email"
-                            placeholder="Email"
+                            placeholder="邮箱"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full bg-black/20 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -89,7 +89,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     <div>
                         <input
                             type="password"
-                            placeholder="Password"
+                            placeholder="密码"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="w-full bg-black/20 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -102,17 +102,17 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                         disabled={loading}
                         className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl font-medium transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
                     >
-                        {loading ? 'Processing...' : (isLogin ? 'Login' : 'Sign Up')}
+                        {loading ? '处理中...' : (isLogin ? '登录' : '注册')}
                     </button>
 
                     <p className="text-center text-sm text-gray-400 mt-4">
-                        {isLogin ? "Don't have an account? " : "Already have an account? "}
+                        {isLogin ? "还没有账户？ " : "已有账户？ "}
                         <button
                             type="button"
                             onClick={() => setIsLogin(!isLogin)}
                             className="text-blue-400 hover:text-blue-300 ml-1"
                         >
-                            {isLogin ? 'Sign up' : 'Login'}
+                            {isLogin ? '立即注册' : '立即登录'}
                         </button>
                     </p>
                 </form>

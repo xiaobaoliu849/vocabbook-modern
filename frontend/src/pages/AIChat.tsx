@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser } from 'lucide-react'
+import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight } from 'lucide-react'
 import { API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import { useAuth } from '../context/AuthContext'
@@ -44,6 +44,7 @@ interface Message {
     timestamp: number
     memoriesUsed?: number
     memorySaved?: boolean
+    reasoningContent?: string
 }
 
 interface ChatSession {
@@ -76,6 +77,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
     // Memory activity toast
     const [memoryToast, setMemoryToast] = useState<string | null>(null)
+    const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({})
 
     const getCommonHeaders = () => {
         const headers: Record<string, string> = {
@@ -272,8 +274,8 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
     }
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const scrollToBottom = (instant: boolean = false) => {
+        messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' })
     }
 
     const getApiHeaders = () => {
@@ -403,6 +405,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         if (!input.trim() || loading || !activeSessionId) return
 
         const userContent = input.trim()
+        let botMsgId: string | null = null
 
         // Auto-rename session if it's the first message
         if (activeSession && activeSession.messages.length === 0) {
@@ -443,11 +446,12 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             }))
             history.push({ role: userMsg.role, content: userMsg.content })
 
-            const botMsgId = generateId()
+            botMsgId = generateId()
             const initialBotMsg: Message = {
                 id: botMsgId,
                 role: 'assistant',
                 content: '',
+                reasoningContent: '',
                 timestamp: Date.now()
             }
 
@@ -469,7 +473,24 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             })
 
             if (!response.ok) {
-                throw new Error(`API Error: ${response.statusText}`)
+                const raw = await response.text()
+                let detailedMessage = `API Error: ${response.statusText}`
+                try {
+                    const parsed = raw ? JSON.parse(raw) : null
+                    const detail = parsed?.detail
+                    if (typeof detail === 'string' && detail.trim()) {
+                        detailedMessage = detail
+                    } else if (detail?.message && typeof detail.message === 'string') {
+                        detailedMessage = detail.message
+                    } else if (raw && raw.trim()) {
+                        detailedMessage = raw
+                    }
+                } catch {
+                    if (raw && raw.trim()) {
+                        detailedMessage = raw
+                    }
+                }
+                throw new Error(detailedMessage)
             }
             if (!response.body) {
                 throw new Error(`No response body`)
@@ -478,45 +499,106 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             const reader = response.body.getReader()
             const decoder = new TextDecoder()
             let done = false
+            let sseBuffer = ''
             let botContent = ''
+            let botReasoning = ''
             let memoriesRetrieved = 0
             let memorySaved = false
+            let streamFlushTimer: number | null = null
+            const STREAM_FLUSH_MS = 120
+
+            const applyBotStreamUpdate = () => {
+                setSessions(prev => prev.map(s => {
+                    if (s.id === activeSessionId) {
+                        const updatedMessages = s.messages.map(m =>
+                            m.id === botMsgId
+                                ? {
+                                    ...m,
+                                    content: botContent,
+                                    reasoningContent: botReasoning
+                                }
+                                : m
+                        )
+                        return { ...s, messages: updatedMessages, updatedAt: Date.now() }
+                    }
+                    return s
+                }))
+            }
+
+            const scheduleBotStreamUpdate = () => {
+                if (streamFlushTimer !== null) return
+                streamFlushTimer = window.setTimeout(() => {
+                    streamFlushTimer = null
+                    applyBotStreamUpdate()
+                    scrollToBottom(true)
+                }, STREAM_FLUSH_MS)
+            }
+
+            const flushBotStreamUpdate = () => {
+                if (streamFlushTimer !== null) {
+                    window.clearTimeout(streamFlushTimer)
+                    streamFlushTimer = null
+                }
+                applyBotStreamUpdate()
+                scrollToBottom(true)
+            }
+
+            const handleSsePayload = (payload: string) => {
+                if (!payload || payload === '[DONE]') return
+                try {
+                    const data = JSON.parse(payload)
+                    if (data.type === 'token') {
+                        const tokenChunk = typeof data.content === 'string' ? data.content : ''
+                        botContent += tokenChunk
+                        scheduleBotStreamUpdate()
+                    } else if (data.type === 'reasoning') {
+                        const reasoningChunk = typeof data.content === 'string' ? data.content : ''
+                        botReasoning += reasoningChunk
+                        scheduleBotStreamUpdate()
+                    } else if (data.type === 'done') {
+                        memoriesRetrieved = data.memories_retrieved || 0
+                        memorySaved = data.memory_saved || false
+                    }
+                } catch {
+                    // Ignore malformed payloads.
+                }
+            }
+
+            const consumeSseBuffer = () => {
+                while (true) {
+                    const boundary = sseBuffer.indexOf('\n\n')
+                    if (boundary < 0) break
+                    const rawEvent = sseBuffer.slice(0, boundary)
+                    sseBuffer = sseBuffer.slice(boundary + 2)
+
+                    const payload = rawEvent
+                        .split('\n')
+                        .filter(line => line.startsWith('data:'))
+                        .map(line => line.slice(5).trimStart())
+                        .join('\n')
+                        .trim()
+
+                    handleSsePayload(payload)
+                }
+            }
 
             while (!done) {
                 const { value, done: readerDone } = await reader.read()
                 done = readerDone
                 if (value) {
-                    const chunkInfo = decoder.decode(value, { stream: true })
-                    const lines = chunkInfo.split('\n')
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6))
-                                if (data.type === 'token') {
-                                    botContent += data.content
-                                    // Incrementally update the UI
-                                    setSessions(prev => prev.map(s => {
-                                        if (s.id === activeSessionId) {
-                                            const updatedMessages = s.messages.map(m =>
-                                                m.id === botMsgId ? { ...m, content: botContent } : m
-                                            )
-                                            return { ...s, messages: updatedMessages, updatedAt: Date.now() }
-                                        }
-                                        return s
-                                    }))
-                                    scrollToBottom()
-                                } else if (data.type === 'done') {
-                                    memoriesRetrieved = data.memories_retrieved || 0
-                                    memorySaved = data.memory_saved || false
-                                }
-                            } catch (e) {
-                                // Ignore incomplete chunks
-                            }
-                        }
-                    }
+                    sseBuffer += decoder.decode(value, { stream: true })
+                    consumeSseBuffer()
                 }
             }
+
+            const tailPayload = sseBuffer
+                .split('\n')
+                .filter(line => line.startsWith('data:'))
+                .map(line => line.slice(5).trimStart())
+                .join('\n')
+                .trim()
+            handleSsePayload(tailPayload)
+            flushBotStreamUpdate()
 
             // Final update with metadata
             setSessions(prev => {
@@ -555,15 +637,27 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             }
         } catch (error: any) {
             console.error('Chat stream failed:', error)
-            const errorMsg: Message = {
-                id: generateId(),
-                role: 'assistant',
-                content: `Error: ${error.message || 'Failed to get response'}`,
-                timestamp: Date.now()
-            }
             setSessions(prev => prev.map(s => {
                 if (s.id === activeSessionId) {
-                    return { ...s, messages: [...s.messages, errorMsg], updatedAt: Date.now() }
+                    const errorText = `Error: ${error.message || 'Failed to get response'}`
+                    let replaced = false
+                    const updatedMessages = s.messages.map(m => {
+                        if (botMsgId && m.id === botMsgId) {
+                            replaced = true
+                            return { ...m, content: errorText, reasoningContent: '' }
+                        }
+                        return m
+                    })
+                    if (!replaced) {
+                        updatedMessages.push({
+                            id: generateId(),
+                            role: 'assistant',
+                            content: errorText,
+                            reasoningContent: '',
+                            timestamp: Date.now()
+                        })
+                    }
+                    return { ...s, messages: updatedMessages, updatedAt: Date.now() }
                 }
                 return s
             }))
@@ -579,7 +673,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                     provider === 'ollama' ? 'Ollama' : provider
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative bg-slate-50 dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+        <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative bg-gradient-to-br from-primary-100/80 via-primary-50/40 to-white dark:from-slate-900 dark:via-slate-900 dark:to-primary-950/30 rounded-2xl overflow-hidden border border-primary-200 dark:border-primary-800/50 shadow-lg shadow-primary-500/10">
             {/* Global Sidebar Overlay */}
             <div
                 className={`absolute inset-0 z-40 bg-slate-900/20 dark:bg-slate-900/50 backdrop-blur-[2px] transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -606,8 +700,8 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             className={`
                                 group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all
                                 ${activeSessionId === session.id
-                                    ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
-                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                    ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-200 border-l-2 border-primary-500'
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-primary-50/50 dark:hover:bg-slate-700/50'
                                 }
                             `}
                         >
@@ -663,9 +757,9 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             </div>
 
             {/* Main Chat Area */}
-            <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 relative">
+            <div className="flex-1 flex flex-col min-w-0 bg-transparent relative">
                 {/* Header */}
-                <div className="flex-none h-16 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
+                <div className="flex-none h-16 border-b border-primary-200/50 dark:border-primary-800/40 flex items-center justify-between px-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl sticky top-0 z-10">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -676,10 +770,10 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         </button>
 
                         <div>
-                            <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <h2 className="text-xl font-bold bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent dark:from-primary-400 dark:to-primary-300 flex items-center gap-2">
                                 <span className="hidden sm:inline">AI 语伴</span>
                                 {evermemEnabled && (
-                                    <span className="px-2 py-0.5 text-[10px] font-bold bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 dark:from-indigo-900/40 dark:to-purple-900/40 dark:text-indigo-300 rounded-full flex items-center gap-1 border border-indigo-200/60 dark:border-indigo-700/50">
+                                    <span className="px-2 py-0.5 text-[10px] font-bold bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 dark:from-primary-900/40 dark:to-primary-800/40 dark:text-primary-300 rounded-full flex items-center gap-1 border border-primary-200/60 dark:border-primary-700/50">
                                         <Brain size={10} className="animate-pulse" />
                                         长期记忆已开启
                                     </span>
@@ -694,7 +788,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={createNewSession}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition-colors shadow-sm shadow-primary-500/20"
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-semibold rounded-xl transition-all shadow-md shadow-primary-500/30 hover:shadow-lg hover:shadow-primary-500/40 hover:scale-[1.02] active:scale-[0.98]"
                             title="新建对话 (New Chat)"
                         >
                             <Plus size={16} />
@@ -774,15 +868,22 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar scroll-smooth">
                     {messages.length === 0 && (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                            <Sparkles size={48} className="mb-4 text-indigo-200 dark:text-indigo-900/50" />
-                            <p className="text-base font-medium text-slate-500 dark:text-slate-400">开始和 AI 练习英语对话吧！</p>
+                        <div className="h-full flex flex-col items-center justify-center">
+                            {/* Decorative gradient orb */}
+                            <div className="relative mb-8">
+                                <div className="absolute -inset-6 bg-gradient-to-br from-primary-400/20 to-primary-300/10 dark:from-primary-600/10 dark:to-primary-500/5 rounded-full blur-2xl" />
+                                <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 dark:from-primary-500 dark:to-primary-700 flex items-center justify-center shadow-lg shadow-primary-500/30">
+                                    <Sparkles size={36} className="text-white drop-shadow-sm" />
+                                </div>
+                            </div>
+                            <p className="text-lg font-bold bg-gradient-to-r from-primary-700 to-primary-500 bg-clip-text text-transparent dark:from-primary-300 dark:to-primary-400 mb-1">开始和 AI 练习英语对话吧！</p>
+                            <p className="text-sm text-slate-400 dark:text-slate-500">发送消息，和 AI 进行英语口语练习</p>
                             {evermemEnabled && (
-                                <div className="mt-6 px-5 py-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-800/50 text-center max-w-sm">
-                                    <p className="text-sm text-indigo-600 dark:text-indigo-400 flex items-center justify-center gap-1.5 font-bold mb-1">
+                                <div className="mt-6 px-6 py-5 bg-gradient-to-br from-primary-50 to-primary-100/60 dark:from-primary-900/30 dark:to-slate-800/40 rounded-2xl border border-primary-200/80 dark:border-primary-700/50 text-center max-w-sm shadow-md shadow-primary-500/10">
+                                    <p className="text-sm text-primary-600 dark:text-primary-400 flex items-center justify-center gap-1.5 font-bold mb-1">
                                         <Brain size={16} /> EverMemOS 记忆引挚已激活
                                     </p>
-                                    <p className="text-xs text-indigo-500/80 dark:text-indigo-400/70">
+                                    <p className="text-xs text-primary-500/80 dark:text-primary-400/70">
                                         AI 会自动记忆关键内容，赋予每次对话延续性
                                     </p>
                                 </div>
@@ -796,7 +897,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
                         >
                             {msg.role === 'assistant' && (
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20">
+                                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-primary-400 to-primary-600 text-white shadow-lg shadow-primary-500/30 ring-2 ring-primary-200/50 dark:ring-primary-700/30">
                                     <Sparkles size={18} />
                                 </div>
                             )}
@@ -804,12 +905,45 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             <div className={`flex flex-col gap-1.5 max-w-[85%] md:max-w-[75%]`}>
                                 <div className={`rounded-2xl px-5 py-3.5 shadow-sm text-[16.5px] leading-[1.7] whitespace-pre-wrap relative group/msg
                                     ${msg.role === 'user'
-                                        ? 'bg-primary-500 text-white rounded-tr-sm shadow-primary-500/20'
-                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-tl-sm border border-slate-100 dark:border-slate-700/60'
+                                        ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-tr-sm shadow-md shadow-primary-500/30'
+                                        : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-md text-slate-800 dark:text-slate-200 rounded-tl-sm border border-primary-100 dark:border-primary-800/40 shadow-sm'
                                     }`}
                                 >
-                                    {msg.content ? (
-                                        msg.content
+                                    {msg.content || (msg.reasoningContent && msg.reasoningContent.trim()) ? (
+                                        <div className="space-y-2">
+                                            {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
+                                                <div className="rounded-xl border border-primary-200/70 dark:border-primary-700/50 bg-primary-50/70 dark:bg-primary-900/20 overflow-hidden">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExpandedReasoning(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))}
+                                                        className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-primary-100/60 dark:hover:bg-primary-800/20 transition-colors"
+                                                    >
+                                                        <span className="flex items-center gap-2 text-primary-700 dark:text-primary-300 text-sm font-semibold">
+                                                            <ChevronRight
+                                                                size={15}
+                                                                className={`transition-transform duration-200 ${expandedReasoning[msg.id] ? 'rotate-90' : ''}`}
+                                                            />
+                                                            深度思考过程
+                                                        </span>
+                                                        <span className="text-[11px] text-primary-500/90 dark:text-primary-300/80">
+                                                            {expandedReasoning[msg.id] ? '收起' : '展开'}
+                                                        </span>
+                                                    </button>
+                                                    <div
+                                                        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${expandedReasoning[msg.id] ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+                                                    >
+                                                        <div className="overflow-hidden">
+                                                            {expandedReasoning[msg.id] && (
+                                                                <div className="border-t border-primary-200/70 dark:border-primary-700/50 px-3 py-2 text-[13px] leading-7 whitespace-pre-wrap text-primary-700/90 dark:text-primary-200/90 max-h-[22rem] overflow-y-auto custom-scrollbar">
+                                                                    {msg.reasoningContent}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {msg.content && <div>{msg.content}</div>}
+                                        </div>
                                     ) : (
                                         msg.role === 'assistant' && loading && (
                                             <div className="flex gap-1.5 items-center h-6">
@@ -861,8 +995,8 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 </div>
 
                 {/* Input Area */}
-                <div className="flex-none p-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur border-t border-slate-200 dark:border-slate-800">
-                    <div className="max-w-4xl mx-auto flex gap-3 items-end bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-2 relative focus-within:ring-2 focus-within:ring-primary-500/20 focus-within:border-primary-500/50 transition-all cursor-text" onClick={() => inputRef.current?.focus()}>
+                <div className="flex-none p-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-t border-primary-200/40 dark:border-primary-800/30">
+                    <div className="max-w-4xl mx-auto flex gap-3 items-end bg-white dark:bg-slate-800 rounded-2xl shadow-md shadow-primary-500/5 border border-primary-100 dark:border-slate-700 p-2 relative focus-within:ring-2 focus-within:ring-primary-400/30 focus-within:border-primary-400/60 transition-all cursor-text" onClick={() => inputRef.current?.focus()}>
                         <textarea
                             ref={inputRef}
                             autoFocus
@@ -881,7 +1015,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         <button
                             onClick={handleSend}
                             disabled={!input.trim() || loading || !activeSessionId}
-                            className="p-3.5 mb-0.5 mr-0.5 rounded-xl bg-primary-500 hover:bg-primary-600 active:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all flex-shrink-0 shadow-md shadow-primary-500/20"
+                            className="p-3.5 mb-0.5 mr-0.5 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 active:from-primary-700 active:to-primary-800 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all flex-shrink-0 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/40 hover:scale-105 active:scale-95"
                         >
                             {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={18} className="translate-x-[1px] -translate-y-[1px]" />}
                         </button>

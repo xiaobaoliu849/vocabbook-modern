@@ -7,8 +7,8 @@ from tempfile import TemporaryDirectory
 import pytest
 
 from models.database import DatabaseManager
-from routers.ai import _resolve_chat_owner_key
-from routers.review import _resolve_evermem_user_id
+from routers.ai import _resolve_chat_owner_key, _can_use_evermem as _ai_can_use_evermem
+from routers.review import _resolve_evermem_user_id, _can_use_evermem as _review_can_use_evermem
 from services.review_service import ReviewService
 
 try:
@@ -93,6 +93,18 @@ def test_guest_client_id_isolation_keys():
     assert owner_a != owner_b
     assert review_user.startswith("guest_")
     assert "device_a" in review_user
+
+
+def test_evermem_requires_bearer_auth_for_chat_and_review():
+    assert _ai_can_use_evermem(None) is False
+    assert _ai_can_use_evermem("Basic abc123") is False
+    assert _ai_can_use_evermem("Bearer ") is False
+    assert _ai_can_use_evermem("Bearer jwt-token") is True
+
+    assert _review_can_use_evermem(None) is False
+    assert _review_can_use_evermem("Token abc123") is False
+    assert _review_can_use_evermem("Bearer ") is False
+    assert _review_can_use_evermem("Bearer jwt-token") is True
 
 
 def test_evermem_key_not_persisted_to_disk(monkeypatch, tmp_path):

@@ -6,7 +6,7 @@ import base64
 import hashlib
 import json
 import re
-from typing import List, Optional
+from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Header
 import httpx
 from pydantic import BaseModel
@@ -17,13 +17,36 @@ router = APIRouter()
 def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
     """Extract Bearer token from authorization header."""
     if authorization and authorization.startswith("Bearer "):
-        return authorization.split(" ", 1)[1]
+        token = authorization.split(" ", 1)[1].strip()
+        return token or None
     return None
 
 
 def _is_enabled(value: Optional[str]) -> bool:
     """Parse common boolean header values."""
     return str(value).strip().lower() == "true"
+
+
+def _is_local_ollama_request(provider: Optional[str], api_base: Optional[str]) -> bool:
+    if (provider or "").strip().lower() != "ollama":
+        return False
+    base = (api_base or "").strip().lower()
+    # Empty base uses default localhost ollama endpoint in service layer.
+    if not base:
+        return True
+    return (
+        base.startswith("http://localhost")
+        or base.startswith("http://127.0.0.1")
+        or base.startswith("https://localhost")
+        or base.startswith("https://127.0.0.1")
+    )
+
+
+def _can_use_evermem(authorization: Optional[str]) -> bool:
+    """
+    Require authenticated requests for long-term memory access.
+    """
+    return _extract_bearer_token(authorization) is not None
 
 
 def _normalize_scope_value(value: str) -> str:
@@ -87,10 +110,19 @@ async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Opt
     return fallback_owner_key
 
 
-async def _check_ai_limit(action: str, authorization: Optional[str]) -> None:
+async def _check_ai_limit(
+    action: str,
+    authorization: Optional[str],
+    provider: Optional[str] = None,
+    api_base: Optional[str] = None
+) -> None:
     """Check and consume local AI quota for current user token."""
     from services.limit_service import LimitService, LimitException
     from main import get_db
+
+    # Local ollama should not be quota-limited.
+    if _is_local_ollama_request(provider, api_base):
+        return
 
     try:
         limit_service = LimitService(db=get_db())
@@ -115,7 +147,7 @@ class MemoryTipsRequest(BaseModel):
 class ChatMessage(BaseModel):
     """聊天消息"""
     role: str  # user, assistant
-    content: str
+    content: Any  # str or list of content parts (multimodal)
 
 
 class ChatRequest(BaseModel):
@@ -142,7 +174,7 @@ async def generate_sentences(
 ):
     """AI 生成例句"""
     from services.ai_service import AIService
-    await _check_ai_limit("ai_generate", authorization)
+    await _check_ai_limit("ai_generate", authorization, provider=x_ai_provider, api_base=x_ai_base)
         
     ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model, api_base=x_ai_base)
     try:
@@ -200,13 +232,15 @@ async def chat(
 ):
     """AI 对话练习"""
     from services.ai_service import AIService
-    await _check_ai_limit("ai_chat", authorization)
+    await _check_ai_limit("ai_chat", authorization, provider=x_ai_provider, api_base=x_ai_base)
     
-    # Check if evermem is enabled (header comes as string "true"/"false")
-    evermem_enabled = _is_enabled(x_evermem_enabled)
+    # EverMem requires explicit enable flag and authenticated request.
+    evermem_requested = _is_enabled(x_evermem_enabled)
+    evermem_enabled = evermem_requested and _can_use_evermem(authorization)
     evermem_user_id = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
 
-    # Persist evermem config so other routers (e.g. review) can access it
+    # Persist evermem config so other routers (e.g. review) can access it.
+    # Security: if request is unauthenticated, always force-disable runtime evermem.
     if evermem_enabled and x_evermem_key:
         from services.evermem_config import save_config
         save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
@@ -257,9 +291,10 @@ async def chat_stream(
     from services.ai_service import AIService
     from fastapi.responses import StreamingResponse
 
-    await _check_ai_limit("ai_chat", authorization)
+    await _check_ai_limit("ai_chat", authorization, provider=x_ai_provider, api_base=x_ai_base)
 
-    evermem_enabled = _is_enabled(x_evermem_enabled)
+    evermem_requested = _is_enabled(x_evermem_enabled)
+    evermem_enabled = evermem_requested and _can_use_evermem(authorization)
     evermem_user_id = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
 
     if evermem_enabled and x_evermem_key:
@@ -340,6 +375,54 @@ async def test_connection(
         api_base=x_ai_base
     )
     return await ai.test_connection()
+
+@router.get("/ollama-models")
+async def get_ollama_models(
+    x_ai_base: Optional[str] = Header(None, alias="X-AI-Base")
+):
+    """获取本地 Ollama 已安装的模型列表"""
+    # Ollama native API uses port 11434 without /v1 suffix
+    base = x_ai_base or "http://localhost:11434"
+    # Strip /v1 suffix if present (user may pass OpenAI-compatible URL)
+    base = base.rstrip("/")
+    if base.endswith("/v1"):
+        base = base[:-3]
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{base}/api/tags", timeout=5.0)
+            resp.raise_for_status()
+            data = resp.json()
+
+        models = []
+        for m in data.get("models", []):
+            size_bytes = m.get("size", 0)
+            # Convert to human-readable size
+            if size_bytes >= 1e9:
+                size_str = f"{size_bytes / 1e9:.1f} GB"
+            elif size_bytes >= 1e6:
+                size_str = f"{size_bytes / 1e6:.0f} MB"
+            else:
+                size_str = f"{size_bytes} B"
+
+            models.append({
+                "name": m.get("name", ""),
+                "size": size_str,
+                "size_bytes": size_bytes,
+                "modified_at": m.get("modified_at", ""),
+                "family": m.get("details", {}).get("family", ""),
+                "parameter_size": m.get("details", {}).get("parameter_size", ""),
+            })
+
+        # Sort by modification time (newest first)
+        models.sort(key=lambda x: x["modified_at"], reverse=True)
+        return {"models": models, "count": len(models)}
+
+    except httpx.ConnectError:
+        return {"models": [], "count": 0, "error": "无法连接到 Ollama 服务，请确保 Ollama 正在运行"}
+    except Exception as e:
+        return {"models": [], "count": 0, "error": f"获取模型列表失败: {str(e)}"}
+
 
 # --- Translation Endpoints ---
 
