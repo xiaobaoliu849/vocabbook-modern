@@ -1,23 +1,25 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export default function DictionarySection() {
+    const { t } = useTranslation()
     return (
         <div className="space-y-6 animate-fade-in">
             <div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                    词典源设置
+                    {t('settings.dict.title', '词典源设置')}
                 </h3>
                 <p className="text-slate-500 dark:text-slate-400 text-sm">
-                    管理查词时使用的词典资源
+                    {t('settings.dict.desc', '管理查词时使用的词典资源')}
                 </p>
             </div>
 
             <div className="glass-card p-6">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                    📚 启用词典
+                    📚 {t('settings.dict.enableDict', '启用词典')}
                 </h3>
                 <p className="text-sm text-slate-500 mb-4">
-                    在查询单词时启用多个词典以获取更全面的释义
+                    {t('settings.dict.enableDictDesc', '在查询单词时启用多个词典以获取更全面的释义')}
                 </p>
 
                 <div className="space-y-4">

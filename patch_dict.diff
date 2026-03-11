@@ -1,0 +1,42 @@
+--- frontend/src/pages/settings/sections/DictionarySection.tsx
++++ frontend/src/pages/settings/sections/DictionarySection.tsx
+@@ -1,22 +1,24 @@
+ import { useState } from 'react'
++import { useTranslation } from 'react-i18next'
+
+ export default function DictionarySection() {
++    const { t } = useTranslation()
+     return (
+         <div className="space-y-6 animate-fade-in">
+             <div>
+                 <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+-                    词典源设置
++                    {t('settings.dict.title', '词典源设置')}
+                 </h3>
+                 <p className="text-slate-500 dark:text-slate-400 text-sm">
+-                    管理查词时使用的词典资源
++                    {t('settings.dict.desc', '管理查词时使用的词典资源')}
+                 </p>
+             </div>
+
+             <div className="glass-card p-6">
+                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+-                    📚 启用词典
++                    📚 {t('settings.dict.enableDict', '启用词典')}
+                 </h3>
+                 <p className="text-sm text-slate-500 mb-4">
+-                    在查询单词时启用多个词典以获取更全面的释义
++                    {t('settings.dict.enableDictDesc', '在查询单词时启用多个词典以获取更全面的释义')}
+                 </p>
+
+                 <div className="space-y-4">
+                     {[
+-                        { id: 'youdao', name: '有道词典', desc: '中文释义准确，词根词缀丰富', fixed: true },
+-                        { id: 'cambridge', name: 'Cambridge Dictionary', desc: '权威英英释义，高质量例句' },
+-                        { id: 'bing', name: 'Bing 词典', desc: '词形变化、常用搭配' },
+-                        { id: 'freedict', name: 'Free Dictionary', desc: '英英释义，深度理解词义' },
++                        { id: 'youdao', name: t('settings.dict.youdaoName', '有道词典'), desc: t('settings.dict.youdaoDesc', '中文释义准确，词根词缀丰富'), fixed: true },
++                        { id: 'cambridge', name: 'Cambridge Dictionary', desc: t('settings.dict.cambridgeDesc', '权威英英释义，高质量例句') },
++                        { id: 'bing', name: t('settings.dict.bingName', 'Bing 词典'), desc: t('settings.dict.bingDesc', '词形变化、常用搭配') },
++                        { id: 'freedict', name: 'Free Dictionary', desc: t('settings.dict.freedictDesc', '英英释义，深度理解词义') },
+                     ].map((dict) => {

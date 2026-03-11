@@ -2,20 +2,18 @@ import { useState } from 'react'
 import { Crown, Cloud, LogOut, Mail, Shield, Smartphone } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext'
 import { SubscriptionModal } from '../../../components/SubscriptionModal'
-import { useTranslation } from 'react-i18next'
 
 export default function AccountSection() {
     const { user, logout } = useAuth()
     const [showPay, setShowPay] = useState(false)
-    const { t } = useTranslation()
 
     // Not logged in - show login prompt
     if (!user) {
         return (
             <div className="space-y-6">
                 <div>
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">{t('settings.account.title', '账户')}</h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">{t('settings.account.desc', '管理您的账户信息和会员状态')}</p>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">账户</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">管理您的账户信息和会员状态</p>
                 </div>
 
                 <div className="bg-gradient-to-br from-primary-50 to-accent-50 dark:from-primary-900/20 dark:to-accent-900/20 rounded-2xl p-8 text-center border border-primary-100 dark:border-primary-800/30">
@@ -23,10 +21,10 @@ export default function AccountSection() {
                         <Shield size={32} className="text-primary-600 dark:text-primary-400" />
                     </div>
                     <h4 className="text-lg font-semibold text-slate-800 dark:text-white mb-2">
-                        {t('settings.account.loginForSync', '登录以使用云同步')}
+                        登录以使用云同步
                     </h4>
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                        {t('settings.account.loginForSyncDesc', '登录后，您的生词本数据将自动同步到云端，支持多设备访问。')}
+                        登录后，您的生词本数据将自动同步到云端，支持多设备访问。
                     </p>
                 </div>
             </div>
@@ -40,8 +38,8 @@ export default function AccountSection() {
         <div className="space-y-6">
             {/* Section Header */}
             <div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">{t('settings.account.title', '账户')}</h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">{t('settings.account.desc', '管理您的账户信息和会员状态')}</p>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">账户</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">管理您的账户信息和会员状态</p>
             </div>
 
             {/* Profile Card */}
@@ -82,11 +80,11 @@ export default function AccountSection() {
                             {isPremium ? (
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold bg-gradient-to-r from-amber-200 to-orange-200 text-amber-800 dark:from-amber-800/50 dark:to-orange-800/50 dark:text-amber-300 shadow-sm">
                                     <Crown size={14} />
-                                    {t('settings.account.premium', '专业版会员')}
+                                    专业版会员
                                 </span>
                             ) : (
                                 <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                                    {t('settings.account.free', '免费版')}
+                                    免费版
                                 </span>
                             )}
                         </div>
@@ -103,10 +101,10 @@ export default function AccountSection() {
                         </div>
                         <div className="flex-1">
                             <h4 className="font-semibold text-slate-800 dark:text-white mb-1">
-                                {t('settings.account.upgradeTitle', '升级至专业版')}
+                                升级至专业版
                             </h4>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                                {t('settings.account.upgradeDesc', '解锁无限制 AI 生成、云端同步、多设备支持等高级功能')}
+                                解锁无限制 AI 生成、云端同步、多设备支持等高级功能
                             </p>
                             <button
                                 onClick={() => setShowPay(true)}
@@ -118,7 +116,7 @@ export default function AccountSection() {
                                     flex items-center gap-2"
                             >
                                 <Crown size={16} />
-                                {t('settings.account.upgradeBtn', '立即升级')}
+                                立即升级
                             </button>
                         </div>
                     </div>
@@ -132,12 +130,12 @@ export default function AccountSection() {
                         <Cloud size={20} className="text-green-600 dark:text-green-400" />
                     </div>
                     <div>
-                        <h4 className="font-semibold text-slate-800 dark:text-white">{t('settings.account.cloudSync', '云同步')}</h4>
-                        <p className="text-xs text-green-600 dark:text-green-400">{t('settings.account.connected', '已连接')}</p>
+                        <h4 className="font-semibold text-slate-800 dark:text-white">云同步</h4>
+                        <p className="text-xs text-green-600 dark:text-green-400">已连接</p>
                     </div>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {t('settings.account.cloudSyncDesc', '您的生词本数据已自动同步至云端，可在其他设备登录同一账户访问。')}
+                    您的生词本数据已自动同步至云端，可在其他设备登录同一账户访问。
                 </p>
             </div>
 
@@ -148,12 +146,12 @@ export default function AccountSection() {
                         <Smartphone size={20} className="text-blue-600 dark:text-blue-400" />
                     </div>
                     <div>
-                        <h4 className="font-semibold text-slate-800 dark:text-white">{t('settings.account.currentDevice', '当前设备')}</h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{t('settings.account.desktopApp', '桌面应用')}</p>
+                        <h4 className="font-semibold text-slate-800 dark:text-white">当前设备</h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">桌面应用</p>
                     </div>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {t('settings.account.deviceSyncDesc', '此设备已登录您的账户，数据将实时同步。')}
+                    此设备已登录您的账户，数据将实时同步。
                 </p>
             </div>
 
@@ -164,7 +162,7 @@ export default function AccountSection() {
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 >
                     <LogOut size={16} />
-                    {t('settings.account.logout', '退出登录')}
+                    退出登录
                 </button>
             </div>
 

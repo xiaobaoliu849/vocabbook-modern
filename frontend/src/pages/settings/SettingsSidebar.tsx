@@ -1,5 +1,7 @@
 
 
+import { useTranslation } from 'react-i18next';
+
 type TabId = 'account' | 'general' | 'dict' | 'ai' | 'about';
 
 interface SettingsSidebarProps {
@@ -8,12 +10,13 @@ interface SettingsSidebarProps {
 }
 
 export default function SettingsSidebar({ activeTab, setActiveTab }: SettingsSidebarProps) {
+    const { t } = useTranslation();
     const tabs: { id: TabId; label: string; icon: string }[] = [
-        { id: 'account', label: '账户', icon: '👤' },
-        { id: 'general', label: '常规设置', icon: '⚙️' },
-        { id: 'dict', label: '词典源', icon: '📚' },
-        { id: 'ai', label: 'AI 助手', icon: '🤖' },
-        { id: 'about', label: '关于', icon: 'ℹ️' },
+        { id: 'account', label: t('settings.tabs.account', '账户'), icon: '👤' },
+        { id: 'general', label: t('settings.tabs.general', '常规设置'), icon: '⚙️' },
+        { id: 'dict', label: t('settings.tabs.dict', '词典源'), icon: '📚' },
+        { id: 'ai', label: t('settings.tabs.ai', 'AI 助手'), icon: '🤖' },
+        { id: 'about', label: t('settings.tabs.about', '关于'), icon: 'ℹ️' },
     ];
 
     return (

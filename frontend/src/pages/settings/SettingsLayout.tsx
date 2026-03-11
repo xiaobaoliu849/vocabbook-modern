@@ -5,6 +5,7 @@ import GeneralSection from './sections/GeneralSection'
 import DictionarySection from './sections/DictionarySection'
 import AISection from './sections/AISection'
 import AboutSection from './sections/AboutSection'
+import { useTranslation } from 'react-i18next'
 
 type TabId = 'account' | 'general' | 'dict' | 'ai' | 'about';
 
@@ -14,6 +15,7 @@ interface SettingsLayoutProps {
 }
 
 export default function SettingsLayout({ initialTab, onTabChange }: SettingsLayoutProps) {
+    const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<TabId>('account')
 
     // Handle initial tab navigation from Header
@@ -37,10 +39,10 @@ export default function SettingsLayout({ initialTab, onTabChange }: SettingsLayo
             <div className="shrink-0 md:w-48 flex flex-col">
                 <div className="mb-6 px-2">
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-                        设置
+                        {t('settings.title', '设置')}
                     </h2>
                     <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                        Preferences
+                        {t('settings.subtitle', 'Preferences')}
                     </p>
                 </div>
                 <SettingsSidebar activeTab={activeTab} setActiveTab={handleTabChange} />
