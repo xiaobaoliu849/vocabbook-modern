@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { RefreshCw, Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 // Extend window type for Electron API
 declare global {
@@ -29,6 +30,7 @@ interface UpdateInfo {
 }
 
 export default function AboutSection() {
+    const { t } = useTranslation()
     const [appVersion, setAppVersion] = useState('2.0.0')
     const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle')
     const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
@@ -64,7 +66,7 @@ export default function AboutSection() {
             await window.electronAPI.checkForUpdates()
         } catch (err) {
             setUpdateStatus('error')
-            setErrorMessage((err as Error).message || '检查更新失败')
+            setErrorMessage((err as Error).message || t('settings.about.checkUpdateFailed', '检查更新失败'))
         }
     }
 
@@ -74,7 +76,7 @@ export default function AboutSection() {
             await window.electronAPI.downloadUpdate()
         } catch (err) {
             setUpdateStatus('error')
-            setErrorMessage((err as Error).message || '下载失败')
+            setErrorMessage((err as Error).message || t('settings.about.downloadFailed', '下载失败'))
         }
     }
 
@@ -93,7 +95,7 @@ export default function AboutSection() {
         if (!isElectron) {
             return (
                 <p className="text-sm text-slate-500 dark:text-slate-400 italic">
-                    自动更新仅在打包后的应用中可用
+                    {t('settings.about.updateOnlyInPackaged', '自动更新仅在打包后的应用中可用')}
                 </p>
             )
         }
@@ -103,7 +105,7 @@ export default function AboutSection() {
                 return (
                     <button disabled className="btn-secondary flex items-center gap-2 opacity-70">
                         <Loader2 size={16} className="animate-spin" />
-                        正在检查更新...
+                        {t('settings.about.checkingUpdate', '正在检查更新...')}
                     </button>
                 )
             case 'available':
@@ -111,11 +113,11 @@ export default function AboutSection() {
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                             <CheckCircle size={18} />
-                            <span>发现新版本 v{updateInfo?.version}</span>
+                            <span>{t('settings.about.newVersionFound', '发现新版本 v')}{updateInfo?.version}</span>
                         </div>
                         <button onClick={handleDownload} className="btn-primary flex items-center gap-2">
                             <Download size={16} />
-                            下载更新
+                            {t('settings.about.downloadUpdate', '下载更新')}
                         </button>
                     </div>
                 )
@@ -123,7 +125,7 @@ export default function AboutSection() {
                 return (
                     <div className="space-y-3">
                         <div className="flex items-center justify-between text-sm">
-                            <span className="text-slate-600 dark:text-slate-400">下载中...</span>
+                            <span className="text-slate-600 dark:text-slate-400">{t('settings.about.downloading', '下载中...')}</span>
                             <span className="text-primary-600 dark:text-primary-400 font-medium">
                                 {updateInfo?.percent?.toFixed(1) || 0}%
                             </span>
@@ -145,11 +147,11 @@ export default function AboutSection() {
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                             <CheckCircle size={18} />
-                            <span>更新已下载完成</span>
+                            <span>{t('settings.about.downloadComplete', '更新已下载完成')}</span>
                         </div>
                         <button onClick={handleInstall} className="btn-primary flex items-center gap-2">
                             <RefreshCw size={16} />
-                            立即安装并重启
+                            {t('settings.about.installAndRestart', '立即安装并重启')}
                         </button>
                     </div>
                 )
@@ -158,11 +160,11 @@ export default function AboutSection() {
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                             <CheckCircle size={18} className="text-emerald-500" />
-                            <span>当前已是最新版本</span>
+                            <span>{t('settings.about.isLatestVersion', '当前已是最新版本')}</span>
                         </div>
                         <button onClick={handleCheckUpdate} className="btn-secondary flex items-center gap-2">
                             <RefreshCw size={16} />
-                            重新检查
+                            {t('settings.about.recheck', '重新检查')}
                         </button>
                     </div>
                 )
@@ -171,11 +173,11 @@ export default function AboutSection() {
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                             <AlertCircle size={18} />
-                            <span>{errorMessage || '检查更新时出错'}</span>
+                            <span>{errorMessage || t('settings.about.checkUpdateError', '检查更新时出错')}</span>
                         </div>
                         <button onClick={handleCheckUpdate} className="btn-secondary flex items-center gap-2">
                             <RefreshCw size={16} />
-                            重试
+                            {t('settings.about.retry', '重试')}
                         </button>
                     </div>
                 )
@@ -183,7 +185,7 @@ export default function AboutSection() {
                 return (
                     <button onClick={handleCheckUpdate} className="btn-primary flex items-center gap-2">
                         <RefreshCw size={16} />
-                        检查更新
+                        {t('settings.about.checkUpdate', '检查更新')}
                     </button>
                 )
         }
@@ -196,7 +198,7 @@ export default function AboutSection() {
                     关于软件
                 </h3>
                 <p className="text-slate-500 dark:text-slate-400 text-sm">
-                    版本信息与软件更新
+                    {t('settings.about.desc', '版本信息与软件更新')}
                 </p>
             </div>
 
@@ -208,19 +210,19 @@ export default function AboutSection() {
 
                 <div className="text-slate-600 dark:text-slate-400 space-y-4">
                     <div>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100 text-lg">智能生词本 Modern</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100 text-lg">{t('settings.about.appName', '智能生词本 Modern')}</p>
                         <p className="text-sm opacity-80">Version {appVersion}</p>
                     </div>
 
-                    <p>使用 React + FastAPI + AI 构建的现代化英语学习工具</p>
+                    <p>{t('settings.about.appDesc', '使用 React + FastAPI + AI 构建的现代化英语学习工具')}</p>
 
                     <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl text-sm leading-relaxed">
-                        <p className="font-medium mb-1">主要特性：</p>
+                        <p className="font-medium mb-1">{t('settings.about.features', '主要特性：')}</p>
                         <ul className="list-disc list-inside space-y-1 ml-1 opacity-90">
-                            <li>SM-2 间隔重复记忆算法</li>
-                            <li>AI 智能生成例句与助记</li>
-                            <li>多维词典聚合查询</li>
-                            <li>现代化 Glassmorphism UI 设计</li>
+                            <li>{t('settings.about.feature1', 'SM-2 间隔重复记忆算法')}</li>
+                            <li>{t('settings.about.feature2', 'AI 智能生成例句与助记')}</li>
+                            <li>{t('settings.about.feature3', '多维词典聚合查询')}</li>
+                            <li>{t('settings.about.feature4', '现代化 Glassmorphism UI 设计')}</li>
                         </ul>
                     </div>
                 </div>
@@ -229,7 +231,7 @@ export default function AboutSection() {
             {/* Update Card */}
             <div className="glass-card p-6">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                    🔄 软件更新
+                    🔄 {t('settings.about.softwareUpdate', '软件更新')}
                 </h3>
 
                 <div className="space-y-4">

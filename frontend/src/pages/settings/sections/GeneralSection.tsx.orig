@@ -2,10 +2,8 @@ import { useTheme } from '../../../context/ThemeContext'
 import { useState, useEffect } from 'react'
 import { Check, Volume2 } from 'lucide-react'
 
-
 export default function GeneralSection() {
     const { isDark, toggleTheme } = useTheme()
-
     const [accent, setAccent] = useState<'us' | 'uk'>(() =>
         (localStorage.getItem('preferred_accent') as 'us' | 'uk') || 'us'
     )
