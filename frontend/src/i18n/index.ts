@@ -17,11 +17,14 @@ i18n
         translation: zhTranslation
       }
     },
-    // The user requested English to be prioritized ("UI得优先使用英语").
     fallbackLng: 'en',
-    // Set default lng to English. This matches "UI得优先使用英语".
-    // We can just use the language detected by LanguageDetector but default to 'en'
-    lng: localStorage.getItem('i18nextLng') || 'en',
+    supportedLngs: ['en', 'zh'],
+    nonExplicitSupportedLngs: true,
+    load: 'languageOnly',
+    detection: {
+      order: ['localStorage'],
+      caches: ['localStorage']
+    },
     debug: false,
     interpolation: {
       escapeValue: false // React already escapes by default

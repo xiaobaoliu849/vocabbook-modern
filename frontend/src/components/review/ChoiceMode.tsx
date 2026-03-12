@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import AudioButton from '../AudioButton'
 import type { ReviewModeProps } from './types'
 
@@ -6,6 +7,7 @@ import type { ReviewModeProps } from './types'
  * 选择题模式 - 显示单词，从4个选项中选择正确释义
  */
 export default function ChoiceMode({ word, allWords, onComplete }: ReviewModeProps) {
+    const { t } = useTranslation()
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
     const [showResult, setShowResult] = useState(false)
 
@@ -20,7 +22,7 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
 
         // If not enough distractors, add placeholders
         while (distractors.length < 3) {
-            distractors.push(`释义 ${distractors.length + 1}`)
+            distractors.push(t('review.choice.placeholderMeaning', { index: distractors.length + 1 }))
         }
 
         // Combine and shuffle
@@ -30,7 +32,7 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
         ].sort(() => Math.random() - 0.5)
 
         return allOptions
-    }, [word, allWords])
+    }, [word, allWords, t])
 
     // Reset state when word changes
     useEffect(() => {
@@ -125,7 +127,7 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
                     ? 'text-green-500'
                     : 'text-red-500'
                     }`}>
-                    {options[selectedIndex!]?.isCorrect ? '✅ 正确！' : '❌ 错误'}
+                    {options[selectedIndex!]?.isCorrect ? t('review.choice.correct') : t('review.choice.incorrect')}
                 </div>
             )}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight } from 'lucide-react'
 import { API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
 import AudioButton from '../components/AudioButton'
@@ -36,6 +37,10 @@ const resolveChatScope = (token?: string | null) => {
 const getScopedStorageKey = (scope: string) => `chat_sessions_${scope}`
 const buildScopedSessionId = (scope: string) => `${scope}${CHAT_SCOPE_SEPARATOR}${generateId()}`
 const isSessionInScope = (sessionId: string, scope: string) => sessionId.startsWith(`${scope}${CHAT_SCOPE_SEPARATOR}`)
+const DEFAULT_NEW_CHAT_TITLE = '__NEW_CHAT__'
+const LEGACY_NEW_CHAT_TITLE = 'New Chat'
+const LEGACY_MIGRATED_CHAT_TITLE = 'Migrated Chat'
+const isDefaultNewChatTitle = (title: string) => title === DEFAULT_NEW_CHAT_TITLE || title === LEGACY_NEW_CHAT_TITLE
 
 interface Message {
     id: string
@@ -56,6 +61,7 @@ interface ChatSession {
 }
 
 export default function AIChat({ isActive }: { isActive?: boolean }) {
+    const { t } = useTranslation()
     const { token } = useAuth()
     const [sessions, setSessions] = useState<ChatSession[]>([])
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -153,7 +159,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         if (parsedMessages.length > 0) {
                             loadedSessions = [{
                                 id: buildScopedSessionId(chatScope),
-                                title: 'Migrated Chat',
+                                title: LEGACY_MIGRATED_CHAT_TITLE,
                                 messages: parsedMessages,
                                 updatedAt: Date.now(),
                                 createdAt: Date.now()
@@ -315,10 +321,15 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
     const activeSession = sessions.find(s => s.id === activeSessionId)
     const messages = activeSession?.messages || []
+    const getDisplaySessionTitle = (title: string) => {
+        if (isDefaultNewChatTitle(title)) return t('chat.session.newChat')
+        if (title === LEGACY_MIGRATED_CHAT_TITLE) return t('chat.session.migratedChat')
+        return title
+    }
 
     const createNewSession = () => {
         setSessions(prev => {
-            if (prev.length > 0 && prev[0].messages.length === 0 && prev[0].title === 'New Chat') {
+            if (prev.length > 0 && prev[0].messages.length === 0 && isDefaultNewChatTitle(prev[0].title)) {
                 setTimeout(() => {
                     setActiveSessionId(prev[0].id)
                     setSidebarOpen(false)
@@ -327,7 +338,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             }
             const newSession: ChatSession = {
                 id: buildScopedSessionId(chatScope),
-                title: 'New Chat',
+                title: DEFAULT_NEW_CHAT_TITLE,
                 messages: [],
                 updatedAt: Date.now(),
                 createdAt: Date.now()
@@ -343,7 +354,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
     const deleteSession = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation()
-        if (window.confirm('Are you sure you want to delete this chat session?')) {
+        if (window.confirm(t('chat.confirm.deleteSession'))) {
             try {
                 await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSION_DELETE(id)}`, {
                     method: 'DELETE',
@@ -368,7 +379,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         e.preventDefault()
         e.stopPropagation()
         setEditingSessionId(session.id)
-        setEditingTitle(session.title)
+        setEditingTitle(isDefaultNewChatTitle(session.title) ? '' : getDisplaySessionTitle(session.title))
     }
 
     const commitRename = (id: string) => {
@@ -390,7 +401,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
     const clearSession = () => {
         if (!activeSessionId) return;
-        if (window.confirm('确定要清空当前对话的所有消息吗？(上下文记忆将重置)')) {
+        if (window.confirm(t('chat.confirm.clearSession'))) {
             setSessions(prev => {
                 const updated = prev.map(s => s.id === activeSessionId ? { ...s, messages: [], updatedAt: Date.now() } : s)
                 const target = updated.find(s => s.id === activeSessionId)
@@ -474,7 +485,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
             if (!response.ok) {
                 const raw = await response.text()
-                let detailedMessage = `API Error: ${response.statusText}`
+                let detailedMessage = t('chat.errors.api', { message: response.statusText })
                 try {
                     const parsed = raw ? JSON.parse(raw) : null
                     const detail = parsed?.detail
@@ -630,16 +641,21 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             })
 
             if (memoriesRetrieved > 0 || memorySaved) {
-                const parts = []
-                if (memoriesRetrieved > 0) parts.push(`回忆了 ${memoriesRetrieved} 条相关记忆`)
-                if (memorySaved) parts.push('已记住本次对话')
-                setMemoryToast(`🧠 ${parts.join('，')}`)
+                if (memoriesRetrieved > 0 && memorySaved) {
+                    setMemoryToast(t('chat.memory.toast.recalledAndSaved', { count: memoriesRetrieved }))
+                } else if (memoriesRetrieved > 0) {
+                    setMemoryToast(t('chat.memory.toast.recalled', { count: memoriesRetrieved }))
+                } else {
+                    setMemoryToast(t('chat.memory.toast.saved'))
+                }
             }
         } catch (error: any) {
             console.error('Chat stream failed:', error)
             setSessions(prev => prev.map(s => {
                 if (s.id === activeSessionId) {
-                    const errorText = `Error: ${error.message || 'Failed to get response'}`
+                    const errorText = t('chat.errors.response', {
+                        message: error.message || t('chat.errors.failedResponse')
+                    })
                     let replaced = false
                     const updatedMessages = s.messages.map(m => {
                         if (botMsgId && m.id === botMsgId) {
@@ -668,7 +684,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
     const providerLabel = provider === 'openai' ? 'OpenAI' :
         provider === 'anthropic' ? 'Claude' :
-            provider === 'dashscope' ? '通义千问' :
+            provider === 'dashscope' ? t('chat.providers.dashscope') :
                 provider === 'gemini' ? 'Gemini' :
                     provider === 'ollama' ? 'Ollama' : provider
 
@@ -725,7 +741,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                         className="w-full bg-white dark:bg-slate-900 border border-primary-500 rounded px-2 py-0.5 text-sm text-slate-800 dark:text-white outline-none"
                                     />
                                 ) : (
-                                    <span className="truncate text-sm font-medium">{session.title}</span>
+                                    <span className="truncate text-sm font-medium">{getDisplaySessionTitle(session.title)}</span>
                                 )}
                             </div>
 
@@ -734,7 +750,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                     <button
                                         onClick={(e) => startRenameSession(e, session)}
                                         className="p-1.5 text-slate-400 hover:text-primary-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors cursor-pointer"
-                                        title="Rename"
+                                        title={t('chat.actions.rename')}
                                     >
                                         <Edit2 size={14} />
                                     </button>
@@ -745,7 +761,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                             deleteSession(e, session.id)
                                         }}
                                         className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors cursor-pointer"
-                                        title="Delete"
+                                        title={t('chat.actions.delete')}
                                     >
                                         <Trash2 size={14} />
                                     </button>
@@ -764,23 +780,23 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         <button
                             onClick={() => setSidebarOpen(!sidebarOpen)}
                             className="p-2 -ml-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                            title={sidebarOpen ? "收起历史记录" : "展开历史记录"}
+                            title={sidebarOpen ? t('chat.actions.collapseHistory') : t('chat.actions.expandHistory')}
                         >
                             <Menu size={20} />
                         </button>
 
                         <div>
                             <h2 className="text-xl font-bold bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent dark:from-primary-400 dark:to-primary-300 flex items-center gap-2">
-                                <span className="hidden sm:inline">AI 语伴</span>
+                                <span className="hidden sm:inline">{t('chat.header.title')}</span>
                                 {evermemEnabled && (
                                     <span className="px-2 py-0.5 text-[10px] font-bold bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 dark:from-primary-900/40 dark:to-primary-800/40 dark:text-primary-300 rounded-full flex items-center gap-1 border border-primary-200/60 dark:border-primary-700/50">
                                         <Brain size={10} className="animate-pulse" />
-                                        长期记忆已开启
+                                        {t('chat.header.longTermMemoryEnabled')}
                                     </span>
                                 )}
                             </h2>
                             <p className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 text-[10px] sm:text-xs">
-                                {providerLabel} <span className="opacity-50">•</span> {model || 'Default Model'}
+                                {providerLabel} <span className="opacity-50">•</span> {model || t('chat.header.defaultModel')}
                             </p>
                         </div>
                     </div>
@@ -789,10 +805,10 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         <button
                             onClick={createNewSession}
                             className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-semibold rounded-xl transition-all shadow-md shadow-primary-500/30 hover:shadow-lg hover:shadow-primary-500/40 hover:scale-[1.02] active:scale-[0.98]"
-                            title="新建对话 (New Chat)"
+                            title={t('chat.actions.newChatTitle')}
                         >
                             <Plus size={16} />
-                            <span className="text-sm hidden sm:inline">新对话</span>
+                            <span className="text-sm hidden sm:inline">{t('chat.actions.newChat')}</span>
                         </button>
 
                         <div className="relative">
@@ -812,7 +828,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                     }
                                 }}
                                 className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                title="更多选项"
+                                title={t('chat.actions.moreOptions')}
                             >
                                 <MoreHorizontal size={18} />
                             </button>
@@ -837,7 +853,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             }}
                         >
                             <Eraser size={14} className="text-slate-400" />
-                            <span>清空当前消息</span>
+                            <span>{t('chat.actions.clearCurrentMessages')}</span>
                         </button>
 
                         <div className="h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
@@ -850,7 +866,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             }}
                         >
                             <Trash2 size={14} className="text-red-500" />
-                            <span>删除对话记录</span>
+                            <span>{t('chat.actions.deleteSessionRecord')}</span>
                         </button>
                     </div>
                 </div>
@@ -876,15 +892,15 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                     <Sparkles size={36} className="text-white drop-shadow-sm" />
                                 </div>
                             </div>
-                            <p className="text-lg font-bold bg-gradient-to-r from-primary-700 to-primary-500 bg-clip-text text-transparent dark:from-primary-300 dark:to-primary-400 mb-1">开始和 AI 练习英语对话吧！</p>
-                            <p className="text-sm text-slate-400 dark:text-slate-500">发送消息，和 AI 进行英语口语练习</p>
+                            <p className="text-lg font-bold bg-gradient-to-r from-primary-700 to-primary-500 bg-clip-text text-transparent dark:from-primary-300 dark:to-primary-400 mb-1">{t('chat.empty.title')}</p>
+                            <p className="text-sm text-slate-400 dark:text-slate-500">{t('chat.empty.subtitle')}</p>
                             {evermemEnabled && (
                                 <div className="mt-6 px-6 py-5 bg-gradient-to-br from-primary-50 to-primary-100/60 dark:from-primary-900/30 dark:to-slate-800/40 rounded-2xl border border-primary-200/80 dark:border-primary-700/50 text-center max-w-sm shadow-md shadow-primary-500/10">
                                     <p className="text-sm text-primary-600 dark:text-primary-400 flex items-center justify-center gap-1.5 font-bold mb-1">
-                                        <Brain size={16} /> EverMemOS 记忆引挚已激活
+                                        <Brain size={16} /> {t('chat.empty.memoryTitle')}
                                     </p>
                                     <p className="text-xs text-primary-500/80 dark:text-primary-400/70">
-                                        AI 会自动记忆关键内容，赋予每次对话延续性
+                                        {t('chat.empty.memoryDesc')}
                                     </p>
                                 </div>
                             )}
@@ -923,10 +939,10 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                                                 size={15}
                                                                 className={`transition-transform duration-200 ${expandedReasoning[msg.id] ? 'rotate-90' : ''}`}
                                                             />
-                                                            深度思考过程
+                                                            {t('chat.reasoning.title')}
                                                         </span>
                                                         <span className="text-[11px] text-primary-500/90 dark:text-primary-300/80">
-                                                            {expandedReasoning[msg.id] ? '收起' : '展开'}
+                                                            {expandedReasoning[msg.id] ? t('chat.reasoning.collapse') : t('chat.reasoning.expand')}
                                                         </span>
                                                     </button>
                                                     <div
@@ -950,7 +966,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                                 {evermemEnabled ? (
                                                     <span className="text-[13px] font-medium text-indigo-500 dark:text-indigo-400 flex items-center gap-1.5">
                                                         <Brain size={14} className="animate-pulse" />
-                                                        思考中...
+                                                        {t('chat.loading.thinking')}
                                                     </span>
                                                 ) : (
                                                     <>
@@ -979,12 +995,12 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                 {/* Memory indicators */}
                                 {msg.role === 'user' && msg.memorySaved && (
                                     <span className="text-[11px] text-indigo-500 dark:text-indigo-400 flex items-center gap-1 self-end mr-1 font-medium">
-                                        <Brain size={10} /> 已纳入长记忆
+                                        <Brain size={10} /> {t('chat.memory.savedIndicator')}
                                     </span>
                                 )}
                                 {msg.role === 'assistant' && (msg.memoriesUsed || 0) > 0 && (
                                     <span className="text-[11px] text-indigo-500 dark:text-indigo-400 flex items-center gap-1 ml-1 font-medium">
-                                        <Sparkles size={10} /> 提取 {msg.memoriesUsed} 条核心记忆
+                                        <Sparkles size={10} /> {t('chat.memory.retrievedIndicator', { count: msg.memoriesUsed })}
                                     </span>
                                 )}
                             </div>
@@ -1008,7 +1024,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                     handleSend()
                                 }
                             }}
-                            placeholder="输入消息 (Enter 发送, Shift+Enter 换行)..."
+                            placeholder={t('chat.input.placeholder')}
                             className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 p-3 max-h-48 min-h-[52px] resize-none text-[15px] text-slate-800 dark:text-white placeholder-slate-400 custom-scrollbar"
                             rows={1}
                         />
@@ -1022,7 +1038,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                     </div>
                     <div className="text-center mt-2.5">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                            AI 可能产生不准确的信息，请独立判断
+                            {t('chat.disclaimer')}
                         </span>
                     </div>
                 </div>

@@ -1,5 +1,697 @@
 {
   "app": {
-    "title": "VocabBook"
+    "title": "VocabBook",
+    "brand": "Smart VocabBook"
+  },
+  "sidebar": {
+    "add": "Vocabulary Hub",
+    "addTooltip": "Search and add new words",
+    "import": "Batch Import",
+    "importTooltip": "Import TXT / CSV in bulk",
+    "list": "Word List",
+    "listTooltip": "Manage saved words",
+    "review": "Smart Review",
+    "reviewTooltip": "Review with the SM-2 algorithm",
+    "stats": "Statistics",
+    "statsTooltip": "View learning progress and heatmap",
+    "translation": "Translator",
+    "translationTooltip": "Multilingual AI translation assistant",
+    "chat": "AI Partner",
+    "chatTooltip": "Conversation practice with long-term memory",
+    "settings": "Settings",
+    "settingsTooltip": "App Settings",
+    "loginRegister": "Login / Sign Up",
+    "loginNow": "Login Now",
+    "premiumMember": "Premium Member",
+    "freeAccount": "Free Account",
+    "accountSettings": "Account Settings",
+    "upgradeToPremium": "Upgrade to Premium",
+    "unlockPremiumFeatures": "Unlock all premium features",
+    "logout": "Log Out"
+  },
+  "shortcuts": {
+    "title": "⌨️ Keyboard Shortcuts",
+    "globalNavigation": "Global Navigation",
+    "global": "Global",
+    "reviewMode": "Review Mode",
+    "common": "Common",
+    "showHideWindow": "Show / Hide Window",
+    "toggleHelp": "Show / Hide Help",
+    "closeModal": "Close Dialog",
+    "flipCard": "Flip Card",
+    "flipCardDetailed": "Reveal Answer / Flip Card",
+    "reviewScore": "Rate Memory (1 forgotten - 5 perfect)",
+    "rateMemory": "Rate Memory Strength",
+    "playPronunciation": "Play Pronunciation",
+    "switchReviewMode": "Switch Review / Spelling Mode",
+    "showSpellingHint": "Show Spelling Hint",
+    "selectWord": "Select Word",
+    "viewDetails": "View Details",
+    "deleteWord": "Delete Word",
+    "markMastered": "Mark as Mastered",
+    "quickSearch": "Quick Search",
+    "addToVocabBook": "Add to VocabBook",
+    "generateExample": "Generate Example with AI",
+    "searchConfirm": "Search / Confirm"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Preferences",
+    "tabs": {
+      "account": "Account",
+      "general": "General",
+      "dict": "Dictionaries",
+      "ai": "AI Assistant",
+      "about": "About"
+    },
+    "account": {
+      "title": "Account",
+      "desc": "Manage your account information and membership status",
+      "loginForSync": "Sign in to enable cloud sync",
+      "loginForSyncDesc": "After signing in, your vocabulary data will sync to the cloud automatically and be available across devices.",
+      "premium": "Premium Member",
+      "free": "Free Plan",
+      "upgradeTitle": "Upgrade to Premium",
+      "upgradeDesc": "Unlock unlimited AI generation, cloud sync, multi-device support, and more premium features",
+      "upgradeBtn": "Upgrade Now",
+      "cloudSync": "Cloud Sync",
+      "connected": "Connected",
+      "cloudSyncDesc": "Your vocabulary data is synced to the cloud and can be accessed on other devices with the same account.",
+      "currentDevice": "Current Device",
+      "desktopApp": "Desktop App",
+      "deviceSyncDesc": "This device is signed in to your account and data will sync in real time.",
+      "logout": "Log Out"
+    },
+    "general": {
+      "title": "General Settings",
+      "desc": "Customize the app appearance and basic preferences",
+      "appearance": "Appearance",
+      "darkMode": "Dark Mode",
+      "lightMode": "Light Mode",
+      "darkModeDesc": "Switch between light and dark themes",
+      "switchToLightMode": "Switch to Light Mode",
+      "switchToDarkMode": "Switch to Dark Mode",
+      "language": "Language",
+      "displayLanguage": "Display Language",
+      "languageDesc": "Change the interface language of the application",
+      "languageOptions": {
+        "en": "English",
+        "zh": "Chinese (Simplified)"
+      },
+      "pronunciation": "Pronunciation Preference",
+      "usEnglish": "American English",
+      "usAccentLabel": "General American",
+      "usEnglishDesc": "Rhotic accent · energetic and expressive",
+      "ukEnglish": "British English",
+      "ukAccentLabel": "Received Pronunciation",
+      "ukEnglishDesc": "Clear articulation · elegant and restrained"
+    },
+    "dict": {
+      "title": "Dictionary Sources",
+      "desc": "Manage the dictionary resources used during lookup",
+      "enableDict": "Enable Dictionaries",
+      "enableDictDesc": "Use multiple dictionaries during word lookup for more comprehensive definitions",
+      "youdaoName": "Youdao Dictionary",
+      "youdaoDesc": "Accurate Chinese meanings with rich roots and affixes",
+      "cambridgeName": "Cambridge Dictionary",
+      "cambridgeDesc": "Authoritative English definitions with high-quality examples",
+      "bingName": "Bing Dictionary",
+      "bingDesc": "Word forms and common collocations",
+      "freedictName": "Free Dictionary",
+      "freedictDesc": "English definitions for deeper understanding"
+    },
+    "ai": {
+      "title": "AI Assistant",
+      "desc": "Configure the AI model used to generate examples and mnemonics",
+      "modelSettings": "Model Settings",
+      "provider": "AI Provider",
+      "providerDashscope": "DashScope (Qwen)",
+      "providerOllama": "Ollama (Local)",
+      "providerCustom": "Custom API",
+      "apiKeyPlaceholder": "Enter your API key...",
+      "apiKeyLocalOnly": "Your key is stored locally and will not be uploaded to the server",
+      "modelName": "Model Name",
+      "refreshModels": "Refresh model list",
+      "fetchingOllama": "⏳ Fetching Ollama model list...",
+      "manualInput": "Please enter the model name manually",
+      "detectedModels": "Detected {{count}} local model(s)",
+      "baseUrl": "API Base URL",
+      "defaultBaseUrl": "Default base URL:",
+      "saveAiSettings": "Save AI Settings",
+      "testing": "Testing...",
+      "testConnection": "Test Connection",
+      "saveSuccess": "✅ AI settings saved",
+      "backendUnavailable": "Cannot connect to the backend server",
+      "ollamaModelPlaceholder": "qwen3.5:9b",
+      "evermemos": "Long-Term Memory (EverMemOS)",
+      "enableEvermem": "Enable memory enhancement",
+      "evermemApiUrl": "API URL",
+      "evermemUrlHelp": "Use https://api.evermind.ai for cloud, or http://localhost:1995 for self-hosted deployment",
+      "evermemApiKey": "API Key",
+      "evermemApiKeyPlaceholder": "EverMemOS API Key",
+      "evermemHelpPrefix": "Get an API key from ",
+      "evermemHelpMiddle": ", or ",
+      "evermemHelpSuffix": ".",
+      "selfHost": "self-host it"
+    },
+    "about": {
+      "title": "About",
+      "desc": "Version information and software updates",
+      "versionInfo": "Version Information",
+      "versionLabel": "Version",
+      "appName": "VocabBook Modern",
+      "appDesc": "A modern English-learning tool built with React + FastAPI + AI",
+      "features": "Key features:",
+      "feature1": "SM-2 spaced repetition algorithm",
+      "feature2": "AI-generated example sentences and mnemonics",
+      "feature3": "Multi-source dictionary aggregation",
+      "feature4": "Modern glassmorphism UI design",
+      "softwareUpdate": "Software Update",
+      "checkUpdateFailed": "Failed to check for updates",
+      "downloadFailed": "Download failed",
+      "updateOnlyInPackaged": "Automatic updates are only available in packaged builds",
+      "checkingUpdate": "Checking for updates...",
+      "newVersionFound": "New version found: v",
+      "downloadUpdate": "Download Update",
+      "downloading": "Downloading...",
+      "downloadComplete": "Update downloaded",
+      "installAndRestart": "Install and Restart",
+      "isLatestVersion": "You are already on the latest version",
+      "recheck": "Check Again",
+      "checkUpdateError": "An error occurred while checking for updates",
+      "retry": "Retry",
+      "checkUpdate": "Check for Updates",
+      "footer": "Designed with ❤️ by VocabBook Team"
+    }
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "joinVocabBook": "Join VocabBook",
+    "createAccountTitle": "Create Account",
+    "loginForCloudSync": "Sign in to access cloud sync",
+    "createForCloudSync": "Create an account to start cloud sync",
+    "email": "Email",
+    "password": "Password",
+    "login": "Log In",
+    "loginNow": "Log In Now",
+    "register": "Sign Up",
+    "registerNow": "Sign Up Now",
+    "registerAccount": "Create Account",
+    "processing": "Processing...",
+    "or": "or",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "noAccountRegister": "Don't have an account? Sign up now",
+    "hasAccountLogin": "Already have an account? Log in now",
+    "registerSuccess": "Registration successful! Please sign in.",
+    "errors": {
+      "authFailed": "Authentication failed",
+      "requestFailed": "Request failed: {{message}}. Please make sure the cloud service is running.",
+      "unknown": "Something went wrong"
+    }
+  },
+  "chat": {
+    "session": {
+      "newChat": "New Chat",
+      "migratedChat": "Migrated Chat"
+    },
+    "actions": {
+      "rename": "Rename",
+      "delete": "Delete",
+      "collapseHistory": "Collapse history",
+      "expandHistory": "Expand history",
+      "newChat": "New Chat",
+      "newChatTitle": "Start a new chat",
+      "moreOptions": "More options",
+      "clearCurrentMessages": "Clear current messages",
+      "deleteSessionRecord": "Delete chat session"
+    },
+    "header": {
+      "title": "AI Partner",
+      "longTermMemoryEnabled": "Long-term memory enabled",
+      "defaultModel": "Default Model"
+    },
+    "confirm": {
+      "deleteSession": "Are you sure you want to delete this chat session?",
+      "clearSession": "Are you sure you want to clear all messages in this chat? Context memory will be reset."
+    },
+    "empty": {
+      "title": "Start practicing English with AI!",
+      "subtitle": "Send a message and practice spoken English with AI",
+      "memoryTitle": "EverMemOS memory engine is active",
+      "memoryDesc": "AI will automatically remember key details so every conversation feels continuous"
+    },
+    "reasoning": {
+      "title": "Reasoning process",
+      "collapse": "Collapse",
+      "expand": "Expand"
+    },
+    "loading": {
+      "thinking": "Thinking..."
+    },
+    "memory": {
+      "savedIndicator": "Saved to long-term memory",
+      "retrievedIndicator": "Retrieved {{count}} key memories",
+      "toast": {
+        "recalled": "Recalled {{count}} related memories",
+        "saved": "Saved this conversation",
+        "recalledAndSaved": "Recalled {{count}} related memories and saved this conversation"
+      }
+    },
+    "input": {
+      "placeholder": "Type a message (Enter to send, Shift+Enter for newline)..."
+    },
+    "errors": {
+      "api": "API Error: {{message}}",
+      "response": "Error: {{message}}",
+      "failedResponse": "Failed to get response"
+    },
+    "disclaimer": "AI may produce inaccurate information. Please verify independently.",
+    "providers": {
+      "dashscope": "Qwen"
+    }
+  },
+  "review": {
+    "loading": "Loading...",
+    "empty": {
+      "difficultTitle": "No difficult words",
+      "practiceTitle": "Practice Mode",
+      "normalTitle": "Great job!",
+      "difficultDesc": "No words are marked as difficult yet. Keep it up!",
+      "practiceDesc": "Loading words...",
+      "normalDesc": "No words are due for review right now. Take a break!",
+      "refresh": "Refresh",
+      "practiceMode": "Practice Mode",
+      "difficultMode": "Difficult Words",
+      "modeHint": "Practice mode reviews all words, while Difficult Words focuses on mistakes"
+    },
+    "title": "Smart Review",
+    "exitPracticeMode": "Click to leave practice mode",
+    "exitDifficultMode": "Click to leave difficult mode",
+    "mode": {
+      "flashcard": "Flashcard",
+      "spelling": "Spelling",
+      "choice": "Choice",
+      "dictation": "Dictation"
+    },
+    "progress": "{{current}} / {{total}} · Reviewed {{reviewed}}",
+    "shortcuts": {
+      "flip": "Press Space to flip",
+      "check": "Type and press Enter to check",
+      "rate": "Number keys 1-5 to rate",
+      "flipCard": "Press Space to flip the card",
+      "typeAndCheck": "Type the spelling and press Enter to check"
+    },
+    "spelling": {
+      "placeholder": "Type the word spelling...",
+      "incorrect": "Incorrect spelling, please try again",
+      "correct": "✅ Correct!",
+      "hint": "Hint?"
+    },
+    "examples": "Example",
+    "rating": {
+      "1": "1 Forgotten",
+      "2": "2 Difficult",
+      "3": "3 Okay",
+      "4": "4 Easy",
+      "5": "5 Perfect"
+    },
+    "choice": {
+      "placeholderMeaning": "Meaning {{index}}",
+      "correct": "✅ Correct!",
+      "incorrect": "❌ Incorrect"
+    },
+    "dictation": {
+      "instruction": "Listen to the pronunciation and type the word",
+      "playHint": "Click to play / Press P",
+      "placeholder": "Type the word you hear...",
+      "correct": "✅ Correct!",
+      "incorrect": "❌ Incorrect spelling, try again ({{remaining}} attempts left)",
+      "answer": "Correct answer:",
+      "showAnswer": "Show answer",
+      "phoneticHint": "Phonetic hint:"
+    },
+    "summary": {
+      "duration": {
+        "minutesSeconds": "{{minutes}}m {{seconds}}s",
+        "secondsOnly": "{{seconds}}s"
+      },
+      "grades": {
+        "excellent": "Memory master!",
+        "great": "Keep it up!",
+        "good": "There is still room to improve",
+        "keepGoing": "Review weak words more often",
+        "needsWork": "Try reinforcing with Difficult Words mode"
+      },
+      "modes": {
+        "practice": "Practice",
+        "difficult": "Difficult Words",
+        "normal": "Review"
+      },
+      "completed": "{{mode}} complete!",
+      "metrics": {
+        "reviewedWords": "Words reviewed",
+        "accuracy": "Accuracy",
+        "averageRating": "Average rating",
+        "totalTime": "Total time"
+      },
+      "distributionTitle": "📊 Rating distribution",
+      "distributionCount": "{{count}} ({{percentage}}%)",
+      "mastery": {
+        "strong": "Strong mastery (4-5)",
+        "okay": "Okay (3)",
+        "weak": "Needs work (1-2)"
+      },
+      "weakWordsTitle": "⚠️ Words that need work ({{count}})",
+      "collapse": "Collapse",
+      "expand": "Expand",
+      "moreWeakWords": "{{count}} more...",
+      "reviewWeakNow": "🔥 Review these {{count}} weak words now",
+      "allRatings": "📋 Full rating details ({{count}})",
+      "restart": "One more round",
+      "backToNormal": "Back to normal mode",
+      "ratingLabels": {
+        "1": "Forgotten",
+        "2": "Difficult",
+        "3": "Okay",
+        "4": "Easy",
+        "5": "Perfect"
+      }
+    },
+    "start": {
+      "title": "Ready to review?",
+      "todayDue": "{{count}} words due today",
+      "freePractice": "🎯 Free Practice Mode",
+      "modes": {
+        "flashcard": {
+          "title": "Flashcard Mode",
+          "desc": "Classic flip cards for fast review"
+        },
+        "spelling": {
+          "title": "Spelling Mode",
+          "desc": "Spell from the meaning to strengthen memory"
+        },
+        "choice": {
+          "title": "Choice Mode",
+          "desc": "Four options to quickly review meanings"
+        },
+        "dictation": {
+          "title": "Dictation Mode",
+          "desc": "Write what you hear to train listening"
+        }
+      }
+    }
+  },
+  "translation": {
+    "title": "Translator",
+    "history": "History",
+    "hideHistory": "Hide history",
+    "detected": "Detected: {{language}}",
+    "confirmDelete": "Are you sure you want to delete this record?",
+    "languages": {
+      "Auto": "Auto Detect",
+      "English": "English",
+      "Chinese": "Chinese",
+      "Japanese": "Japanese",
+      "Korean": "Korean",
+      "French": "French",
+      "Spanish": "Spanish",
+      "German": "German",
+      "Russian": "Russian"
+    },
+    "actions": {
+      "translate": "Translate",
+      "clear": "Clear",
+      "clearAll": "Clear input and translation",
+      "clearSource": "Clear source text",
+      "clearTarget": "Clear translated text",
+      "swapLanguages": "Swap languages",
+      "copySource": "Copy source text",
+      "copyTarget": "Copy translation",
+      "deleteRecord": "Delete record"
+    },
+    "placeholders": {
+      "sourceText": "Enter text to translate...",
+      "result": "Translation result will appear here"
+    },
+    "loading": {
+      "thinking": "AI is thinking..."
+    },
+    "emptyHistory": "No history yet",
+    "errors": {
+      "failed": "Translation failed. Please check your network or AI settings."
+    }
+  },
+  "wordList": {
+    "title": "Word List",
+    "totalWords": "{{count}} words",
+    "pageInfo": "Page {{current}} / {{total}}",
+    "searchPlaceholder": "Search words or meanings... (Press / to focus)",
+    "allTags": "All tags",
+    "loading": "Organizing your vocabulary...",
+    "empty": "No words yet. Add some to get started!",
+    "confirmDelete": "Are you sure you want to delete \"{{word}}\"?",
+    "status": {
+      "mastered": "Mastered",
+      "review": "Due",
+      "learning": "Learning"
+    },
+    "actions": {
+      "markMastered": "Mark as mastered",
+      "delete": "Delete"
+    },
+    "pagination": {
+      "itemsPerPage": "Items per page",
+      "option": "{{count}} items",
+      "first": "First page",
+      "previous": "Previous page (←)",
+      "next": "Next page (→)",
+      "last": "Last page",
+      "hint": "{{count}} words total · Use ← → to change pages"
+    }
+  },
+  "addWord": {
+    "title": "Vocabulary Hub",
+    "subtitle": "Search dictionaries, generate AI examples, and add words in one click",
+    "searchPlaceholder": "Enter a word to look up...",
+    "searching": "Searching...",
+    "search": "Search",
+    "autoPlay": "Auto pronunciation",
+    "autoSave": "Auto save",
+    "meaning": "Meaning",
+    "noMeaning": "No meaning available",
+    "example": "Examples",
+    "roots": "Roots & memory",
+    "synonyms": "Synonyms",
+    "aiExamples": "AI Example Sentences",
+    "generating": "Generating...",
+    "generateExamples": "Generate examples",
+    "alerts": {
+      "added": "✅ Word added successfully!",
+      "exists": "⚠️ This word already exists",
+      "failed": "❌ Failed to add word"
+    },
+    "errors": {
+      "notFound": "Word not found",
+      "searchFailed": "Lookup failed. Please check the backend service."
+    },
+    "actions": {
+      "addToBook": "Add to VocabBook"
+    },
+    "dictionarySources": {
+      "youdao": "Youdao Dictionary",
+      "cambridge": "Cambridge Dictionary",
+      "bing": "Bing Dictionary",
+      "freedict": "FreeDict"
+    },
+    "quickTips": {
+      "search": {
+        "title": "Smart Search",
+        "desc": "Aggregate results from multiple dictionaries"
+      },
+      "ai": {
+        "title": "AI Enhanced",
+        "desc": "Generate example sentences and memory tips with AI"
+      },
+      "shortcuts": {
+        "title": "Shortcuts",
+        "desc": "Ctrl+Alt+V to open globally"
+      }
+    }
+  },
+  "importWords": {
+    "title": "Batch Import",
+    "subtitle": "Upload TXT/CSV files or paste text directly, then auto-fill meanings with dictionary lookup",
+    "tabs": {
+      "file": "File Upload",
+      "text": "Paste Text"
+    },
+    "removeFile": "Remove file",
+    "uploadPrompt": "Click or drag a file here",
+    "uploadHint": "Supports .txt (one word per line) or .csv (word,meaning)",
+    "textPlaceholder": "Paste a word list here, one word per line...",
+    "tagLabel": "Add tags (optional)",
+    "tagPlaceholder": "For example: CET-4, IELTS, Reading-2024",
+    "autoLookup": "Auto lookup meanings",
+    "importing": "Importing...",
+    "startImport": "Start Import",
+    "results": {
+      "title": "Import Results",
+      "total": "Total",
+      "success": "Success",
+      "skipped": "Skipped",
+      "failed": "Failed"
+    },
+    "table": {
+      "word": "Word",
+      "status": "Status",
+      "details": "Details"
+    },
+    "status": {
+      "success": "Success",
+      "existing": "Already exists",
+      "failed": "Failed"
+    },
+    "errors": {
+      "failedAlert": "Import failed. Please check your network or file format."
+    }
+  },
+  "statistics": {
+    "title": "Learning Statistics",
+    "subtitle": "Keep track of your learning progress",
+    "cards": {
+      "totalWords": "Total Words",
+      "mastered": "Mastered",
+      "learning": "Learning",
+      "dueToday": "Due Today",
+      "reviewedToday": "Reviewed Today",
+      "streakDays": "Streak (days)"
+    },
+    "heatmapTitle": "Study Heatmap",
+    "studyTimeTitle": "Total Study Time",
+    "studyTimeSubtitle": "Consistency wins",
+    "progressTitle": "Mastery Progress",
+    "progressEncouragement": "Keep it up! You're making steady progress.",
+    "empty": "No data yet"
+  },
+  "audio": {
+    "playPronunciation": "Play pronunciation",
+    "readExample": "Read example aloud"
+  },
+  "dictionaryPopup": {
+    "alreadyInBook": "Already in VocabBook",
+    "aiDeepAnalysis": "AI deep analysis",
+    "aiAnalysis": "AI analysis",
+    "aiGenerating": "Generating an in-depth explanation with AI...",
+    "noData": "No data available",
+    "aiErrors": {
+      "limitExceeded": "⚠️ You’ve reached your AI request limit. Please upgrade or come back tomorrow.",
+      "requestFailed": "⚠️ Failed to request AI analysis. Please check your settings.",
+      "generic": "⚠️ AI generation failed. Please try again later."
+    }
+  },
+  "quickLookup": {
+    "wordTitle": "Quick lookup",
+    "translateTitle": "Quick translation",
+    "loadingWord": "Looking up word...",
+    "loadingTranslation": "Translating...",
+    "example": "Example",
+    "sourceText": "Source",
+    "translation": "Translation",
+    "copyTranslation": "Copy translation",
+    "saving": "Saving...",
+    "savedToBook": "Saved to VocabBook",
+    "alreadyInBook": "Already in VocabBook",
+    "saveFailed": "Save failed",
+    "savedToHistory": "Saved to translation history",
+    "details": "Details",
+    "close": "Close",
+    "errors": {
+      "translateFailed": "Translation failed. Please check your AI settings."
+    }
+  },
+  "subscription": {
+    "title": "Upgrade to Premium",
+    "subtitle": "Unlock the full potential of vocabulary learning.",
+    "currentPlan": "Current plan",
+    "currentActive": "Currently active",
+    "free": {
+      "name": "Free",
+      "priceSuffix": "/ lifetime",
+      "features": {
+        "basicSync": "Basic vocabulary sync",
+        "sm2": "SM-2 spaced repetition",
+        "aiChatLimit": "AI chat (10/day)",
+        "edgeTtsLimit": "Edge TTS (30/day)",
+        "aiGenerationLimit": "AI sentence generation (15/day)"
+      }
+    },
+    "premium": {
+      "name": "Premium",
+      "priceSuffix": "/ month",
+      "features": {
+        "unlimitedAiChat": "Unlimited AI chat",
+        "unlimitedEdgeTts": "Unlimited Edge TTS",
+        "unlimitedAiGeneration": "Unlimited AI generation",
+        "prioritySupport": "Priority support",
+        "deviceSync": "Multi-device sync"
+      }
+    },
+    "actions": {
+      "processing": "Processing...",
+      "alreadyPremium": "Already Premium",
+      "subscribeWithAlipay": "Subscribe with Alipay",
+      "scanWithAlipay": "Scan with Alipay",
+      "checkStatus": "I have completed payment",
+      "checking": "Checking...",
+      "mockSuccess": "🔧 [Dev] Simulate success",
+      "mocking": "Mocking...",
+      "cancelPayment": "Cancel payment"
+    },
+    "payment": {
+      "sandbox": "Sandbox test",
+      "orderNo": "Order No: {{orderNo}}"
+    },
+    "errors": {
+      "loginRequired": "Please sign in before subscribing.",
+      "createOrderFailed": "Failed to create payment order",
+      "generic": "Something went wrong",
+      "paymentPending": "Payment has not been received yet. Please wait a moment and try again.",
+      "checkStatusFailed": "Failed to check payment status.",
+      "noPendingOrder": "No pending order found. Please create a payment order first.",
+      "mockPaymentFailed": "Mock payment failed: {{message}}",
+      "mockPaymentError": "Mock payment error: {{message}}"
+    }
+  },
+  "wordDetail": {
+    "title": "Word details",
+    "roots": "Roots & memory",
+    "synonyms": "Synonyms",
+    "meaning": "Meaning",
+    "examples": "Examples",
+    "exampleCount": "{{count}} examples",
+    "notes": "Personal notes",
+    "saving": "Saving...",
+    "notePlaceholder": "Add your mnemonics, associations, or reflections... (auto-saved)",
+    "addedAt": "Added: {{date}}",
+    "reviewCount": "Reviews: {{count}}"
+  },
+  "heatmap": {
+    "title": "Study heatmap",
+    "loading": "Loading...",
+    "pastYear": "(Past year)",
+    "totalReviewsLabel": "Reviews",
+    "activeDaysLabel": "Active days",
+    "reviewCount": "{{count}} reviews",
+    "noReviews": "No review records",
+    "less": "Less",
+    "more": "More"
+  },
+  "errorBoundary": {
+    "title": "Oops, something went wrong!",
+    "description": "The app encountered an unexpected error. Please try refreshing the page.",
+    "stackDetails": "View stack details",
+    "retry": "Retry",
+    "refresh": "Refresh page"
   }
 }

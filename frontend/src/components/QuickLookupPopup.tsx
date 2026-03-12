@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { X, BookOpen, Languages, Check, Loader2, ExternalLink, Copy, Sprout, RefreshCw } from 'lucide-react'
 import AudioButton from './AudioButton'
 import { api, ApiError, API_PATHS } from '../utils/api'
+import { useTranslation } from 'react-i18next'
 
 interface QuickLookupProps {
     text: string
@@ -34,14 +35,8 @@ function getAiSettings() {
     return { provider, apiKey, model }
 }
 
-const DICT_LABELS: Record<string, string> = {
-    youdao: '有道',
-    cambridge: '剑桥',
-    bing: 'Bing',
-    freedict: 'Free',
-}
-
 export default function QuickLookupPopup({ text, type, position, onClose, onNavigateToAddWord }: QuickLookupProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [wordData, setWordData] = useState<any>(null)
@@ -160,9 +155,11 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
             } catch (err) {
                 if (cancelled) return
                 if (err instanceof ApiError && err.status === 404) {
-                    setError('未找到该单词')
+                    setError(t('addWord.errors.notFound', 'Word not found'))
                 } else {
-                    setError(type === 'translate' ? '翻译失败，请检查 AI 设置' : '查询失败，请检查后端服务')
+                    setError(type === 'translate'
+                        ? t('quickLookup.errors.translateFailed', 'Translation failed. Please check your AI settings.')
+                        : t('addWord.errors.searchFailed', 'Lookup failed. Please check the backend service.'))
                 }
             } finally {
                 if (!cancelled) setLoading(false)
@@ -199,7 +196,9 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                             <Languages size={16} className="text-accent-500" />
                         )}
                         <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            {type === 'word' ? '快速查词' : '快速翻译'}
+                            {type === 'word'
+                                ? t('quickLookup.wordTitle', 'Quick lookup')
+                                : t('quickLookup.translateTitle', 'Quick translation')}
                         </span>
                     </div>
                     <button
@@ -215,7 +214,9 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                         <div className="flex flex-col items-center justify-center py-8 gap-3">
                             <Loader2 size={24} className="animate-spin text-primary-500" />
                             <span className="text-sm text-slate-400">
-                                {type === 'word' ? '正在查词...' : '正在翻译...'}
+                                {type === 'word'
+                                    ? t('quickLookup.loadingWord', 'Looking up word...')
+                                    : t('quickLookup.loadingTranslation', 'Translating...')}
                             </span>
                         </div>
                     ) : error ? (
@@ -254,7 +255,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
 
                             <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-2.5 border border-slate-100 dark:border-slate-600/30">
                                 <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-line leading-relaxed break-words">
-                                    {wordData.meaning || '暂无释义'}
+                                    {wordData.meaning || t('addWord.noMeaning', 'No meaning available')}
                                 </p>
                             </div>
 
@@ -277,7 +278,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
 
                             {wordData.example && (
                                 <div>
-                                    <p className="text-xs font-medium text-emerald-500 mb-1">例句</p>
+                                    <p className="text-xs font-medium text-emerald-500 mb-1">{t('quickLookup.example', 'Example')}</p>
                                     {wordData.example.split(/\n(?=[•\-\*])|\n{2,}/).filter((s: string) => s.trim().length > 5).slice(0, 2).map((ex: string, idx: number) => {
                                         const lines = ex.trim().replace(/^[•\-\*]\s*/, '').split('\n')
                                         return (
@@ -297,7 +298,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                         /* Translation result */
                         <div className="space-y-3">
                             <div>
-                                <p className="text-xs font-medium text-slate-400 mb-1">原文</p>
+                                <p className="text-xs font-medium text-slate-400 mb-1">{t('quickLookup.sourceText', 'Source')}</p>
                                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-4">
                                     {text}
                                 </p>
@@ -307,11 +308,11 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
 
                             <div>
                                 <div className="flex items-center justify-between mb-1">
-                                    <p className="text-xs font-medium text-accent-500">翻译</p>
+                                    <p className="text-xs font-medium text-accent-500">{t('quickLookup.translation', 'Translation')}</p>
                                     <button
                                         onClick={() => handleCopy(translation)}
                                         className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                                        title="复制译文"
+                                        title={t('quickLookup.copyTranslation', 'Copy translation')}
                                     >
                                         {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
                                     </button>
@@ -334,7 +335,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                         <div className="flex gap-1">
                                             {Object.keys(wordData.sources_data).map((s: string) => (
                                                 <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
-                                                    {DICT_LABELS[s] || s}
+                                                    {t(`addWord.dictionarySources.${s}`, s)}
                                                 </span>
                                             ))}
                                         </div>
@@ -342,30 +343,30 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                     {saved === 'saving' && (
                                         <>
                                             <Loader2 size={12} className="animate-spin text-slate-400" />
-                                            <span className="text-slate-400">保存中...</span>
+                                            <span className="text-slate-400">{t('quickLookup.saving', 'Saving...')}</span>
                                         </>
                                     )}
                                     {saved === 'saved' && (
                                         <>
                                             <Check size={12} className="text-emerald-500" />
-                                            <span className="text-emerald-500 font-medium">已保存到生词本</span>
+                                            <span className="text-emerald-500 font-medium">{t('quickLookup.savedToBook', 'Saved to VocabBook')}</span>
                                         </>
                                     )}
                                     {saved === 'exists' && (
                                         <>
                                             <Check size={12} className="text-amber-500" />
-                                            <span className="text-amber-500">已在生词本中</span>
+                                            <span className="text-amber-500">{t('quickLookup.alreadyInBook', 'Already in VocabBook')}</span>
                                         </>
                                     )}
                                     {saved === 'error' && (
-                                        <span className="text-red-400">保存失败</span>
+                                        <span className="text-red-400">{t('quickLookup.saveFailed', 'Save failed')}</span>
                                     )}
                                 </>
                             )}
                             {type === 'translate' && translationSaved && (
                                 <>
                                     <Check size={12} className="text-emerald-500" />
-                                    <span className="text-emerald-500 font-medium">已保存到翻译历史</span>
+                                    <span className="text-emerald-500 font-medium">{t('quickLookup.savedToHistory', 'Saved to translation history')}</span>
                                 </>
                             )}
                         </div>
@@ -378,14 +379,14 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                     className="flex items-center gap-1 text-xs text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors px-2 py-1 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/30"
                                 >
                                     <ExternalLink size={12} />
-                                    <span>详情</span>
+                                    <span>{t('quickLookup.details', 'Details')}</span>
                                 </button>
                             )}
                             <button
                                 onClick={onClose}
                                 className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50"
                             >
-                                关闭
+                                {t('quickLookup.close', 'Close')}
                             </button>
                         </div>
                     </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Languages, ArrowRightLeft, Copy, Check, Trash2, Clock, Loader2, PanelRight, Eraser } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
 import AudioButton from '../components/AudioButton'
+import { useTranslation } from 'react-i18next'
 
 interface TranslationRecord {
     id: number
@@ -19,24 +20,10 @@ interface AISettings {
     apiBase: string
 }
 
-const LANGUAGES = [
-    { code: 'Auto', name: '自动检测' },
-    { code: 'English', name: '英语' },
-    { code: 'Chinese', name: '中文' },
-    { code: 'Japanese', name: '日语' },
-    { code: 'Korean', name: '韩语' },
-    { code: 'French', name: '法语' },
-    { code: 'Spanish', name: '西班牙语' },
-    { code: 'German', name: '德语' },
-    { code: 'Russian', name: '俄语' },
-]
-
-const LANGUAGE_NAME_MAP: Record<string, string> = LANGUAGES.reduce((acc, item) => {
-    acc[item.code] = item.name
-    return acc
-}, {} as Record<string, string>)
+const LANGUAGES = ['Auto', 'English', 'Chinese', 'Japanese', 'Korean', 'French', 'Spanish', 'German', 'Russian'] as const
 
 export default function TranslationPage() {
+    const { t } = useTranslation()
     const [sourceText, setSourceText] = useState('')
     const [targetText, setTargetText] = useState('')
     const [sourceLang, setSourceLang] = useState('Auto')
@@ -46,6 +33,10 @@ export default function TranslationPage() {
     const [showHistory, setShowHistory] = useState(false)
     const [sourceCopied, setSourceCopied] = useState(false)
     const [copied, setCopied] = useState(false)
+
+    const getLanguageLabel = useCallback((code: string) => (
+        t(`translation.languages.${code}`, { defaultValue: code })
+    ), [t])
 
     const loadAiSettings = useCallback((): AISettings => {
         const provider = localStorage.getItem('ai_provider') || 'openai'
@@ -193,7 +184,7 @@ export default function TranslationPage() {
             fetchHistory() // Refresh history
         } catch (error) {
             console.error('Translation failed:', error)
-            setTargetText('翻译失败，请检查网络或 AI 设置。')
+            setTargetText(t('translation.errors.failed'))
         } finally {
             setLoading(false)
         }
@@ -215,7 +206,7 @@ export default function TranslationPage() {
 
     const handleDelete = async (id: number, e: React.MouseEvent) => {
         e.stopPropagation()
-        if (!confirm('确定删除这条记录吗？')) return
+        if (!confirm(t('translation.confirmDelete'))) return
 
         try {
             await api.delete(API_PATHS.AI_TRANSLATION_DELETE(id))
@@ -257,7 +248,7 @@ export default function TranslationPage() {
                 <div className="flex items-center justify-between">
                     <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
                         <Languages className="text-primary-500" />
-                        翻译助手
+                        {t('translation.title')}
                     </h2>
                     <button
                         onClick={() => setShowHistory(!showHistory)}
@@ -267,7 +258,7 @@ export default function TranslationPage() {
                                     : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'}`}
                     >
                         <Clock size={16} />
-                        <span>{showHistory ? '隐藏历史' : '历史记录'}</span>
+                        <span>{showHistory ? t('translation.hideHistory') : t('translation.history')}</span>
                     </button>
                 </div>
 
@@ -280,13 +271,13 @@ export default function TranslationPage() {
                                 onChange={(e) => setSourceLang(e.target.value)}
                                 className="input-field w-32 py-1.5 text-sm"
                             >
-                                {LANGUAGES.map(l => (
-                                    <option key={l.code} value={l.code}>{l.name}</option>
+                                {LANGUAGES.map(code => (
+                                    <option key={code} value={code}>{getLanguageLabel(code)}</option>
                                 ))}
                             </select>
                             {sourceLang === 'Auto' && sourceText.trim() && (
                                 <span className="inline-flex items-center px-2 py-1 rounded-full border border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20 text-[11px] text-primary-700 dark:text-primary-300 whitespace-nowrap">
-                                    检测：{LANGUAGE_NAME_MAP[inferredSourceLang] || inferredSourceLang}
+                                    {t('translation.detected', { language: getLanguageLabel(inferredSourceLang) })}
                                 </span>
                             )}
                         </div>
@@ -294,7 +285,7 @@ export default function TranslationPage() {
                         <button
                             onClick={handleSwapLanguages}
                             className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-500"
-                            title="交换语言"
+                            title={t('translation.actions.swapLanguages')}
                         >
                             <ArrowRightLeft size={16} />
                         </button>
@@ -304,8 +295,8 @@ export default function TranslationPage() {
                             onChange={(e) => setTargetLang(e.target.value)}
                             className="input-field w-32 py-1.5 text-sm"
                         >
-                            {LANGUAGES.filter(l => l.code !== 'Auto').map(l => (
-                                <option key={l.code} value={l.code}>{l.name}</option>
+                            {LANGUAGES.filter(code => code !== 'Auto').map(code => (
+                                <option key={code} value={code}>{getLanguageLabel(code)}</option>
                             ))}
                         </select>
 
@@ -315,7 +306,7 @@ export default function TranslationPage() {
                             className="ml-auto px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg 
                                        disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium flex items-center gap-2"
                         >
-                            {loading ? <Loader2 className="animate-spin" size={18} /> : '翻译'}
+                            {loading ? <Loader2 className="animate-spin" size={18} /> : t('translation.actions.translate')}
                         </button>
                         <button
                             onClick={handleClearAll}
@@ -323,10 +314,10 @@ export default function TranslationPage() {
                             className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300
                                        hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed
                                        transition-all font-medium flex items-center gap-2"
-                            title="清空输入和译文"
+                            title={t('translation.actions.clearAll')}
                         >
                             <Eraser size={16} />
-                            清空
+                            {t('translation.actions.clear')}
                         </button>
                     </div>
 
@@ -340,7 +331,7 @@ export default function TranslationPage() {
                                     setSourceText(e.target.value)
                                     setSourceCopied(false)
                                 }}
-                                placeholder="输入要翻译的文本..."
+                                placeholder={t('translation.placeholders.sourceText')}
                                 className="w-full h-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-200 text-lg leading-relaxed placeholder-slate-400"
                                 onKeyDown={e => {
                                     if (e.key === 'Enter' && e.ctrlKey) {
@@ -360,7 +351,7 @@ export default function TranslationPage() {
                                         onClick={handleCopySource}
                                         className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
                                                    text-slate-500 hover:text-green-500 transition-colors"
-                                        title="复制原文"
+                                        title={t('translation.actions.copySource')}
                                     >
                                         {sourceCopied ? <Check size={16} /> : <Copy size={16} />}
                                     </button>
@@ -368,7 +359,7 @@ export default function TranslationPage() {
                                         onClick={handleClearSource}
                                         className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
                                                    text-slate-500 hover:text-amber-500 transition-colors"
-                                        title="清空原文"
+                                        title={t('translation.actions.clearSource')}
                                     >
                                         <Eraser size={16} />
                                     </button>
@@ -383,11 +374,11 @@ export default function TranslationPage() {
                                     {loading ? (
                                     <div className="h-full flex items-center justify-center text-slate-400 gap-2">
                                         <Loader2 className="animate-spin" />
-                                        <span>AI 思考中...</span>
+                                        <span>{t('translation.loading.thinking')}</span>
                                     </div>
                                     ) : (
                                     <div className="w-full h-full text-slate-800 dark:text-slate-100 text-lg leading-relaxed whitespace-pre-wrap min-h-[100px]">
-                                        {targetText || <span className="text-slate-400 italic">翻译结果将显示在这里</span>}
+                                        {targetText || <span className="text-slate-400 italic">{t('translation.placeholders.result')}</span>}
                                     </div>
                                     )}
                                 </div>
@@ -405,7 +396,7 @@ export default function TranslationPage() {
                                         onClick={handleCopy}
                                         className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
                                                    text-slate-500 hover:text-green-500 transition-colors"
-                                        title="复制译文"
+                                        title={t('translation.actions.copyTarget')}
                                     >
                                         {copied ? <Check size={16} /> : <Copy size={16} />}
                                     </button>
@@ -413,7 +404,7 @@ export default function TranslationPage() {
                                         onClick={handleClearTarget}
                                         className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
                                                    text-slate-500 hover:text-amber-500 transition-colors"
-                                        title="清空译文"
+                                        title={t('translation.actions.clearTarget')}
                                     >
                                         <Eraser size={16} />
                                     </button>
@@ -430,7 +421,7 @@ export default function TranslationPage() {
                 <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 px-1">
                     <Clock size={16} />
-                    <span className="text-sm font-medium">历史记录</span>
+                    <span className="text-sm font-medium">{t('translation.history')}</span>
                 </div>
                     <button 
                         onClick={() => setShowHistory(false)}
@@ -443,7 +434,7 @@ export default function TranslationPage() {
                 <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
                     {history.length === 0 ? (
                         <div className="text-center text-slate-400 py-8 text-sm">
-                            暂无历史记录
+                            {t('translation.emptyHistory')}
                         </div>
                     ) : (
                         history.map(item => (
@@ -461,12 +452,12 @@ export default function TranslationPage() {
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <div className="text-xs font-medium text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">
-                                        {item.source_lang} → {item.target_lang}
+                                        {getLanguageLabel(item.source_lang)} → {getLanguageLabel(item.target_lang)}
                                     </div>
                                     <button
                                         onClick={(e) => handleDelete(item.id, e)}
                                         className="text-slate-400 hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                                        title="删除记录"
+                                        title={t('translation.actions.deleteRecord')}
                                     >
                                         <Trash2 size={14} />
                                     </button>

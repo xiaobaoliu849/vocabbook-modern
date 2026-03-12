@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import AudioButton from '../AudioButton'
 import type { SessionSummaryData, WordRating } from './types'
 
@@ -9,21 +10,32 @@ interface SessionSummaryProps {
     onReviewWeak: (words: SessionSummaryData['ratings'][0]['word'][]) => void
 }
 
-/** 评分配置 */
-const RATING_CONFIG = [
-    { quality: 1, label: '完全忘记', color: 'bg-red-500', textColor: 'text-red-600 dark:text-red-400', bgLight: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800' },
-    { quality: 2, label: '困难', color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', bgLight: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-200 dark:border-orange-800' },
-    { quality: 3, label: '一般', color: 'bg-yellow-500', textColor: 'text-yellow-600 dark:text-yellow-400', bgLight: 'bg-yellow-50 dark:bg-yellow-900/20', border: 'border-yellow-200 dark:border-yellow-800' },
-    { quality: 4, label: '简单', color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', bgLight: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800' },
-    { quality: 5, label: '完美', color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', bgLight: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800' },
+const RATING_STYLES = [
+    { quality: 1, color: 'bg-red-500', textColor: 'text-red-600 dark:text-red-400', bgLight: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800' },
+    { quality: 2, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', bgLight: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-200 dark:border-orange-800' },
+    { quality: 3, color: 'bg-yellow-500', textColor: 'text-yellow-600 dark:text-yellow-400', bgLight: 'bg-yellow-50 dark:bg-yellow-900/20', border: 'border-yellow-200 dark:border-yellow-800' },
+    { quality: 4, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', bgLight: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800' },
+    { quality: 5, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', bgLight: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800' },
 ]
 
-function getRatingConfig(quality: number) {
-    return RATING_CONFIG.find(r => r.quality === quality) || RATING_CONFIG[2]
+function getRatingStyle(quality: number) {
+    return RATING_STYLES.find(r => r.quality === quality) || RATING_STYLES[2]
 }
 
 export default function SessionSummary({ data, onRestart, onBackToNormal, onReviewWeak }: SessionSummaryProps) {
+    const { t } = useTranslation()
     const [showWeakWords, setShowWeakWords] = useState(false)
+    const ratingLabels: Record<number, string> = {
+        1: t('review.summary.ratingLabels.1'),
+        2: t('review.summary.ratingLabels.2'),
+        3: t('review.summary.ratingLabels.3'),
+        4: t('review.summary.ratingLabels.4'),
+        5: t('review.summary.ratingLabels.5'),
+    }
+    const ratingConfig = useMemo(
+        () => RATING_STYLES.map(cfg => ({ ...cfg, label: ratingLabels[cfg.quality] })),
+        [ratingLabels]
+    )
 
     const stats = useMemo(() => {
         const { ratings, duration } = data
@@ -49,7 +61,9 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
         // 格式化时长
         const minutes = Math.floor(duration / 60)
         const seconds = duration % 60
-        const durationStr = minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`
+        const durationStr = minutes > 0
+            ? t('review.summary.duration.minutesSeconds', { minutes, seconds })
+            : t('review.summary.duration.secondsOnly', { seconds })
 
         // 每个单词平均耗时
         const avgTime = total > 0 ? Math.round(duration / total) : 0
@@ -65,22 +79,26 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
             durationStr,
             avgTime,
         }
-    }, [data])
+    }, [data, t])
 
     // 最大分布数（用于柱状图比例）
     const maxDistCount = Math.max(...Object.values(stats.distribution), 1)
 
     // 评价等级
     const getGrade = () => {
-        if (stats.correctRate >= 90) return { emoji: '🏆', text: '卓越', desc: '记忆力超群！' }
-        if (stats.correctRate >= 75) return { emoji: '🌟', text: '优秀', desc: '继续保持！' }
-        if (stats.correctRate >= 60) return { emoji: '💪', text: '良好', desc: '还有提升空间' }
-        if (stats.correctRate >= 40) return { emoji: '📖', text: '加油', desc: '多复习薄弱单词' }
-        return { emoji: '🔥', text: '需要努力', desc: '建议使用困难词本强化' }
+        if (stats.correctRate >= 90) return { emoji: '🏆', desc: t('review.summary.grades.excellent') }
+        if (stats.correctRate >= 75) return { emoji: '🌟', desc: t('review.summary.grades.great') }
+        if (stats.correctRate >= 60) return { emoji: '💪', desc: t('review.summary.grades.good') }
+        if (stats.correctRate >= 40) return { emoji: '📖', desc: t('review.summary.grades.keepGoing') }
+        return { emoji: '🔥', desc: t('review.summary.grades.needsWork') }
     }
 
     const grade = getGrade()
-    const modeLabel = data.mode === 'practice' ? '练习' : data.mode === 'difficult' ? '困难词突击' : '复习'
+    const modeLabel = data.mode === 'practice'
+        ? t('review.summary.modes.practice')
+        : data.mode === 'difficult'
+            ? t('review.summary.modes.difficult')
+            : t('review.summary.modes.normal')
 
     return (
         <div className="animate-fade-in max-w-3xl mx-auto py-6 space-y-6">
@@ -88,7 +106,7 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
             <div className="glass-card p-8 text-center">
                 <div className="text-6xl mb-3">{grade.emoji}</div>
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-                    {modeLabel}完成！
+                    {t('review.summary.completed', { mode: modeLabel })}
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 mt-1">{grade.desc}</p>
 
@@ -96,21 +114,21 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
                 <div className="grid grid-cols-4 gap-3 mt-6">
                     <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
                         <div className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">复习单词</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{t('review.summary.metrics.reviewedWords')}</div>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
                         <div className={`text-2xl font-bold ${stats.correctRate >= 70 ? 'text-green-600' : stats.correctRate >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
                             {stats.correctRate.toFixed(0)}%
                         </div>
-                        <div className="text-xs text-slate-500 mt-0.5">正确率</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{t('review.summary.metrics.accuracy')}</div>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
                         <div className="text-2xl font-bold text-primary-600">{stats.avgRating.toFixed(1)}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">平均评分</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{t('review.summary.metrics.averageRating')}</div>
                     </div>
                     <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
                         <div className="text-2xl font-bold text-slate-800 dark:text-white">{stats.durationStr}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">总耗时</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{t('review.summary.metrics.totalTime')}</div>
                     </div>
                 </div>
             </div>
@@ -118,10 +136,10 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
             {/* ===== 评分分布柱状图 ===== */}
             <div className="glass-card p-6">
                 <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
-                    📊 评分分布
+                    {t('review.summary.distributionTitle')}
                 </h3>
                 <div className="space-y-2.5">
-                    {RATING_CONFIG.map(cfg => {
+                    {ratingConfig.map(cfg => {
                         const count = stats.distribution[cfg.quality] || 0
                         const pct = stats.total > 0 ? (count / stats.total * 100) : 0
                         const barWidth = maxDistCount > 0 ? (count / maxDistCount * 100) : 0
@@ -138,7 +156,7 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
                                     />
                                     {count > 0 && (
                                         <span className="absolute inset-0 flex items-center px-3 text-xs font-medium text-white mix-blend-difference">
-                                            {count} 个 ({pct.toFixed(0)}%)
+                                            {t('review.summary.distributionCount', { count, percentage: pct.toFixed(0) })}
                                         </span>
                                     )}
                                 </div>
@@ -151,15 +169,15 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
                 <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-slate-100 dark:border-slate-700/50">
                     <div className="text-center">
                         <div className="text-xl font-bold text-green-600">{stats.perfect.length}</div>
-                        <div className="text-xs text-slate-500">掌握良好 (4-5)</div>
+                        <div className="text-xs text-slate-500">{t('review.summary.mastery.strong')}</div>
                     </div>
                     <div className="text-center">
                         <div className="text-xl font-bold text-yellow-600">{stats.okay.length}</div>
-                        <div className="text-xs text-slate-500">一般 (3)</div>
+                        <div className="text-xs text-slate-500">{t('review.summary.mastery.okay')}</div>
                     </div>
                     <div className="text-center">
                         <div className="text-xl font-bold text-red-600">{stats.weak.length}</div>
-                        <div className="text-xs text-slate-500">需加强 (1-2)</div>
+                        <div className="text-xs text-slate-500">{t('review.summary.mastery.weak')}</div>
                     </div>
                 </div>
             </div>
@@ -169,27 +187,27 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
                 <div className="glass-card p-6">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            ⚠️ 需要加强的单词 ({stats.weak.length})
+                            {t('review.summary.weakWordsTitle', { count: stats.weak.length })}
                         </h3>
                         <button
                             onClick={() => setShowWeakWords(!showWeakWords)}
                             className="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium"
                         >
-                            {showWeakWords ? '收起' : '展开'}
+                            {showWeakWords ? t('review.summary.collapse') : t('review.summary.expand')}
                         </button>
                     </div>
 
                     {/* 默认始终显示 */}
                     <div className="space-y-2">
                         {(showWeakWords ? stats.weak : stats.weak.slice(0, 5)).map((item, i) => (
-                            <WordRatingItem key={item.word.id} item={item} index={i} />
+                            <WordRatingItem key={item.word.id} item={item} index={i} label={ratingLabels[item.quality]} />
                         ))}
                         {!showWeakWords && stats.weak.length > 5 && (
                             <button
                                 onClick={() => setShowWeakWords(true)}
                                 className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                             >
-                                还有 {stats.weak.length - 5} 个...
+                                {t('review.summary.moreWeakWords', { count: stats.weak.length - 5 })}
                             </button>
                         )}
                     </div>
@@ -199,7 +217,7 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
                         onClick={() => onReviewWeak(stats.weak.map(r => r.word))}
                         className="mt-4 w-full py-2.5 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 font-medium text-sm transition-colors flex items-center justify-center gap-2"
                     >
-                        🔥 立即复习这 {stats.weak.length} 个薄弱单词
+                        {t('review.summary.reviewWeakNow', { count: stats.weak.length })}
                     </button>
                 </div>
             )}
@@ -207,12 +225,12 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
             {/* ===== 全部单词评分明细 ===== */}
             <details className="glass-card p-6 group">
                 <summary className="cursor-pointer text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between select-none">
-                    <span>📋 全部评分明细 ({stats.total})</span>
+                    <span>{t('review.summary.allRatings', { count: stats.total })}</span>
                     <span className="text-xs font-normal text-slate-400 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-4 space-y-2">
                     {data.ratings.map((item, i) => (
-                        <WordRatingItem key={item.word.id} item={item} index={i} />
+                        <WordRatingItem key={item.word.id} item={item} index={i} label={ratingLabels[item.quality]} />
                     ))}
                 </div>
             </details>
@@ -220,11 +238,11 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
             {/* ===== 操作按钮 ===== */}
             <div className="flex justify-center gap-4 pt-2">
                 <button onClick={onRestart} className="btn-primary px-6">
-                    再来一轮
+                    {t('review.summary.restart')}
                 </button>
                 {data.mode !== 'normal' && (
                     <button onClick={onBackToNormal} className="btn-secondary px-6">
-                        返回正常模式
+                        {t('review.summary.backToNormal')}
                     </button>
                 )}
             </div>
@@ -233,8 +251,8 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
 }
 
 /** 单个单词评分行 */
-function WordRatingItem({ item, index }: { item: WordRating; index: number }) {
-    const cfg = getRatingConfig(item.quality)
+function WordRatingItem({ item, index, label }: { item: WordRating; index: number; label: string }) {
+    const cfg = getRatingStyle(item.quality)
 
     return (
         <div
@@ -266,7 +284,7 @@ function WordRatingItem({ item, index }: { item: WordRating; index: number }) {
 
             {/* 评分标签 */}
             <span className={`text-xs font-medium ${cfg.textColor} shrink-0`}>
-                {cfg.label}
+                {label}
             </span>
         </div>
     )

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Volume2 } from 'lucide-react'
 import { API_BASE_URL } from '../utils/api'
+import { useTranslation } from 'react-i18next'
 
 interface AudioButtonProps {
   word?: string
@@ -23,6 +24,7 @@ export default function AudioButton({
   useTTS = false,
   isExample = false
 }: AudioButtonProps) {
+  const { t } = useTranslation()
   const [isPlaying, setIsPlaying] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -233,7 +235,9 @@ export default function AudioButton({
           ? 'hover:bg-emerald-100 text-emerald-500 hover:text-emerald-600 dark:hover:bg-emerald-900/20 dark:text-emerald-400'
           : 'hover:bg-slate-100 text-slate-500 hover:text-primary-600 dark:hover:bg-slate-800 dark:text-slate-400'
         } ${className}`}
-      title={isExample ? "朗读例句" : "播放发音"}
+      title={isExample
+        ? t('audio.readExample', 'Read example aloud')
+        : t('audio.playPronunciation', 'Play pronunciation')}
       disabled={isPlaying || isLoading}
     >
       <Volume2

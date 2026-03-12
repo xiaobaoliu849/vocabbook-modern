@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import AudioButton from '../AudioButton'
 import type { ReviewModeProps } from './types'
 
@@ -6,6 +7,7 @@ import type { ReviewModeProps } from './types'
  * 听写模式 - 只播放发音，用户输入单词拼写
  */
 export default function DictationMode({ word, onComplete, playAudio }: ReviewModeProps) {
+    const { t } = useTranslation()
     const [input, setInput] = useState('')
     const [status, setStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle')
     const [showAnswer, setShowAnswer] = useState(false)
@@ -76,14 +78,14 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
                     <span className="text-6xl">🎧</span>
                 </div>
                 <p className="text-slate-500 dark:text-slate-400 mb-4">
-                    听发音，输入单词
+                    {t('review.dictation.instruction')}
                 </p>
                 <AudioButton
                     word={word.word}
                     className="!w-20 !h-20 !text-3xl !bg-primary-100 hover:!bg-primary-200 text-primary-700 dark:!bg-primary-900/30 dark:text-primary-400 border-none"
                     size={36}
                 />
-                <p className="text-sm text-slate-400 mt-2">点击播放 / 按 P 键</p>
+                <p className="text-sm text-slate-400 mt-2">{t('review.dictation.playHint')}</p>
             </div>
 
             {/* Input Section */}
@@ -96,7 +98,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
                         if (status !== 'idle') setStatus('idle')
                     }}
                     onKeyDown={handleKeyDown}
-                    placeholder="输入你听到的单词..."
+                    placeholder={t('review.dictation.placeholder')}
                     autoFocus
                     disabled={showAnswer}
                     className={`
@@ -115,17 +117,17 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
                 <div className="h-16 flex items-center justify-center mt-4">
                     {status === 'correct' && (
                         <div className="text-green-500 text-xl font-bold animate-bounce">
-                            ✅ 正确！
+                            {t('review.dictation.correct')}
                         </div>
                     )}
                     {status === 'incorrect' && !showAnswer && (
                         <div className="text-red-500 animate-shake">
-                            ❌ 拼写错误，再试一次 ({3 - attempts - 1} 次机会)
+                            {t('review.dictation.incorrect', { remaining: Math.max(0, 3 - attempts) })}
                         </div>
                     )}
                     {showAnswer && (
                         <div className="text-center">
-                            <p className="text-slate-500 mb-1">正确答案：</p>
+                            <p className="text-slate-500 mb-1">{t('review.dictation.answer')}</p>
                             <p className="text-3xl font-bold text-primary-600 dark:text-primary-400">
                                 {word.word}
                             </p>
@@ -140,7 +142,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
                             onClick={handleGiveUp}
                             className="px-4 py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline decoration-dotted underline-offset-4"
                         >
-                            显示答案
+                            {t('review.dictation.showAnswer')}
                         </button>
                     )}
                 </div>
@@ -149,7 +151,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
             {/* Phonetic hint after first wrong attempt */}
             {attempts >= 1 && !showAnswer && word.phonetic && (
                 <div className="mt-6 text-slate-400">
-                    <span className="text-sm">提示音标：</span>
+                    <span className="text-sm">{t('review.dictation.phoneticHint')}</span>
                     <span className="font-mono text-lg ml-2">{word.phonetic}</span>
                 </div>
             )}

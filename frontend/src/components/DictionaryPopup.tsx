@@ -5,6 +5,7 @@ import { useGlobalState } from '../context/GlobalStateContext';
 import { X, Search, Heart, Loader2, Plus, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 interface Position {
     top: number;
@@ -12,6 +13,7 @@ interface Position {
 }
 
 export default function DictionaryPopup() {
+    const { t } = useTranslation();
     const [isVisible, setIsVisible] = useState(false);
     const [word, setWord] = useState('');
     const [position, setPosition] = useState<Position>({ top: 0, left: 0 });
@@ -74,7 +76,7 @@ export default function DictionaryPopup() {
             if (error instanceof ApiError && error.status === 409) {
                 return 'exist';
             }
-            if (!silent) alert('❌ 添加失败');
+            if (!silent) alert(t('addWord.alerts.failed', '❌ Failed to add word'));
             return 'error';
         }
     };
@@ -119,9 +121,9 @@ export default function DictionaryPopup() {
             }
         } catch (err) {
             if (err instanceof ApiError && err.status === 404) {
-                setError('未找到该单词');
+                setError(t('addWord.errors.notFound', 'Word not found'));
             } else {
-                setError('查询失败，请检查后端服务');
+                setError(t('addWord.errors.searchFailed', 'Lookup failed. Please check the backend service.'));
             }
         } finally {
             setLoading(false);
@@ -253,9 +255,9 @@ export default function DictionaryPopup() {
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 if (response.status === 403 && errorData?.detail?.message?.includes("exceeded")) {
-                    setAiContent('⚠️ 你的 AI 请求次数已耗尽，请升级会员或明日再来。');
+                    setAiContent(t('dictionaryPopup.aiErrors.limitExceeded', '⚠️ You’ve reached your AI request limit. Please upgrade or come back tomorrow.'));
                 } else {
-                    setAiContent('⚠️ AI 生成请求失败，请检查设置。');
+                    setAiContent(t('dictionaryPopup.aiErrors.requestFailed', '⚠️ Failed to request AI analysis. Please check your settings.'));
                 }
                 setIsAiLoading(false);
                 return;
@@ -275,7 +277,7 @@ export default function DictionaryPopup() {
             }
         } catch (error) {
             console.error("AI Explanation error:", error);
-            setAiContent('⚠️ AI 生成出错，请稍后重试。');
+            setAiContent(t('dictionaryPopup.aiErrors.generic', '⚠️ AI generation failed. Please try again later.'));
         } finally {
             setIsAiLoading(false);
         }
@@ -322,7 +324,7 @@ export default function DictionaryPopup() {
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-8 text-slate-400">
                         <Loader2 size={24} className="animate-spin mb-2" />
-                        <span className="text-sm">查询中...</span>
+                        <span className="text-sm">{t('addWord.searching', 'Searching...')}</span>
                     </div>
                 ) : error ? (
                     <div className="text-center py-6 text-slate-500">
@@ -352,7 +354,7 @@ export default function DictionaryPopup() {
                                 {!isSaved ? (
                                     <button
                                         onClick={handleAddWord}
-                                        title="添加到生词本"
+                                        title={t('addWord.actions.addToBook', 'Add to VocabBook')}
                                         className="p-1.5 rounded-lg bg-primary-50 text-primary-600 hover:bg-primary-100 dark:bg-primary-900/40 dark:text-primary-400 transition-colors"
                                     >
                                         <Plus size={16} />
@@ -360,7 +362,7 @@ export default function DictionaryPopup() {
                                 ) : (
                                     <button
                                         disabled
-                                        title="已在生词本中"
+                                        title={t('dictionaryPopup.alreadyInBook', 'Already in VocabBook')}
                                         className="p-1.5 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400 cursor-default"
                                     >
                                         <Heart size={16} fill="currentColor" />
@@ -368,7 +370,7 @@ export default function DictionaryPopup() {
                                 )}
                                 <button
                                     onClick={handleAiExplanation}
-                                    title="AI 深入解析"
+                                    title={t('dictionaryPopup.aiDeepAnalysis', 'AI deep analysis')}
                                     className={`p-1.5 rounded-lg transition-colors ${showAiExplanation
                                         ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
                                         : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400'
@@ -431,7 +433,7 @@ export default function DictionaryPopup() {
                             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 animate-fade-in relative">
                                 <div className="absolute top-0 right-0 -mt-2.5 bg-white dark:bg-slate-800 px-2 text-xs font-semibold text-indigo-500 flex items-center gap-1">
                                     <Sparkles size={12} />
-                                    AI 解析
+                                    {t('dictionaryPopup.aiAnalysis', 'AI analysis')}
                                 </div>
                                 <div className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-headings:text-slate-700 dark:prose-headings:text-slate-300 prose-a:text-indigo-500 max-w-none text-[13px] text-slate-600 dark:text-slate-300">
                                     {aiContent ? (
@@ -439,7 +441,7 @@ export default function DictionaryPopup() {
                                     ) : (
                                         <div className="flex items-center gap-2 text-indigo-400/70 py-4 justify-center whitespace-pre">
                                             <Loader2 size={16} className="animate-spin" />
-                                            <span>正在由 AI 生成深度解析...</span>
+                                            <span>{t('dictionaryPopup.aiGenerating', 'Generating an in-depth explanation with AI...')}</span>
                                         </div>
                                     )}
                                 </div>
@@ -447,7 +449,7 @@ export default function DictionaryPopup() {
                         )}
                     </div>
                 ) : (
-                    <div className="text-center py-4 text-slate-400 text-sm">暂无数据</div>
+                    <div className="text-center py-4 text-slate-400 text-sm">{t('dictionaryPopup.noData', 'No data available')}</div>
                 )}
             </div>
         </div>

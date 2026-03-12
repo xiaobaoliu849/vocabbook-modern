@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { User as UserIcon, LogOut, Crown, Settings, ChevronDown } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { AuthModal } from './auth/AuthModal'
 import { PaymentModal } from './pay/PaymentModal'
@@ -9,6 +10,7 @@ interface HeaderProps {
 }
 
 export default function Header({ onNavigateToSettings }: HeaderProps) {
+    const { t } = useTranslation()
     const { user, logout } = useAuth()
     const [showAuth, setShowAuth] = useState(false)
     const [showDropdown, setShowDropdown] = useState(false)
@@ -57,7 +59,7 @@ export default function Header({ onNavigateToSettings }: HeaderProps) {
                         className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-medium text-sm transition-all shadow-sm hover:shadow-md"
                     >
                         <UserIcon size={16} />
-                        <span>登录 / 注册</span>
+                        <span>{t('sidebar.loginRegister')}</span>
                     </button>
                 </header>
                 <AuthModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
@@ -135,11 +137,11 @@ export default function Header({ onNavigateToSettings }: HeaderProps) {
                                             {isPremium ? (
                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-amber-200 to-orange-200 text-amber-800 dark:from-amber-800/50 dark:to-orange-800/50 dark:text-amber-300">
                                                     <Crown size={10} />
-                                                    专业版
+                                                    {t('sidebar.premiumMember')}
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                                                    免费版
+                                                    {t('sidebar.freeAccount')}
                                                 </span>
                                             )}
                                         </div>
@@ -155,7 +157,7 @@ export default function Header({ onNavigateToSettings }: HeaderProps) {
                                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
                                 >
                                     <Settings size={16} className="text-slate-400" />
-                                    账户设置
+                                    {t('sidebar.accountSettings')}
                                 </button>
 
                                 {/* Upgrade Button (for free users) */}
@@ -165,7 +167,7 @@ export default function Header({ onNavigateToSettings }: HeaderProps) {
                                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
                                     >
                                         <Crown size={16} className="text-amber-500" />
-                                        升级至专业版
+                                        {t('sidebar.upgradeToPremium')}
                                     </button>
                                 )}
 
@@ -178,7 +180,7 @@ export default function Header({ onNavigateToSettings }: HeaderProps) {
                                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                 >
                                     <LogOut size={16} />
-                                    退出登录
+                                    {t('sidebar.logout')}
                                 </button>
                             </div>
                         </div>

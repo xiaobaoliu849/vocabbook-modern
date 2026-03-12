@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTheme } from '../context/ThemeContext'
 import { api, API_PATHS } from '../utils/api'
 
@@ -11,9 +12,18 @@ interface HeatmapProps {
 }
 
 const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
+    const { t, i18n } = useTranslation()
     const [data, setData] = useState<HeatmapData>({})
     const [loading, setLoading] = useState(true)
     const { isDark } = useTheme()
+    const locale = (i18n.resolvedLanguage || i18n.language || 'en').startsWith('zh') ? 'zh-CN' : 'en-US'
+    const monthFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { month: 'short' }), [locale])
+    const dateFormatter = useMemo(() => new Intl.DateTimeFormat(locale, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    }), [locale])
+    const weekdayFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { weekday: 'short' }), [locale])
 
     useEffect(() => {
         fetchHeatmapData()
@@ -77,8 +87,6 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
         }> = []
 
         const months: Array<{ text: string; x: number }> = []
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        const monthsZh = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
 
         let currentMonth = -1
         let col = 0
@@ -104,7 +112,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
             const x = marginLeft + col * (cellSize + cellGap)
             const y = marginTop + dayOfWeekIdx * (cellSize + cellGap)
 
-            const displayDate = `${current.getFullYear()}年${monthsZh[current.getMonth()]}${current.getDate()}日`
+            const displayDate = dateFormatter.format(current)
 
             // Simple string comparison for future check
             const isFuture = dateStr > todayStr
@@ -122,7 +130,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
             // Month labels
             if (dayOfWeekIdx === 0 && current.getMonth() !== currentMonth) {
                 currentMonth = current.getMonth()
-                months.push({ text: monthNames[currentMonth], x })
+                months.push({ text: monthFormatter.format(current), x })
             }
 
             // Move column on Saturday (end of week)
@@ -135,12 +143,15 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
         const height = marginTop + 7 * (cellSize + cellGap) + 10
 
         return { cells, months, width, height, cellSize, marginLeft, marginTop }
-    }, [data]) // Re-run if data changes. 
+    }, [data, dateFormatter, monthFormatter]) // Re-run if data or locale changes.
     // colors are handled in render, not in svgData (which contains logical data).
 
     // Calculate total reviews
     const totalReviews = Object.values(data).reduce((sum, count) => sum + count, 0)
-    const activeDays = Object.keys(data).length
+    const activeDays = Object.values(data).filter(count => count > 0).length
+    const mondayLabel = weekdayFormatter.format(new Date(2024, 0, 8))
+    const wednesdayLabel = weekdayFormatter.format(new Date(2024, 0, 10))
+    const fridayLabel = weekdayFormatter.format(new Date(2024, 0, 12))
 
     // 使用实心背景代替 glass-card，避免 backdrop-filter 导致的 GPU 闪烁问题
     const cardStyle = `bg-white dark:bg-slate-800 rounded-2xl shadow-xl 
@@ -151,10 +162,10 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
             <div className={`p-6 ${cardStyle}`}>
                 <div className="flex items-center gap-2 mb-4">
                     <span className="text-2xl">🔥</span>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">学习热力图</h3>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('heatmap.title', 'Study heatmap')}</h3>
                 </div>
                 <div className="flex justify-center items-center h-24">
-                    <div className="animate-pulse text-slate-400">加载中...</div>
+                    <div className="animate-pulse text-slate-400">{t('heatmap.loading', 'Loading...')}</div>
                 </div>
             </div>
         )
@@ -166,12 +177,13 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     <span className="text-2xl">🔥</span>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">学习热力图</h3>
-                    <span className="text-sm text-slate-500 dark:text-slate-400">(过去一年)</span>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('heatmap.title', 'Study heatmap')}</h3>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">{t('heatmap.pastYear', '(Past year)')}</span>
                 </div>
                 <div className="text-sm text-slate-500 dark:text-slate-400">
-                    累计复习 <span className="font-bold text-green-500">{totalReviews}</span> 次，
-                    活跃 <span className="font-bold text-green-500">{activeDays}</span> 天
+                    {t('heatmap.totalReviewsLabel', 'Reviews')} <span className="font-bold text-green-500">{totalReviews}</span>
+                    {' · '}
+                    {t('heatmap.activeDaysLabel', 'Active days')} <span className="font-bold text-green-500">{activeDays}</span>
                 </div>
             </div>
 
@@ -196,9 +208,9 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
                     ))}
 
                     {/* Day Labels */}
-                    <text x={0} y={svgData.marginTop + 22} fontSize="9" fill={isDark ? '#6b7280' : '#9ca3af'}>Mon</text>
-                    <text x={0} y={svgData.marginTop + 46} fontSize="9" fill={isDark ? '#6b7280' : '#9ca3af'}>Wed</text>
-                    <text x={0} y={svgData.marginTop + 70} fontSize="9" fill={isDark ? '#6b7280' : '#9ca3af'}>Fri</text>
+                    <text x={0} y={svgData.marginTop + 22} fontSize="9" fill={isDark ? '#6b7280' : '#9ca3af'}>{mondayLabel}</text>
+                    <text x={0} y={svgData.marginTop + 46} fontSize="9" fill={isDark ? '#6b7280' : '#9ca3af'}>{wednesdayLabel}</text>
+                    <text x={0} y={svgData.marginTop + 70} fontSize="9" fill={isDark ? '#6b7280' : '#9ca3af'}>{fridayLabel}</text>
 
                     {/* Cells */}
                     {svgData.cells.map((cell) => (
@@ -216,7 +228,9 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
                                 className="heatmap-svg-cell"
                             >
                                 {/* SVG native tooltip - 纯浏览器功能，无 JS */}
-                                <title>{cell.displayDate} - {cell.count > 0 ? `复习 ${cell.count} 次` : '无复习记录'}</title>
+                                <title>{cell.displayDate} - {cell.count > 0
+                                    ? t('heatmap.reviewCount', '{{count}} reviews', { count: cell.count })
+                                    : t('heatmap.noReviews', 'No review records')}</title>
                             </rect>
                         )
                     ))}
@@ -225,7 +239,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
 
             {/* Legend */}
             <div className="flex items-center justify-end gap-1 mt-3 text-xs text-slate-500 dark:text-slate-400">
-                <span>少</span>
+                <span>{t('heatmap.less', 'Less')}</span>
                 {[0, 1, 4, 7, 10].map((level, i) => (
                     <div
                         key={i}
@@ -233,7 +247,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
                         style={{ backgroundColor: getColor(level) }}
                     />
                 ))}
-                <span>多</span>
+                <span>{t('heatmap.more', 'More')}</span>
             </div>
         </div>
     )

@@ -2,6 +2,7 @@
  import AudioButton from './AudioButton'
  import { X, BookOpen, MessageSquare, RefreshCw, Sprout, StickyNote } from 'lucide-react'
  import { api, API_PATHS } from '../utils/api'
+ import { useTranslation } from 'react-i18next'
  
  interface WordDetailProps {
    word: any;
@@ -31,6 +32,7 @@
  }
  
  export default function WordDetailModal({ word, onClose, onWordUpdated }: WordDetailProps) {
+   const { t } = useTranslation()
    const modalRef = useRef<HTMLDivElement>(null)
    const audioSrc = word.audio || undefined
    
@@ -89,7 +91,7 @@
        <div ref={modalRef} className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-up border border-slate-200 dark:border-slate-700">
          {/* Header */}
          <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-700">
-           <h3 className="text-lg font-medium text-slate-500 dark:text-slate-400">单词详情</h3>
+	          <h3 className="text-lg font-medium text-slate-500 dark:text-slate-400">{t('wordDetail.title', 'Word details')}</h3>
            <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-slate-400 hover:text-slate-600 hover:rotate-90">
              <X size={20} />
            </button>
@@ -125,7 +127,7 @@
                  <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 border border-orange-100 dark:border-orange-900/30">
                    <h4 className="text-xs font-bold text-orange-800 dark:text-orange-300 mb-2 uppercase flex items-center gap-2">
                      <Sprout size={14} />
-                     词根记忆
+	                    {t('wordDetail.roots', 'Roots & memory')}
                    </h4>
                    <p className="text-orange-900 dark:text-orange-100 text-sm whitespace-pre-line">{word.roots}</p>
                  </div>
@@ -134,7 +136,7 @@
                  <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 border border-indigo-100 dark:border-indigo-900/30">
                    <h4 className="text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-2 uppercase flex items-center gap-2">
                      <RefreshCw size={14} />
-                     同近义词
+	                    {t('wordDetail.synonyms', 'Synonyms')}
                    </h4>
                    <p className="text-indigo-900 dark:text-indigo-100 text-sm whitespace-pre-line">{word.synonyms}</p>
                  </div>
@@ -146,7 +148,7 @@
            <div className="space-y-2">
              <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                <BookOpen size={18} className="text-primary-500" />
-               释义
+	              {t('wordDetail.meaning', 'Meaning')}
              </h4>
              <div className="p-5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
                <p className="text-slate-800 dark:text-slate-200 whitespace-pre-line text-lg">{word.meaning}</p>
@@ -158,8 +160,8 @@
              <div className="space-y-3">
                <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                  <MessageSquare size={18} className="text-emerald-500" />
-                 例句
-                 <span className="text-xs font-normal text-slate-400">({examples.length}句)</span>
+	                {t('wordDetail.examples', 'Examples')}
+	                <span className="text-xs font-normal text-slate-400">({t('wordDetail.exampleCount', '{{count}} examples', { count: examples.length })})</span>
                </h4>
                <div className="space-y-3">
                  {examples.map((example, index) => {
@@ -196,11 +198,11 @@
                <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <div className="flex items-center gap-2">
                   <StickyNote size={18} className="text-amber-500" />
-                  个人笔记
+	                 {t('wordDetail.notes', 'Personal notes')}
                 </div>
                 {isSavingNote && (
                   <span className="text-xs text-slate-400 animate-pulse">
-                    保存中...
+	                   {t('wordDetail.saving', 'Saving...')}
                   </span>
                 )}
                </h4>
@@ -209,7 +211,7 @@
               value={note}
               onChange={(e) => setNote(e.target.value)}
               onBlur={handleSaveNote}
-              placeholder="添加你的助记法、联想、心得... (自动保存)"
+	             placeholder={t('wordDetail.notePlaceholder', 'Add your mnemonics, associations, or reflections... (auto-saved)')}
               className="w-full p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-900/30 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-300 dark:focus:ring-amber-700 resize-none min-h-[100px] transition-all"
             />
            </div>
@@ -217,8 +219,8 @@
            {/* Review Status */}
            {word.next_review_time !== undefined && (
              <div className="pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-sm text-slate-500">
-               <span>添加时间: {word.date || word.date_added}</span>
-               <span>复习次数: {word.review_count || 0}</span>
+	              <span>{t('wordDetail.addedAt', 'Added: {{date}}', { date: word.date || word.date_added })}</span>
+	              <span>{t('wordDetail.reviewCount', 'Reviews: {{count}}', { count: word.review_count || 0 })}</span>
              </div>
            )}
          </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Mail, Lock, Loader2, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 
 interface AuthModalProps {
@@ -9,6 +10,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
+    const { t } = useTranslation();
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -34,7 +36,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             onClose();
         } catch (err: any) {
             console.error(err);
-            let errorMsg = '认证失败';
+            let errorMsg = t('auth.errors.authFailed');
             if (err.response?.data?.detail) {
                 const detail = err.response.data.detail;
                 // Handle FastAPI validation errors (array of objects)
@@ -46,7 +48,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     errorMsg = String(detail);
                 }
             } else if (err.message) {
-                 errorMsg = `请求失败: ${err.message}. 请确保云服务已启动。`;
+                 errorMsg = t('auth.errors.requestFailed', { message: err.message });
             }
             setError(errorMsg);
         } finally {
@@ -81,16 +83,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                             {isLogin ? <Lock className="w-6 h-6" /> : <User className="w-6 h-6" />}
                         </div>
                         <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">
-                            {isLogin ? '欢迎回来' : '加入 VocabBook'}
+                            {isLogin ? t('auth.welcomeBack') : t('auth.joinVocabBook')}
                         </h2>
                         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-                            {isLogin ? '登录以访问您的云端同步' : '创建账户以开启云端同步'}
+                            {isLogin ? t('auth.loginForCloudSync') : t('auth.createForCloudSync')}
                         </p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-1.5">
-                            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 ml-1">邮箱</label>
+                            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 ml-1">{t('auth.email')}</label>
                             <div className="relative group">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 group-focus-within:text-primary-500 transition-colors" />
                                 <input
@@ -105,7 +107,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 ml-1">密码</label>
+                            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 ml-1">{t('auth.password')}</label>
                             <div className="relative group">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 group-focus-within:text-primary-500 transition-colors" />
                                 <input
@@ -130,7 +132,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                             disabled={loading}
                             className="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-semibold shadow-lg shadow-primary-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                         >
-                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isLogin ? '登录' : '注册账户')}
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isLogin ? t('auth.login') : t('auth.registerAccount'))}
                         </button>
                     </form>
 
@@ -140,7 +142,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                                 <div className="w-full border-t border-zinc-200 dark:border-white/10"></div>
                             </div>
                             <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-white dark:bg-zinc-900 text-zinc-500">或</span>
+                                <span className="px-2 bg-white dark:bg-zinc-900 text-zinc-500">{t('auth.or')}</span>
                             </div>
                         </div>
 
@@ -148,7 +150,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                             onClick={() => setIsLogin(!isLogin)}
                             className="mt-4 text-sm text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors"
                         >
-                            {isLogin ? "还没有账户？立即注册" : "已有账户？立即登录"}
+                            {isLogin ? t('auth.noAccountRegister') : t('auth.hasAccountLogin')}
                         </button>
                     </div>
                 </div>

@@ -147,7 +147,7 @@ export default function AISection() {
         localStorage.setItem('evermem_key', evermemKey)
 
         // You might want to use a toast notification here instead of alert in a real app
-        alert('✅ AI 设置已保存')
+        alert(t('settings.ai.saveSuccess', '✅ AI settings saved'))
     }
 
     const testConnection = async () => {
@@ -169,7 +169,7 @@ export default function AISection() {
         } catch (e) {
             setTestResult({
                 success: false,
-                message: '无法连接到后端服务器',
+                message: t('settings.ai.backendUnavailable', 'Cannot connect to the backend server'),
                 details: String(e)
             })
         } finally {
@@ -211,7 +211,7 @@ export default function AISection() {
                 }
             }
         } catch {
-            setOllamaError('无法连接到后端服务器')
+            setOllamaError(t('settings.ai.backendUnavailable', 'Cannot connect to the backend server'))
             setOllamaModels([])
         } finally {
             setOllamaLoading(false)
@@ -238,25 +238,25 @@ export default function AISection() {
 
             <div className="glass-card p-6">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                    🤖模型设置
+                    🤖 {t('settings.ai.modelSettings', 'Model Settings')}
                 </h3>
 
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            AI 提供商
+                            {t('settings.ai.provider', 'AI Provider')}
                         </label>
                         <select
                             value={aiProvider}
                             onChange={(e) => handleProviderChange(e.target.value)}
                             className="input-field w-full"
                         >
-                            <option value="dashscope">DashScope (Qwen/通义千问)</option>
+                            <option value="dashscope">{t('settings.ai.providerDashscope', 'DashScope (Qwen)')}</option>
                             <option value="openai">OpenAI (GPT-4)</option>
                             <option value="anthropic">Anthropic (Claude)</option>
                             <option value="gemini">Google (Gemini)</option>
                             <option value="ollama">{t('settings.ai.providerOllama', 'Ollama (本地)')}</option>
-                            <option value="custom">自定义 API</option>
+                            <option value="custom">{t('settings.ai.providerCustom', 'Custom API')}</option>
                         </select>
                     </div>
 
@@ -276,7 +276,7 @@ export default function AISection() {
                                     // Let's update the map in state as they type to prevent loss on switch without save
                                     setApiKeys(prev => ({ ...prev, [aiProvider]: e.target.value }))
                                 }}
-                                placeholder="输入你的 API Key..."
+                                placeholder={t('settings.ai.apiKeyPlaceholder', 'Enter your API key...')}
                                 className="input-field w-full pr-10"
                             />
                             <button
@@ -288,7 +288,7 @@ export default function AISection() {
                             </button>
                         </div>
                         <p className="text-xs text-slate-500 mt-1">
-                            Key 仅存储在本地，不会上传到服务器
+                            {t('settings.ai.apiKeyLocalOnly', 'Your key is stored locally and will not be uploaded to the server')}
                         </p>
                     </div>
 
@@ -296,7 +296,7 @@ export default function AISection() {
                     {aiProvider !== 'custom' && (
                         <div className="animate-fade-in">
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                模型名称 (Model Name)
+                                {t('settings.ai.modelName', 'Model Name')}
                             </label>
 
                             {aiProvider === 'ollama' ? (
@@ -325,7 +325,7 @@ export default function AISection() {
                                                     setAiModel(e.target.value)
                                                     setAiModels(prev => ({ ...prev, ollama: e.target.value }))
                                                 }}
-                                                placeholder="qwen3.5:9b"
+                                                placeholder={t('settings.ai.ollamaModelPlaceholder', 'qwen3.5:9b')}
                                                 className="input-field w-full"
                                             />
                                         )}
@@ -342,7 +342,7 @@ export default function AISection() {
                                         <p className="text-xs text-indigo-500 mt-1 animate-pulse">{t('settings.ai.fetchingOllama', '⏳ 正在获取 Ollama 模型列表...')}</p>
                                     )}
                                     {ollamaError && (
-                                        <p className="text-xs text-amber-500 mt-1">⚠️ {ollamaError}，{t('settings.ai.manualInput', '请手动输入模型名称')}</p>
+                                        <p className="text-xs text-amber-500 mt-1">⚠️ {ollamaError}，{t('settings.ai.manualInput', 'Please enter the model name manually')}</p>
                                     )}
                                     {!ollamaLoading && !ollamaError && ollamaModels.length > 0 && (
                                         <p className="text-xs text-green-500 mt-1">{t('settings.ai.detectedModels', { count: ollamaModels.length, defaultValue: '已检测到 ' + ollamaModels.length + ' 个本地模型'})}</p>
@@ -444,7 +444,7 @@ export default function AISection() {
                         <div className="animate-fade-in space-y-4 pt-2">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                    API URL
+                                    {t('settings.ai.evermemApiUrl', 'API URL')}
                                 </label>
                                 <input
                                     type="text"
@@ -459,14 +459,14 @@ export default function AISection() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                    API Key
+                                    {t('settings.ai.evermemApiKey', 'API Key')}
                                 </label>
                                 <div className="relative">
                                     <input
                                         type={showEvermemKey ? "text" : "password"}
                                         value={evermemKey}
                                         onChange={(e) => setEvermemKey(e.target.value)}
-                                        placeholder="EverMemOS API Key"
+                                        placeholder={t('settings.ai.evermemApiKeyPlaceholder', 'EverMemOS API Key')}
                                         className="input-field w-full pr-10"
                                     />
                                     <button
@@ -479,7 +479,7 @@ export default function AISection() {
                                 </div>
                             </div>
                             <p className="text-xs text-slate-500">
-                                在 <a href="https://console.evermind.ai" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">EverMemOS Cloud</a> 注册获取 API Key，或 <a href="https://github.com/EverMind-AI/EverMemOS" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">自行部署</a>。
+                                {t('settings.ai.evermemHelpPrefix', 'Get an API key from ')}<a href="https://console.evermind.ai" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">EverMemOS Cloud</a>{t('settings.ai.evermemHelpMiddle', ', or ')}<a href="https://github.com/EverMind-AI/EverMemOS" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">{t('settings.ai.selfHost', 'self-host it')}</a>{t('settings.ai.evermemHelpSuffix', '.')}
                             </p>
                         </div>
                     )}

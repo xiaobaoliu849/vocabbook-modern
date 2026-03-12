@@ -195,7 +195,7 @@ export default function AboutSection() {
         <div className="space-y-6 animate-fade-in">
             <div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                    关于软件
+                    {t('settings.about.title', 'About')}
                 </h3>
                 <p className="text-slate-500 dark:text-slate-400 text-sm">
                     {t('settings.about.desc', '版本信息与软件更新')}
@@ -205,13 +205,13 @@ export default function AboutSection() {
             {/* Version Info Card */}
             <div className="glass-card p-6">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                    ℹ️ 版本信息
+                    ℹ️ {t('settings.about.versionInfo', 'Version Information')}
                 </h3>
 
                 <div className="text-slate-600 dark:text-slate-400 space-y-4">
                     <div>
                         <p className="font-semibold text-slate-900 dark:text-slate-100 text-lg">{t('settings.about.appName', '智能生词本 Modern')}</p>
-                        <p className="text-sm opacity-80">Version {appVersion}</p>
+                        <p className="text-sm opacity-80">{t('settings.about.versionLabel', 'Version')} {appVersion}</p>
                     </div>
 
                     <p>{t('settings.about.appDesc', '使用 React + FastAPI + AI 构建的现代化英语学习工具')}</p>
@@ -242,7 +242,7 @@ export default function AboutSection() {
             {/* Footer */}
             <div className="text-center pt-4">
                 <p className="text-xs text-slate-400">
-                    Designed with ❤️ by VocabBook Team
+                    {t('settings.about.footer', 'Designed with ❤️ by VocabBook Team')}
                 </p>
             </div>
         </div>

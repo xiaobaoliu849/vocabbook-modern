@@ -5,6 +5,7 @@ import { Trash2, CheckCircle, BookOpen, Loader2, Search, ChevronLeft, ChevronRig
 import { useDebounce } from '../utils/performance'
 import { api, API_PATHS } from '../utils/api'
 import { useGlobalState } from '../context/GlobalStateContext'
+import { useTranslation } from 'react-i18next'
 
 interface Word {
     id: number
@@ -24,6 +25,7 @@ interface Word {
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 
 export default function WordList({ isActive }: { isActive?: boolean }) {
+    const { t } = useTranslation()
     const [words, setWords] = useState<Word[]>([])
     const [loading, setLoading] = useState(true)
     const [searchKeyword, setSearchKeyword] = useState('')
@@ -44,6 +46,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
     const searchInputRef = useRef<HTMLInputElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
+    const getDeleteConfirmMessage = (word: string) => t('wordList.confirmDelete', { word })
 
     // Computed pagination values
     const totalPages = Math.ceil(totalItems / itemsPerPage) || 1
@@ -86,7 +89,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
     const handleDelete = async (word: string, e: React.MouseEvent) => {
         e.stopPropagation()
-        if (!confirm(`确定要删除 "${word}" 吗？`)) return
+        if (!confirm(getDeleteConfirmMessage(word))) return
 
         try {
             await api.delete(API_PATHS.WORD(word))
@@ -113,13 +116,13 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
     const getStatusBadge = (word: Word) => {
         if (word.mastered) {
-            return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">已掌握</span>
+            return <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">{t('wordList.status.mastered')}</span>
         }
         const now = Date.now() / 1000
         if (word.next_review_time <= now) {
-            return <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">待复习</span>
+            return <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">{t('wordList.status.review')}</span>
         }
-        return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">学习中</span>
+        return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">{t('wordList.status.learning')}</span>
     }
 
     // Scroll selected item into view
@@ -179,7 +182,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                 // Delete selected word
                 e.preventDefault()
                 const word = words[selectedIndex]
-                if (confirm(`确定要删除 "${word.word}" 吗？`)) {
+                if (confirm(getDeleteConfirmMessage(word.word))) {
                     api.delete(API_PATHS.WORD(word.word))
                         .then(() => {
                             setWords(prev => prev.filter(w => w.word !== word.word))
@@ -236,10 +239,11 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-3xl font-bold text-slate-800 dark:text-white">
-                        单词列表
+                        {t('wordList.title')}
                     </h2>
                     <p className="text-slate-500 dark:text-slate-400 mt-1">
-                        共 {totalItems} 个单词 {totalPages > 1 && `· 第 ${currentPage}/${totalPages} 页`}
+                        {t('wordList.totalWords', { count: totalItems })}
+                        {totalPages > 1 && ` · ${t('wordList.pageInfo', { current: currentPage, total: totalPages })}`}
                     </p>
                 </div>
             </div>
@@ -253,7 +257,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         type="text"
                         value={searchKeyword}
                         onChange={(e) => setSearchKeyword(e.target.value)}
-                        placeholder="搜索单词或释义... (按 / 聚焦)"
+                        placeholder={t('wordList.searchPlaceholder')}
                         className="input-field w-full pl-9"
                     />
                 </div>
@@ -262,7 +266,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                     onChange={(e) => setFilterTag(e.target.value)}
                     className="input-field w-auto"
                 >
-                    <option value="">全部标签</option>
+                    <option value="">{t('wordList.allTags')}</option>
                     {allTags.map(tag => (
                         <option key={tag} value={tag}>{tag}</option>
                     ))}
@@ -274,12 +278,12 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                 {loading ? (
                     <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
                         <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
-                        <div className="animate-pulse">正在整理词库...</div>
+                        <div className="animate-pulse">{t('wordList.loading')}</div>
                     </div>
                 ) : words.length === 0 ? (
                     <div className="p-12 text-center text-slate-500">
                         <BookOpen className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600 opacity-50" />
-                        <p className="text-lg">暂无单词，去添加一些吧！</p>
+                        <p className="text-lg">{t('wordList.empty')}</p>
                     </div>
                 ) : (
                     <div ref={listRef} className="divide-y divide-slate-200 dark:divide-slate-700 max-h-[70vh] overflow-y-auto">
@@ -328,7 +332,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                                 onClick={(e) => handleMarkMastered(word.word, e)}
                                                 className="p-2 rounded-xl hover:bg-green-100 dark:hover:bg-green-900/30 
                                    transition-all text-slate-400 hover:text-green-600 hover:scale-110 active:scale-95"
-                                                title="标记为已掌握"
+                                                title={t('wordList.actions.markMastered')}
                                             >
                                                 <CheckCircle size={20} />
                                             </button>
@@ -337,7 +341,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                             onClick={(e) => handleDelete(word.word, e)}
                                             className="p-2 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 
                                  transition-all text-slate-400 hover:text-red-600 hover:scale-110 active:scale-95"
-                                            title="删除"
+                                            title={t('wordList.actions.delete')}
                                         >
                                             <Trash2 size={20} />
                                         </button>
@@ -361,7 +365,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             {totalPages > 1 && (
                 <div className="glass-card p-4 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm text-slate-500 dark:text-slate-400">每页显示</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400">{t('wordList.pagination.itemsPerPage')}</span>
                         <select
                             value={itemsPerPage}
                             onChange={(e) => {
@@ -371,7 +375,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                             className="input-field w-auto py-1.5 px-2 text-sm"
                         >
                             {PAGE_SIZE_OPTIONS.map(size => (
-                                <option key={size} value={size}>{size} 个</option>
+                                <option key={size} value={size}>{t('wordList.pagination.option', { count: size })}</option>
                             ))}
                         </select>
                     </div>
@@ -382,7 +386,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                             disabled={currentPage === 1}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="第一页"
+                            title={t('wordList.pagination.first')}
                         >
                             <ChevronsLeft size={18} />
                         </button>
@@ -391,7 +395,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                             disabled={currentPage === 1}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="上一页 (←)"
+                            title={t('wordList.pagination.previous')}
                         >
                             <ChevronLeft size={18} />
                         </button>
@@ -441,7 +445,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                             disabled={currentPage === totalPages}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="下一页 (→)"
+                            title={t('wordList.pagination.next')}
                         >
                             <ChevronRight size={18} />
                         </button>
@@ -450,14 +454,14 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                             disabled={currentPage === totalPages}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                            title="最后一页"
+                            title={t('wordList.pagination.last')}
                         >
                             <ChevronsRight size={18} />
                         </button>
                     </div>
 
                     <div className="text-sm text-slate-500 dark:text-slate-400">
-                        共 {totalItems} 个单词 · 按 ← → 翻页
+                        {t('wordList.pagination.hint', { count: totalItems })}
                     </div>
                 </div>
             )}

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { Upload, FileText, CheckCircle, Loader2 } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
+import { useTranslation } from 'react-i18next'
 
 interface ImportResult {
     total: number
@@ -16,6 +17,7 @@ interface ImportResult {
 }
 
 export default function ImportWords() {
+    const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<'file' | 'text'>('file')
     const [file, setFile] = useState<File | null>(null)
     const [textInput, setTextInput] = useState('')
@@ -72,7 +74,7 @@ export default function ImportWords() {
             }
         } catch (error) {
             console.error('Import failed:', error)
-            alert('导入失败，请检查网络或文件格式')
+            alert(t('importWords.errors.failedAlert'))
         } finally {
             setIsUploading(false)
         }
@@ -82,10 +84,10 @@ export default function ImportWords() {
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
             <header>
                 <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">
-                    批量导入
+                    {t('importWords.title')}
                 </h1>
                 <p className="text-slate-500 dark:text-slate-400">
-                    支持 TXT/CSV 文件上传或直接粘贴文本，自动查词并填充释义
+                    {t('importWords.subtitle')}
                 </p>
             </header>
 
@@ -100,7 +102,7 @@ export default function ImportWords() {
                                 : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                     >
                         <Upload size={18} />
-                        文件上传
+                        {t('importWords.tabs.file')}
                     </button>
                     <button
                         onClick={() => setActiveTab('text')}
@@ -110,7 +112,7 @@ export default function ImportWords() {
                                 : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
                     >
                         <FileText size={18} />
-                        文本粘贴
+                        {t('importWords.tabs.text')}
                     </button>
                 </div>
 
@@ -143,14 +145,14 @@ export default function ImportWords() {
                                         onClick={(e) => { e.stopPropagation(); setFile(null); }}
                                         className="mt-2 text-xs text-red-500 hover:underline"
                                     >
-                                        移除文件
+                                        {t('importWords.removeFile')}
                                     </button>
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center gap-2 text-slate-500">
                                     <Upload size={48} className="mb-2 opacity-50" />
-                                    <p className="font-medium">点击或拖拽文件到此处</p>
-                                    <p className="text-xs opacity-70">支持 .txt (每行一个单词) 或 .csv (word,meaning)</p>
+                                    <p className="font-medium">{t('importWords.uploadPrompt')}</p>
+                                    <p className="text-xs opacity-70">{t('importWords.uploadHint')}</p>
                                 </div>
                             )}
                         </div>
@@ -158,7 +160,7 @@ export default function ImportWords() {
                         <textarea
                             value={textInput}
                             onChange={e => setTextInput(e.target.value)}
-                            placeholder="在此粘贴单词列表，每行一个单词..."
+                            placeholder={t('importWords.textPlaceholder')}
                             className="w-full h-48 p-4 rounded-xl border border-slate-200 dark:border-slate-700
                                 bg-slate-50 dark:bg-slate-900/50 focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none"
                         />
@@ -167,12 +169,12 @@ export default function ImportWords() {
                     {/* Options */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">添加标签 (可选)</label>
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('importWords.tagLabel')}</label>
                             <input
                                 type="text"
                                 value={tag}
                                 onChange={e => setTag(e.target.value)}
-                                placeholder="例如: 四级, 雅思, 2024阅读"
+                                placeholder={t('importWords.tagPlaceholder')}
                                 className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700
                                     bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary-500 focus:outline-none"
                             />
@@ -185,7 +187,7 @@ export default function ImportWords() {
                                     onChange={e => setAutoLookup(e.target.checked)}
                                     className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                 />
-                                <span className="text-slate-700 dark:text-slate-300">自动查词填充释义</span>
+                                <span className="text-slate-700 dark:text-slate-300">{t('importWords.autoLookup')}</span>
                             </label>
                         </div>
                     </div>
@@ -200,12 +202,12 @@ export default function ImportWords() {
                         {isUploading ? (
                             <>
                                 <Loader2 size={20} className="animate-spin" />
-                                正在导入...
+                                {t('importWords.importing')}
                             </>
                         ) : (
                             <>
                                 <CheckCircle size={20} />
-                                开始导入
+                                {t('importWords.startImport')}
                             </>
                         )}
                     </button>
@@ -215,23 +217,23 @@ export default function ImportWords() {
             {/* Results */}
             {result && (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-fade-in">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">导入结果</h3>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('importWords.results.title')}</h3>
 
                     <div className="grid grid-cols-4 gap-4 mb-6">
                         <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl text-center">
-                            <div className="text-sm text-slate-500">总数</div>
+                            <div className="text-sm text-slate-500">{t('importWords.results.total')}</div>
                             <div className="text-2xl font-bold text-slate-800 dark:text-slate-200">{result.total}</div>
                         </div>
                         <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl text-center">
-                            <div className="text-sm text-green-600 dark:text-green-400">成功</div>
+                            <div className="text-sm text-green-600 dark:text-green-400">{t('importWords.results.success')}</div>
                             <div className="text-2xl font-bold text-green-600 dark:text-green-400">{result.success}</div>
                         </div>
                         <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl text-center">
-                            <div className="text-sm text-yellow-600 dark:text-yellow-400">跳过</div>
+                            <div className="text-sm text-yellow-600 dark:text-yellow-400">{t('importWords.results.skipped')}</div>
                             <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{result.skipped}</div>
                         </div>
                         <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl text-center">
-                            <div className="text-sm text-red-600 dark:text-red-400">失败</div>
+                            <div className="text-sm text-red-600 dark:text-red-400">{t('importWords.results.failed')}</div>
                             <div className="text-2xl font-bold text-red-600 dark:text-red-400">{result.failed}</div>
                         </div>
                     </div>
@@ -241,9 +243,9 @@ export default function ImportWords() {
                             <table className="w-full text-sm text-left">
                                 <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500">
                                     <tr>
-                                        <th className="px-4 py-2">单词</th>
-                                        <th className="px-4 py-2">状态</th>
-                                        <th className="px-4 py-2">详情</th>
+                                        <th className="px-4 py-2">{t('importWords.table.word')}</th>
+                                        <th className="px-4 py-2">{t('importWords.table.status')}</th>
+                                        <th className="px-4 py-2">{t('importWords.table.details')}</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -255,7 +257,7 @@ export default function ImportWords() {
                                                     ${item.status === 'success' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
                                                       item.status === 'skipped' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
                                                       'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                                                    {item.status === 'success' ? '成功' : item.status === 'skipped' ? '已存在' : '失败'}
+                                                    {item.status === 'success' ? t('importWords.status.success') : item.status === 'skipped' ? t('importWords.status.existing') : t('importWords.status.failed')}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-2 text-slate-500 dark:text-slate-400 truncate max-w-xs">

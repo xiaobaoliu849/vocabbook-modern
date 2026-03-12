@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Heatmap from '../components/Heatmap'
 import { api, API_PATHS } from '../utils/api'
+import { useTranslation } from 'react-i18next'
 
 interface Stats {
     total_words: number
@@ -17,6 +18,7 @@ interface StudyTime {
 }
 
 export default function StatisticsPage() {
+    const { t } = useTranslation()
     const [stats, setStats] = useState<Stats | null>(null)
     const [studyTime, setStudyTime] = useState<StudyTime | null>(null)
 
@@ -48,10 +50,10 @@ export default function StatisticsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">
-                        学习数据
+                        {t('statistics.title')}
                     </h2>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">
-                        Keep track of your learning progress
+                        {t('statistics.subtitle')}
                     </p>
                 </div>
             </div>
@@ -60,13 +62,13 @@ export default function StatisticsPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {stats ? (
                     <>
-                        <StatCard label="总单词数" value={stats.total_words} color="text-slate-700 dark:text-slate-200" />
-                        <StatCard label="已掌握" value={stats.mastered} color="text-green-600" />
-                        <StatCard label="学习中" value={stats.learning} color="text-blue-600" />
-                        <StatCard label="今日待复习" value={stats.due_today} color="text-orange-600" />
-                        <StatCard label="今日已复习" value={stats.reviewed_today} color="text-indigo-600" />
+                        <StatCard label={t('statistics.cards.totalWords')} value={stats.total_words} color="text-slate-700 dark:text-slate-200" />
+                        <StatCard label={t('statistics.cards.mastered')} value={stats.mastered} color="text-green-600" />
+                        <StatCard label={t('statistics.cards.learning')} value={stats.learning} color="text-blue-600" />
+                        <StatCard label={t('statistics.cards.dueToday')} value={stats.due_today} color="text-orange-600" />
+                        <StatCard label={t('statistics.cards.reviewedToday')} value={stats.reviewed_today} color="text-indigo-600" />
                         <StatCard
-                            label="连续坚持(天)"
+                            label={t('statistics.cards.streakDays')}
                             value={
                                 <span className="flex items-center justify-center gap-1">
                                     {stats.streak_days} <span className="text-base">🔥</span>
@@ -85,7 +87,7 @@ export default function StatisticsPage() {
             {/* Heatmap Section - Full Width */}
             <div className="glass-card p-6">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                    学习热力图
+                    {t('statistics.heatmapTitle')}
                 </h3>
                 <Heatmap />
             </div>
@@ -99,9 +101,9 @@ export default function StatisticsPage() {
                             <span className="text-4xl">⏱️</span>
                             <div>
                                 <h3 className="font-bold text-slate-800 dark:text-white text-lg">
-                                    累计学习时长
+                                    {t('statistics.studyTimeTitle')}
                                 </h3>
-                                <p className="text-sm text-slate-500">坚持就是胜利</p>
+                                <p className="text-sm text-slate-500">{t('statistics.studyTimeSubtitle')}</p>
                             </div>
                         </div>
                         <div className="text-4xl font-bold text-primary-600 mt-2">{studyTime.formatted}</div>
@@ -111,7 +113,7 @@ export default function StatisticsPage() {
                 {/* Progress Card */}
                 <div className="glass-card p-6">
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
-                        掌握进度
+                        {t('statistics.progressTitle')}
                     </h3>
                     {stats && stats.total_words > 0 ? (
                         <div className="space-y-4">
@@ -130,11 +132,11 @@ export default function StatisticsPage() {
                                 />
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-2">
-                                继续保持！你正在稳步前进。
+                                {t('statistics.progressEncouragement')}
                             </p>
                         </div>
                     ) : (
-                        <div className="text-slate-500 text-center py-8">暂无数据</div>
+                        <div className="text-slate-500 text-center py-8">{t('statistics.empty')}</div>
                     )}
                 </div>
             </div>

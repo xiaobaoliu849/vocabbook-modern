@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 
 interface LoginModalProps {
@@ -9,11 +10,13 @@ interface LoginModalProps {
 }
 
 export function LoginModal({ isOpen, onClose }: LoginModalProps) {
+    const { t } = useTranslation();
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [message, setMessage] = useState('');
+    const [messageType, setMessageType] = useState<'success' | 'error'>('error');
 
     const { login, register } = useAuth();
 
@@ -22,7 +25,8 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        setError('');
+        setMessage('');
+        setMessageType('error');
 
         try {
             if (isLogin) {
@@ -33,10 +37,11 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
                 // Switch to login automatically
                 setIsLogin(true);
-                setError('注册成功！请登录。');
+                setMessageType('success');
+                setMessage(t('auth.registerSuccess'));
             }
         } catch (err: any) {
-            let errorMsg = err?.message || '发生错误';
+            let errorMsg = err?.message || t('auth.errors.unknown');
             if (err?.response?.data?.detail) {
                 const detail = err.response.data.detail;
                 if (Array.isArray(detail)) {
@@ -47,7 +52,8 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     errorMsg = String(detail);
                 }
             }
-            setError(errorMsg);
+            setMessageType('error');
+            setMessage(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -66,12 +72,12 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 </button>
 
                 <h2 className="text-2xl font-semibold mb-6 text-center text-gray-900 dark:text-white">
-                    {isLogin ? '欢迎回来' : '创建账户'}
+                    {isLogin ? t('auth.welcomeBack') : t('auth.createAccountTitle')}
                 </h2>
 
-                {error && (
-                    <div className={`p-3 rounded-xl mb-4 text-sm ${error.includes('成功') ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                        {error}
+                {message && (
+                    <div className={`p-3 rounded-xl mb-4 text-sm ${messageType === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {message}
                     </div>
                 )}
 
@@ -79,7 +85,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     <div>
                         <input
                             type="email"
-                            placeholder="邮箱"
+                            placeholder={t('auth.email')}
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full bg-black/20 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -89,7 +95,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     <div>
                         <input
                             type="password"
-                            placeholder="密码"
+                            placeholder={t('auth.password')}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="w-full bg-black/20 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -102,17 +108,17 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                         disabled={loading}
                         className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl font-medium transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
                     >
-                        {loading ? '处理中...' : (isLogin ? '登录' : '注册')}
+                        {loading ? t('auth.processing') : (isLogin ? t('auth.login') : t('auth.register'))}
                     </button>
 
                     <p className="text-center text-sm text-gray-400 mt-4">
-                        {isLogin ? "还没有账户？ " : "已有账户？ "}
+                        {isLogin ? `${t('auth.noAccount')} ` : `${t('auth.hasAccount')} `}
                         <button
                             type="button"
                             onClick={() => setIsLogin(!isLogin)}
                             className="text-blue-400 hover:text-blue-300 ml-1"
                         >
-                            {isLogin ? '立即注册' : '立即登录'}
+                            {isLogin ? t('auth.registerNow') : t('auth.loginNow')}
                         </button>
                     </p>
                 </form>

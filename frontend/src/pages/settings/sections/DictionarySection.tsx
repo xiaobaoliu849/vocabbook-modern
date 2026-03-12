@@ -24,10 +24,10 @@ export default function DictionarySection() {
 
                 <div className="space-y-4">
                     {[
-                        { id: 'youdao', name: '有道词典', desc: '中文释义准确，词根词缀丰富', fixed: true },
-                        { id: 'cambridge', name: 'Cambridge Dictionary', desc: '权威英英释义，高质量例句' },
-                        { id: 'bing', name: 'Bing 词典', desc: '词形变化、常用搭配' },
-                        { id: 'freedict', name: 'Free Dictionary', desc: '英英释义，深度理解词义' },
+                        { id: 'youdao', name: t('settings.dict.youdaoName', 'Youdao Dictionary'), desc: t('settings.dict.youdaoDesc', 'Accurate Chinese meanings with rich roots and affixes'), fixed: true },
+                        { id: 'cambridge', name: t('settings.dict.cambridgeName', 'Cambridge Dictionary'), desc: t('settings.dict.cambridgeDesc', 'Authoritative English definitions with high-quality examples') },
+                        { id: 'bing', name: t('settings.dict.bingName', 'Bing Dictionary'), desc: t('settings.dict.bingDesc', 'Word forms and common collocations') },
+                        { id: 'freedict', name: t('settings.dict.freedictName', 'Free Dictionary'), desc: t('settings.dict.freedictDesc', 'English definitions for deeper understanding') },
                     ].map((dict) => {
                         const [enabled, setEnabled] = useState(() => {
                             const saved = localStorage.getItem(`dict_${dict.id}`);

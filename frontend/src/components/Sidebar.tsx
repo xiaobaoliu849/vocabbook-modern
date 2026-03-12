@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight, Upload, Languages, User as UserIcon, LogOut, Crown, BarChart2, Bot } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useAuth } from '../context/AuthContext'
 import { LoginModal } from './LoginModal'
@@ -8,6 +9,7 @@ import { SubscriptionModal } from './SubscriptionModal'
 
 // User Avatar with Dropdown (rendered via Portal for proper positioning)
 function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateToSettings?: (tab?: string) => void, isCollapsed: boolean }) {
+    const { t } = useTranslation()
     const { user, logout } = useAuth()
     const [showAuth, setShowAuth] = useState(false)
     const [showDropdown, setShowDropdown] = useState(false)
@@ -64,14 +66,14 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                     onClick={() => setShowAuth(true)}
                     className={`group relative flex items-center gap-3 w-full p-2.5 rounded-xl transition-all duration-200 overflow-hidden
                         hover:bg-white dark:hover:bg-slate-800 hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700`}
-                    title="登录 / 注册"
+                    title={t('sidebar.loginRegister', 'Login / Sign Up')}
                 >
                     <div className="w-9 h-9 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white transition-transform group-hover:scale-110 shadow-sm flex-shrink-0">
                         <UserIcon size={18} />
                     </div>
                     <span className={`text-sm font-bold text-slate-700 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-primary-400 whitespace-nowrap transition-all duration-300 ml-3
                         ${isCollapsed ? 'opacity-0 w-0 ml-0' : 'opacity-100 w-auto'}`}>
-                        立即登录
+                        {t('sidebar.loginNow', 'Login Now')}
                     </span>
                 </button>
                 <LoginModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
@@ -90,7 +92,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                 onClick={() => setShowDropdown(!showDropdown)}
                 className={`group flex items-center gap-3 w-full p-2.5 rounded-xl transition-all duration-200 overflow-hidden
                     hover:bg-white dark:hover:bg-slate-800 hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700`}
-                title={isCollapsed ? user.email : (isPremium ? '专业版会员' : '免费版账号')}
+                title={isCollapsed ? user.email : (isPremium ? t('sidebar.premiumMember', 'Premium Member') : t('sidebar.freeAccount', 'Free Account'))}
             >
                 {/* Avatar */}
                 <div
@@ -152,11 +154,11 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                                     {isPremium ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 dark:from-amber-900/50 dark:to-orange-900/50 dark:text-amber-300 shadow-sm border border-amber-200/50 dark:border-amber-700/50">
                                             <Crown size={10} />
-                                            专业版会员
+                                            {t('sidebar.premiumMember', 'Premium Member')}
                                         </span>
                                     ) : (
                                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200/50 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                            免费版账号
+                                            {t('sidebar.freeAccount', 'Free Account')}
                                         </span>
                                     )}
                                 </div>
@@ -173,7 +175,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                             <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
                                 <Settings size={18} />
                             </div>
-                            账户设置
+                            {t('sidebar.accountSettings', 'Account Settings')}
                         </button>
 
                         {!isPremium && (
@@ -185,8 +187,8 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                                     <Crown size={18} />
                                 </div>
                                 <div className="flex-1 text-left">
-                                    <div>升级至专业版</div>
-                                    <div className="text-xs text-amber-600/70 dark:text-amber-400/70 font-normal">解锁全部高级功能</div>
+                                    <div>{t('sidebar.upgradeToPremium', 'Upgrade to Premium')}</div>
+                                    <div className="text-xs text-amber-600/70 dark:text-amber-400/70 font-normal">{t('sidebar.unlockPremiumFeatures', 'Unlock all premium features')}</div>
                                 </div>
                             </button>
                         )}
@@ -200,7 +202,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                             <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500">
                                 <LogOut size={18} />
                             </div>
-                            退出登录
+                            {t('sidebar.logout', 'Log Out')}
                         </button>
                     </div>
                 </div>,
@@ -221,22 +223,23 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSettings }: SidebarProps) {
+    const { t } = useTranslation()
     const [isCollapsed, setIsCollapsed] = useState(false)
     const { dueCount } = useGlobalState()
 
     const navItems = [
-        { id: 'add' as Page, icon: <Home size={22} />, label: '词汇中心', tooltip: '搜索和添加新单词', badge: 0 },
-        { id: 'import' as Page, icon: <Upload size={22} />, label: '批量导入', tooltip: 'TXT/CSV 批量导入', badge: 0 },
-        { id: 'list' as Page, icon: <BookOpen size={22} />, label: '单词列表', tooltip: '管理已收藏的单词', badge: 0 },
-        { id: 'review' as Page, icon: <Brain size={22} />, label: '智能复习', tooltip: '使用 SM-2 算法复习', badge: dueCount },
-        { id: 'stats' as Page, icon: <BarChart2 size={22} />, label: '学习统计', tooltip: '查看学习进度和热力图', badge: 0 },
-        { id: 'translation' as Page, icon: <Languages size={22} />, label: '翻译助手', tooltip: '多语言智能翻译助手', badge: 0 },
-        { id: 'chat' as Page, icon: <Bot size={22} />, label: 'AI 语伴', tooltip: '拥有长期记忆的对话练习', badge: 0 },
+        { id: 'add' as Page, icon: <Home size={22} />, label: t('sidebar.add', 'Vocabulary Hub'), tooltip: t('sidebar.addTooltip', 'Search and add new words'), badge: 0 },
+        { id: 'import' as Page, icon: <Upload size={22} />, label: t('sidebar.import', 'Batch Import'), tooltip: t('sidebar.importTooltip', 'Import TXT / CSV in bulk'), badge: 0 },
+        { id: 'list' as Page, icon: <BookOpen size={22} />, label: t('sidebar.list', 'Word List'), tooltip: t('sidebar.listTooltip', 'Manage saved words'), badge: 0 },
+        { id: 'review' as Page, icon: <Brain size={22} />, label: t('sidebar.review', 'Smart Review'), tooltip: t('sidebar.reviewTooltip', 'Review with the SM-2 algorithm'), badge: dueCount },
+        { id: 'stats' as Page, icon: <BarChart2 size={22} />, label: t('sidebar.stats', 'Statistics'), tooltip: t('sidebar.statsTooltip', 'View learning progress and heatmap'), badge: 0 },
+        { id: 'translation' as Page, icon: <Languages size={22} />, label: t('sidebar.translation', 'Translator'), tooltip: t('sidebar.translationTooltip', 'Multilingual AI translation assistant'), badge: 0 },
+        { id: 'chat' as Page, icon: <Bot size={22} />, label: t('sidebar.chat', 'AI Partner'), tooltip: t('sidebar.chatTooltip', 'Conversation practice with long-term memory'), badge: 0 },
     ]
 
     return (
         <aside
-            className={`glass-sidebar flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-48'} shrink-0 relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800 z-50`}
+            className={`glass-sidebar flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-60'} shrink-0 relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800 z-50`}
         >
             {/* Header with Logo and Collapse Button */}
             <div className="h-16 flex items-center gap-3 px-4 shrink-0">
@@ -253,7 +256,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
                          bg-clip-text text-transparent whitespace-nowrap transition-all duration-300 flex-1 min-w-0
                          ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}
                 >
-                    智能生词本
+                    {t('app.brand', 'Smart VocabBook')}
                 </h1>
             </div>
 
@@ -277,7 +280,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
                             )}
                         </span>
                         <span
-                            className={`whitespace-nowrap transition-all duration-300 ml-3
+                            className={`flex-1 min-w-0 whitespace-nowrap transition-all duration-300 ml-3 text-left
                                 ${isCollapsed ? 'opacity-0 w-0 ml-0' : 'opacity-100 w-auto'}`}
                         >
                             {item.label}
@@ -310,7 +313,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
                             ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-bold shadow-sm border border-primary-100 dark:border-primary-800/50'
                             : 'hover:bg-white dark:hover:bg-slate-800 hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                         }`}
-                    title={isCollapsed ? "应用设置" : ''}
+                    title={isCollapsed ? t('sidebar.settingsTooltip', 'App Settings') : ''}
                 >
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0
                         ${currentPage === 'settings'
@@ -322,7 +325,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
                     </div>
                     <span className={`text-sm text-left whitespace-nowrap transition-all duration-300 ml-3
                         ${isCollapsed ? 'opacity-0 w-0 ml-0' : 'opacity-100 w-auto'}`}>
-                        设置
+                        {t('sidebar.settings', 'Settings')}
                     </span>
                 </button>
             </div>

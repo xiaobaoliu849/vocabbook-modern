@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ThemeProvider } from './context/ThemeContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
@@ -16,6 +17,7 @@ import './App.css'
 type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat'
 
 function AppContent() {
+  const { t } = useTranslation()
   const [currentPage, setCurrentPage] = useState<Page>('add')
   const [showHelp, setShowHelp] = useState(false)
   const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined)
@@ -133,7 +135,7 @@ function AppContent() {
           >
             <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-700">
               <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                ⌨️ 键盘快捷键
+                {t('shortcuts.title', '⌨️ Keyboard Shortcuts')}
               </h3>
               <button
                 onClick={() => setShowHelp(false)}
@@ -146,52 +148,52 @@ function AppContent() {
             <div className="p-6 space-y-6">
               {/* Global Shortcuts */}
               <div>
-                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">全局导航</h4>
+                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t('shortcuts.globalNavigation', 'Global Navigation')}</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <ShortcutItem keys={['Ctrl', '1']} desc="词汇中心" />
-                  <ShortcutItem keys={['Ctrl', '2']} desc="单词列表" />
-                  <ShortcutItem keys={['Ctrl', '3']} desc="智能复习" />
-                  <ShortcutItem keys={['Ctrl', '4']} desc="设置" />
-                  <ShortcutItem keys={['Ctrl', '5']} desc="批量导入" />
-                  <ShortcutItem keys={['Ctrl', '6']} desc="翻译助手" />
-                  <ShortcutItem keys={['Ctrl', '7']} desc="学习统计" />
-                  <ShortcutItem keys={['Ctrl', '8']} desc="AI 语伴" />
-                  <ShortcutItem keys={['?']} desc="显示/隐藏帮助" />
-                  <ShortcutItem keys={['Esc']} desc="关闭弹窗" />
+                  <ShortcutItem keys={['Ctrl', '1']} desc={t('sidebar.add', 'Vocabulary Hub')} />
+                  <ShortcutItem keys={['Ctrl', '2']} desc={t('sidebar.list', 'Word List')} />
+                  <ShortcutItem keys={['Ctrl', '3']} desc={t('sidebar.review', 'Smart Review')} />
+                  <ShortcutItem keys={['Ctrl', '4']} desc={t('sidebar.settings', 'Settings')} />
+                  <ShortcutItem keys={['Ctrl', '5']} desc={t('sidebar.import', 'Batch Import')} />
+                  <ShortcutItem keys={['Ctrl', '6']} desc={t('sidebar.translation', 'Translator')} />
+                  <ShortcutItem keys={['Ctrl', '7']} desc={t('sidebar.stats', 'Statistics')} />
+                  <ShortcutItem keys={['Ctrl', '8']} desc={t('sidebar.chat', 'AI Partner')} />
+                  <ShortcutItem keys={['?']} desc={t('shortcuts.toggleHelp', 'Show / Hide Help')} />
+                  <ShortcutItem keys={['Esc']} desc={t('shortcuts.closeModal', 'Close Dialog')} />
                 </div>
               </div>
 
               {/* Review Page */}
               <div>
-                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">智能复习</h4>
+                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t('sidebar.review', 'Smart Review')}</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <ShortcutItem keys={['Space']} desc="翻转卡片" />
-                  <ShortcutItem keys={['1-5']} desc="评分（1完全忘记-5完美）" />
-                  <ShortcutItem keys={['P']} desc="播放发音" />
-                  <ShortcutItem keys={['Tab']} desc="切换识记/拼写模式" />
-                  <ShortcutItem keys={['H']} desc="显示拼写提示" />
+                  <ShortcutItem keys={['Space']} desc={t('shortcuts.flipCard', 'Flip Card')} />
+                  <ShortcutItem keys={['1-5']} desc={t('shortcuts.reviewScore', 'Rate Memory (1 forgotten - 5 perfect)')} />
+                  <ShortcutItem keys={['P']} desc={t('shortcuts.playPronunciation', 'Play Pronunciation')} />
+                  <ShortcutItem keys={['Tab']} desc={t('shortcuts.switchReviewMode', 'Switch Review / Spelling Mode')} />
+                  <ShortcutItem keys={['H']} desc={t('shortcuts.showSpellingHint', 'Show Spelling Hint')} />
                 </div>
               </div>
 
               {/* Word List */}
               <div>
-                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">单词列表</h4>
+                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t('sidebar.list', 'Word List')}</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <ShortcutItem keys={['↑', '↓']} desc="选择单词" />
-                  <ShortcutItem keys={['Enter']} desc="查看详情" />
-                  <ShortcutItem keys={['Delete']} desc="删除单词" />
-                  <ShortcutItem keys={['M']} desc="标记已掌握" />
-                  <ShortcutItem keys={['/']} desc="快速搜索" />
+                  <ShortcutItem keys={['↑', '↓']} desc={t('shortcuts.selectWord', 'Select Word')} />
+                  <ShortcutItem keys={['Enter']} desc={t('shortcuts.viewDetails', 'View Details')} />
+                  <ShortcutItem keys={['Delete']} desc={t('shortcuts.deleteWord', 'Delete Word')} />
+                  <ShortcutItem keys={['M']} desc={t('shortcuts.markMastered', 'Mark as Mastered')} />
+                  <ShortcutItem keys={['/']} desc={t('shortcuts.quickSearch', 'Quick Search')} />
                 </div>
               </div>
 
               {/* Add Word */}
               <div>
-                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">词汇中心</h4>
+                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t('sidebar.add', 'Vocabulary Hub')}</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <ShortcutItem keys={['Ctrl', 'Enter']} desc="添加到生词本" />
-                  <ShortcutItem keys={['Ctrl', 'G']} desc="AI生成例句" />
-                  <ShortcutItem keys={['Ctrl', 'P']} desc="播放发音" />
+                  <ShortcutItem keys={['Ctrl', 'Enter']} desc={t('shortcuts.addToVocabBook', 'Add to VocabBook')} />
+                  <ShortcutItem keys={['Ctrl', 'G']} desc={t('shortcuts.generateExample', 'Generate Example with AI')} />
+                  <ShortcutItem keys={['Ctrl', 'P']} desc={t('shortcuts.playPronunciation', 'Play Pronunciation')} />
                 </div>
               </div>
             </div>

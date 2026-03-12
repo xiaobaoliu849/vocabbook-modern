@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import i18n from '../i18n'
 
 interface Props {
     children: ReactNode
@@ -20,6 +21,10 @@ const isDev = import.meta.env.DEV
  * 捕获子组件树中的 JavaScript 错误，防止整个应用崩溃
  */
 export class ErrorBoundary extends Component<Props, State> {
+    private handleLanguageChanged = () => {
+        this.forceUpdate()
+    }
+
     constructor(props: Props) {
         super(props)
         this.state = {
@@ -38,11 +43,21 @@ export class ErrorBoundary extends Component<Props, State> {
         this.setState({ errorInfo })
     }
 
+    componentDidMount() {
+        i18n.on('languageChanged', this.handleLanguageChanged)
+    }
+
+    componentWillUnmount() {
+        i18n.off('languageChanged', this.handleLanguageChanged)
+    }
+
     handleRetry = () => {
         this.setState({ hasError: false, error: null, errorInfo: null })
     }
 
     render() {
+        const t = i18n.t.bind(i18n)
+
         if (this.state.hasError) {
             if (this.props.fallback) {
                 return this.props.fallback
@@ -53,10 +68,10 @@ export class ErrorBoundary extends Component<Props, State> {
                     <div className="glass-card p-8 max-w-md w-full text-center space-y-6">
                         <div className="text-6xl">😵</div>
                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-                            哎呀，出错了！
+                            {t('errorBoundary.title', 'Oops, something went wrong!')}
                         </h2>
                         <p className="text-slate-500 dark:text-slate-400">
-                            应用遇到了一个意外错误。请尝试刷新页面。
+                            {t('errorBoundary.description', 'The app encountered an unexpected error. Please try refreshing the page.')}
                         </p>
 
                         {isDev && this.state.error && (
@@ -67,7 +82,7 @@ export class ErrorBoundary extends Component<Props, State> {
                                 {this.state.errorInfo && (
                                     <details className="mt-2">
                                         <summary className="text-sm text-red-600 dark:text-red-500 cursor-pointer">
-                                            查看堆栈详情
+                                            {t('errorBoundary.stackDetails', 'View stack details')}
                                         </summary>
                                         <pre className="mt-2 text-xs overflow-auto max-h-40 text-red-600 dark:text-red-400">
                                             {this.state.errorInfo.componentStack}
@@ -82,13 +97,13 @@ export class ErrorBoundary extends Component<Props, State> {
                                 onClick={this.handleRetry}
                                 className="btn-primary"
                             >
-                                重试
+                                {t('errorBoundary.retry', 'Retry')}
                             </button>
                             <button
                                 onClick={() => window.location.reload()}
                                 className="btn-secondary"
                             >
-                                刷新页面
+                                {t('errorBoundary.refresh', 'Refresh page')}
                             </button>
                         </div>
                     </div>

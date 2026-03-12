@@ -3,8 +3,10 @@ import AudioButton from '../components/AudioButton'
 import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2 } from 'lucide-react'
 import { api, ApiError, API_PATHS } from '../utils/api'
 import { useGlobalState } from '../context/GlobalStateContext'
+import { useTranslation } from 'react-i18next'
 
 export default function AddWord() {
+    const { t } = useTranslation()
     const [searchWord, setSearchWord] = useState('')
     const [isSearching, setIsSearching] = useState(false)
     const [searchResult, setSearchResult] = useState<any>(null)
@@ -27,6 +29,8 @@ export default function AddWord() {
         localStorage.setItem('auto_play', String(autoPlay))
     }, [autoPlay])
 
+    const getDictionaryLabel = (source: string) => t(`addWord.dictionarySources.${source}`, { defaultValue: source })
+
     const saveWord = async (data: any, silent = false, extraSentences: string[] = []) => {
         // 合并额外例句 (AI 生成的)
         if (extraSentences.length > 0) {
@@ -38,7 +42,7 @@ export default function AddWord() {
 
         try {
             await api.post(API_PATHS.WORDS, data)
-            if (!silent) alert('✅ 单词添加成功！')
+            if (!silent) alert(t('addWord.alerts.added'))
             notifyWordAdded()
             return 'success'
         } catch (error) {
@@ -46,10 +50,10 @@ export default function AddWord() {
                 if (extraSentences.length > 0) {
                     await api.put(API_PATHS.WORD(data.word), { example: data.example })
                 }
-                if (!silent) alert('⚠️ 该单词已存在')
+                if (!silent) alert(t('addWord.alerts.exists'))
                 return 'exist'
             }
-            if (!silent) alert('❌ 添加失败')
+            if (!silent) alert(t('addWord.alerts.failed'))
             return 'error'
         }
     }
@@ -96,14 +100,14 @@ export default function AddWord() {
             }
         } catch (error) {
             if (error instanceof ApiError && error.status === 404) {
-                setSearchResult({ error: '未找到该单词' })
+                setSearchResult({ error: t('addWord.errors.notFound') })
             } else {
-                setSearchResult({ error: '查询失败，请检查后端服务' })
+                setSearchResult({ error: t('addWord.errors.searchFailed') })
             }
         } finally {
             setIsSearching(false)
         }
-    }, [searchWord, autoPlay, autoSave]);
+    }, [searchWord, autoPlay, autoSave, t]);
 
 
     // Keyboard shortcuts for AddWord page
@@ -196,10 +200,10 @@ export default function AddWord() {
             {/* Header */}
             <div>
                 <h2 className="text-3xl font-bold text-slate-800 dark:text-white">
-                    词汇中心
+                    {t('addWord.title')}
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 mt-1">
-                    搜索词典、AI 生成例句、一键添加到生词本
+                    {t('addWord.subtitle')}
                 </p>
             </div>
 
@@ -211,7 +215,7 @@ export default function AddWord() {
                         value={searchWord}
                         onChange={(e) => setSearchWord(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                        placeholder="输入要查询的单词..."
+                        placeholder={t('addWord.searchPlaceholder')}
                         className="input-field flex-1 text-lg"
                         autoFocus
                     />
@@ -225,7 +229,7 @@ export default function AddWord() {
                         ) : (
                             <Search size={20} />
                         )}
-                        <span>{isSearching ? '查询中...' : '查询'}</span>
+                        <span>{isSearching ? t('addWord.searching') : t('addWord.search')}</span>
                     </button>
                 </div>
 
@@ -238,7 +242,7 @@ export default function AddWord() {
                             onChange={e => setAutoPlay(e.target.checked)}
                             className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                         />
-                        自动发音
+                        {t('addWord.autoPlay')}
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                         <input
@@ -247,7 +251,7 @@ export default function AddWord() {
                             onChange={e => setAutoSave(e.target.checked)}
                             className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                         />
-                        自动收藏
+                        {t('addWord.autoSave')}
                     </label>
                 </div>
             </div>
@@ -292,7 +296,7 @@ export default function AddWord() {
                                             className="btn-primary flex items-center gap-2 transition-all duration-300"
                                         >
                                             <Plus size={18} />
-                                            <span>添加到生词本</span>
+                                            <span>{t('addWord.actions.addToBook')}</span>
                                         </button>
                                     )}
                                 </div>                                                        </div>
@@ -303,7 +307,7 @@ export default function AddWord() {
                                     {searchResult.roots && (
                                         <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-3 border border-orange-100 dark:border-orange-900/30">
                                             <h4 className="text-xs font-bold text-orange-800 dark:text-orange-300 mb-1 uppercase tracking-wider">
-                                                🌱 词根记忆
+                                                🌱 {t('addWord.roots')}
                                             </h4>
                                             <p className="text-orange-900 dark:text-orange-100 text-sm leading-relaxed">
                                                 {searchResult.roots}
@@ -313,7 +317,7 @@ export default function AddWord() {
                                     {searchResult.synonyms && (
                                         <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-100 dark:border-indigo-900/30">
                                             <h4 className="text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-1 uppercase tracking-wider">
-                                                🔄 同近义词
+                                                🔄 {t('addWord.synonyms')}
                                             </h4>
                                             <p className="text-indigo-900 dark:text-indigo-100 text-sm leading-relaxed">
                                                 {searchResult.synonyms}
@@ -335,12 +339,7 @@ export default function AddWord() {
                                                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                                                 }`}
                                         >
-                                            {
-                                                source === 'youdao' ? '有道词典' :
-                                                    source === 'cambridge' ? 'Cambridge' :
-                                                        source === 'bing' ? 'Bing' :
-                                                            source === 'freedict' ? 'FreeDict' : source
-                                            }
+                                            {getDictionaryLabel(source)}
                                         </button>
                                     ))}
                                 </div>
@@ -352,15 +351,15 @@ export default function AddWord() {
                                 <div className="mb-4">
                                     <div className="flex items-center justify-between mb-2">
                                         <h4 className="font-bold text-slate-700 dark:text-slate-200">
-                                            释义
+                                            {t('addWord.meaning')}
                                             <span className="ml-2 text-xs font-normal text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-                                                {activeTab}
+                                                {getDictionaryLabel(activeTab)}
                                             </span>
                                         </h4>
                                     </div>
                                     <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50">
                                         <p className="text-slate-800 dark:text-slate-200 whitespace-pre-line leading-relaxed text-base">
-                                            {currentData?.meaning || "暂无释义"}
+                                            {currentData?.meaning || t('addWord.noMeaning')}
                                         </p>
                                     </div>
                                 </div>
@@ -369,7 +368,7 @@ export default function AddWord() {
                                 {currentData?.example && (
                                     <div>
                                         <div className="flex items-center gap-2 mb-2">
-                                            <h4 className="font-bold text-slate-700 dark:text-slate-200">例句</h4>
+                                            <h4 className="font-bold text-slate-700 dark:text-slate-200">{t('addWord.example')}</h4>
                                             <AudioButton
                                                 text={currentData.example}
                                                 useTTS={true}
@@ -392,7 +391,7 @@ export default function AddWord() {
                                 <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-medium text-slate-600 dark:text-slate-300 flex items-center gap-2">
                                         <Sparkles size={18} className="text-accent-500" />
-                                        AI 智能例句
+                                        {t('addWord.aiExamples')}
                                     </h4>
                                     <button
                                         onClick={handleGenerateAI}
@@ -404,7 +403,7 @@ export default function AddWord() {
                                         ) : (
                                             <Sparkles size={16} />
                                         )}
-                                        <span>{isGeneratingAI ? '生成中...' : '生成例句'}</span>
+                                        <span>{isGeneratingAI ? t('addWord.generating') : t('addWord.generateExamples')}</span>
                                     </button>
                                 </div>
 
@@ -437,22 +436,22 @@ export default function AddWord() {
                         <div className="w-12 h-12 rounded-2xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400">
                             <Search size={24} />
                         </div>
-                        <h3 className="font-medium">智能查询</h3>
-                        <p className="text-sm text-slate-500">支持多词典聚合查询</p>
+                        <h3 className="font-medium">{t('addWord.quickTips.search.title')}</h3>
+                        <p className="text-sm text-slate-500">{t('addWord.quickTips.search.desc')}</p>
                     </div>
                     <div className="glass-card p-5 text-center flex flex-col items-center gap-2 hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors">
                         <div className="w-12 h-12 rounded-2xl bg-accent-100 dark:bg-accent-900/30 flex items-center justify-center text-accent-600 dark:text-accent-400">
                             <Zap size={24} />
                         </div>
-                        <h3 className="font-medium">AI 增强</h3>
-                        <p className="text-sm text-slate-500">AI 生成例句和记忆技巧</p>
+                        <h3 className="font-medium">{t('addWord.quickTips.ai.title')}</h3>
+                        <p className="text-sm text-slate-500">{t('addWord.quickTips.ai.desc')}</p>
                     </div>
                     <div className="glass-card p-5 text-center flex flex-col items-center gap-2 hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors">
                         <div className="w-12 h-12 rounded-2xl bg-secondary-100 dark:bg-secondary-900/30 flex items-center justify-center text-secondary-600 dark:text-secondary-400">
                             <Keyboard size={24} />
                         </div>
-                        <h3 className="font-medium">快捷键</h3>
-                        <p className="text-sm text-slate-500">Ctrl+Alt+V 全局呼出</p>
+                        <h3 className="font-medium">{t('addWord.quickTips.shortcuts.title')}</h3>
+                        <p className="text-sm text-slate-500">{t('addWord.quickTips.shortcuts.desc')}</p>
                     </div>
                 </div>
             )}

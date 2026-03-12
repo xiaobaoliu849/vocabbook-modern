@@ -1,5 +1,6 @@
 
 import { useTheme } from '../context/ThemeContext'
+import { useTranslation } from 'react-i18next'
 
 interface ThemeToggleProps {
     className?: string
@@ -7,6 +8,7 @@ interface ThemeToggleProps {
 }
 
 export default function ThemeToggle({ className = '', collapsed = false }: ThemeToggleProps) {
+    const { t } = useTranslation()
     const { isDark, toggleTheme } = useTheme()
 
     return (
@@ -18,7 +20,7 @@ export default function ThemeToggle({ className = '', collapsed = false }: Theme
         border border-transparent hover:border-slate-200 dark:hover:border-slate-700
         transition-all duration-300
         ${className}`}
-            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            title={isDark ? t('settings.general.switchToLightMode') : t('settings.general.switchToDarkMode')}
         >
             <div className="relative w-6 h-6 flex items-center justify-center">
                 {/* Sun Icon */}
@@ -39,7 +41,7 @@ export default function ThemeToggle({ className = '', collapsed = false }: Theme
 
             {!collapsed && (
                 <span className="font-medium animate-fade-in whitespace-nowrap">
-                    {isDark ? '深色模式' : '浅色模式'}
+                    {isDark ? t('settings.general.darkMode') : t('settings.general.lightMode')}
                 </span>
             )}
         </button>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import AudioButton from '../components/AudioButton'
 import { splitExamples, extractEnglish } from '../utils/textUtils'
 import { ChoiceMode, DictationMode, SessionSummary } from '../components/review'
@@ -17,6 +18,7 @@ interface ReviewWord {
 }
 
 export default function Review({ isActive }: { isActive?: boolean }) {
+    const { t } = useTranslation()
     // Mode state
     const [reviewMode, setReviewMode] = useState<ReviewMode>('flashcard')
 
@@ -73,6 +75,12 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     }
 
     const currentWord = dueWords[currentIndex]
+    const reviewModes: { key: ReviewMode; icon: string; label: string }[] = [
+        { key: 'flashcard', icon: '🎴', label: t('review.mode.flashcard') },
+        { key: 'spelling', icon: '⌨️', label: t('review.mode.spelling') },
+        { key: 'choice', icon: '📝', label: t('review.mode.choice') },
+        { key: 'dictation', icon: '🎧', label: t('review.mode.dictation') },
+    ]
 
     const handleRating = async (quality: number) => {
         if (!currentWord) return
@@ -228,7 +236,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-96">
-                <div className="text-xl text-slate-500 animate-pulse">加载中...</div>
+                <div className="text-xl text-slate-500 animate-pulse">{t('review.loading')}</div>
             </div>
         )
     }
@@ -238,33 +246,33 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             <div className="animate-fade-in text-center py-16">
                 <span className="text-6xl">{difficultMode ? '💪' : practiceMode ? '📚' : '🎉'}</span>
                 <h2 className="text-2xl font-bold mt-4 text-slate-800 dark:text-white">
-                    {difficultMode ? '困难词本为空' : practiceMode ? '练习模式' : '太棒了！'}
+                    {difficultMode ? t('review.empty.difficultTitle') : practiceMode ? t('review.empty.practiceTitle') : t('review.empty.normalTitle')}
                 </h2>
                 <p className="text-slate-500 mt-2">
-                    {difficultMode ? '没有标记为困难的单词，继续加油！' : practiceMode ? '正在加载单词...' : '暂无待复习的单词，休息一下吧！'}
+                    {difficultMode ? t('review.empty.difficultDesc') : practiceMode ? t('review.empty.practiceDesc') : t('review.empty.normalDesc')}
                 </p>
                 <div className="flex justify-center gap-4 mt-6">
                     <button
                         onClick={() => fetchDueWords('normal')}
                         className="btn-secondary"
                     >
-                        刷新
+                        {t('review.empty.refresh')}
                     </button>
                     <button
                         onClick={() => fetchDueWords('practice')}
                         className="btn-primary"
                     >
-                        🎯 练习模式
+                        🎯 {t('review.empty.practiceMode')}
                     </button>
                     <button
                         onClick={() => fetchDueWords('difficult')}
                         className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 rounded-lg transition-colors flex items-center gap-2 font-medium"
                     >
-                        🔥 困难词本
+                        🔥 {t('review.empty.difficultMode')}
                     </button>
                 </div>
                 <p className="text-xs text-slate-400 mt-4">
-                    练习模式可复习所有单词，困难词本集中复习错题
+                    {t('review.empty.modeHint')}
                 </p>
             </div>
         )
@@ -321,32 +329,27 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 <div className="flex items-center justify-between mb-4">
                     <div>
                         <h2 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
-                            智能复习
+                            {t('review.title')}
                             {practiceMode && (
                                 <button
                                     onClick={() => fetchDueWords('normal')}
                                     className="px-3 py-1 text-xs font-medium bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 dark:text-amber-400 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
-                                    title="点击退出练习模式"
+                                    title={t('review.exitPracticeMode')}
                                 >
-                                    🎯 练习模式 <span className="text-amber-500 ml-1">×</span>
+                                    🎯 {t('review.empty.practiceMode')} <span className="text-amber-500 ml-1">×</span>
                                 </button>
                             )}
                             {difficultMode && (
                                 <button
                                     onClick={() => fetchDueWords('normal')}
                                     className="px-3 py-1 text-xs font-medium bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 rounded-full transition-colors flex items-center gap-1 cursor-pointer"
-                                    title="点击退出困难词模式"
+                                    title={t('review.exitDifficultMode')}
                                 >
-                                    🔥 困难词本 <span className="text-red-500 ml-1">×</span>
+                                    🔥 {t('review.empty.difficultMode')} <span className="text-red-500 ml-1">×</span>
                                 </button>
                             )}
                             <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 text-sm font-medium">
-                                {[
-                                    { key: 'flashcard' as ReviewMode, icon: '🎴', label: '识记' },
-                                    { key: 'spelling' as ReviewMode, icon: '⌨️', label: '拼写' },
-                                    { key: 'choice' as ReviewMode, icon: '📝', label: '选择' },
-                                    { key: 'dictation' as ReviewMode, icon: '🎧', label: '听写' },
-                                ].map(mode => (
+                                {reviewModes.map(mode => (
                                     <button
                                         key={mode.key}
                                         onClick={() => setReviewMode(mode.key)}
@@ -361,11 +364,11 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                             </div>
                         </h2>
                         <p className="text-slate-500 dark:text-slate-400 mt-1">
-                            {currentIndex + 1} / {dueWords.length} · 已复习 {sessionStats.reviewed} 个
+                            {t('review.progress', { current: currentIndex + 1, total: dueWords.length, reviewed: sessionStats.reviewed })}
                         </p>
                     </div>
                     <div className="text-sm text-slate-500">
-                        {reviewMode === 'flashcard' ? '按 空格 翻转' : '输入后按 回车 检查'} · 数字键 1-5 评分
+                        {(reviewMode === 'flashcard' ? t('review.shortcuts.flip') : t('review.shortcuts.check'))} · {t('review.shortcuts.rate')}
                     </div>
                 </div>
 
@@ -459,7 +462,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                                 }}
                                                 onKeyDown={handleSpellingKeyDown}
                                                 onClick={(e) => e.stopPropagation()}
-                                                placeholder="输入单词拼写..."
+                                                placeholder={t('review.spelling.placeholder')}
                                                 autoFocus
                                                 className={`w-full max-w-lg px-8 py-3 text-3xl text-center rounded-2xl border-2 outline-none transition-all shadow-sm
                                                 ${spellingStatus === 'correct'
@@ -474,12 +477,12 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                             <div className="h-6 flex items-center justify-center">
                                                 {spellingStatus === 'incorrect' && (
                                                     <p className="text-red-500 text-center animate-shake font-medium">
-                                                        拼写错误，请重试
+                                                        {t('review.spelling.incorrect')}
                                                     </p>
                                                 )}
                                                 {spellingStatus === 'correct' && (
                                                     <p className="text-green-500 text-center animate-bounce font-medium">
-                                                        ✅ 正确！
+                                                        {t('review.spelling.correct')}
                                                     </p>
                                                 )}
                                             </div>
@@ -496,7 +499,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                                     }}
                                                     className="text-slate-400 hover:text-primary-500 text-sm underline decoration-dotted underline-offset-4"
                                                 >
-                                                    {showSpellingHint ? currentWord.word[0] + '...' : '提示?'}
+                                                    {showSpellingHint ? currentWord.word[0] + '...' : t('review.spelling.hint')}
                                                 </button>
                                             </div>
                                         </div>
@@ -534,7 +537,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                             <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 text-left border border-slate-100 dark:border-slate-700/50">
                                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-                                                    例句 Example
+                                                    {t('review.examples')}
                                                 </p>
                                                 <div className="space-y-4">
                                                     {splitExamples(currentWord.example).map((ex, i) => (
@@ -573,7 +576,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                         dark:bg-red-900/30 dark:hover:bg-red-900/50
                         text-red-700 dark:text-red-400 font-medium text-lg transition-all transform hover:scale-105"
                             >
-                                1 完全忘记
+                                {t('review.rating.1')}
                             </button>
                             <button
                                 onClick={() => handleRating(2)}
@@ -581,7 +584,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                         dark:bg-orange-900/30 dark:hover:bg-orange-900/50
                         text-orange-700 dark:text-orange-400 font-medium text-lg transition-all transform hover:scale-105"
                             >
-                                2 困难
+                                {t('review.rating.2')}
                             </button>
                             <button
                                 onClick={() => handleRating(3)}
@@ -589,7 +592,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                         dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50
                         text-yellow-700 dark:text-yellow-400 font-medium text-lg transition-all transform hover:scale-105"
                             >
-                                3 一般
+                                {t('review.rating.3')}
                             </button>
                             <button
                                 onClick={() => handleRating(4)}
@@ -597,7 +600,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                         dark:bg-blue-900/30 dark:hover:bg-blue-900/50
                         text-blue-700 dark:text-blue-400 font-medium text-lg transition-all transform hover:scale-105"
                             >
-                                4 简单
+                                {t('review.rating.4')}
                             </button>
                             <button
                                 onClick={() => handleRating(5)}
@@ -605,12 +608,12 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                         dark:bg-green-900/30 dark:hover:bg-green-900/50
                         text-green-700 dark:text-green-400 font-medium text-lg transition-all transform hover:scale-105"
                             >
-                                5 完美
+                                {t('review.rating.5')}
                             </button>
                         </div>
                     ) : (
                         <div className="text-slate-400 text-sm animate-pulse">
-                            {reviewMode === 'flashcard' ? '按 空格键翻转卡片' : '输入拼写并回车检查'}
+                            {reviewMode === 'flashcard' ? t('review.shortcuts.flipCard') : t('review.shortcuts.typeAndCheck')}
                         </div>
                     )}
                 </div>
