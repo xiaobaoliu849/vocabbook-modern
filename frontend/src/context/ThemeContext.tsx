@@ -54,7 +54,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         ) * 1.2 // Add buffer to ensure full coverage
 
         // 开始 View Transition
-        // @ts-ignore
         const transition = document.startViewTransition(() => {
             // Use flushSync to force React to update the DOM immediately
             // This ensures both the component tree AND the class (via useLayoutEffect) 

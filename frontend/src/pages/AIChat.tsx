@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight } from 'lucide-react'
 import { API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
 import AudioButton from '../components/AudioButton'
+import EvermemLogo from '../assets/evermind-powered.svg'
 import { useAuth } from '../context/AuthContext'
 
 const generateId = () => {
@@ -126,8 +127,8 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                     try {
                         loadedSessions = JSON.parse(savedSessions)
                         loadedFromFallback = loadedSessions.length > 0
-                    } catch (e) {
-                        console.error("Failed to load chat sessions from localStorage", e)
+                    } catch (error) {
+                        console.error("Failed to load chat sessions from localStorage", error)
                     }
                 }
             }
@@ -166,7 +167,9 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             }]
                             loadedFromFallback = true
                         }
-                    } catch (e) { }
+                    } catch {
+                        // Ignore malformed legacy history.
+                    }
                 }
             }
 
@@ -189,7 +192,9 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                 body: JSON.stringify(s)
                             })
                         }
-                    } catch (e) { }
+                    } catch {
+                        // Best-effort sync only.
+                    }
                 }
             }
 
@@ -239,7 +244,9 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 },
                 body: JSON.stringify(session)
             })
-        } catch (e) { console.error("Failed to sync session to DB", e) }
+        } catch (error) {
+            console.error("Failed to sync session to DB", error)
+        }
     }
 
     useEffect(() => {
@@ -274,7 +281,9 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         if (savedModelsStr) {
             try {
                 modelsMap = JSON.parse(savedModelsStr)
-            } catch (e) { }
+            } catch {
+                // Ignore malformed saved model config.
+            }
         }
         setModel(modelsMap[currentProvider] || localStorage.getItem('ai_model') || '')
         setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
@@ -294,7 +303,9 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         if (savedBasesStr) {
             try {
                 basesMap = JSON.parse(savedBasesStr)
-            } catch (e) { }
+            } catch {
+                // Ignore malformed saved base config.
+            }
         }
         const apiBase = basesMap[provider] || ''
         if (apiBase) headers['X-AI-Base'] = apiBase
@@ -304,7 +315,9 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         if (savedKeysStr) {
             try {
                 keysMap = JSON.parse(savedKeysStr)
-            } catch (e) { }
+            } catch {
+                // Ignore malformed saved key config.
+            }
         }
         const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || ''
         if (apiKey) headers['X-AI-Key'] = apiKey
@@ -413,7 +426,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
 
     const handleSend = async () => {
-        if (!input.trim() || loading || !activeSessionId) return
+        if (!input.trim() || loading || !activeSessionId || !isInitialized) return
 
         const userContent = input.trim()
         let botMsgId: string | null = null
@@ -628,7 +641,21 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             updatedMessages[lastUserIdx] = { ...updatedMessages[lastUserIdx], memorySaved }
                         }
                         if (lastBotIdx >= 0) {
-                            updatedMessages[lastBotIdx] = { ...updatedMessages[lastBotIdx], memoriesUsed: memoriesRetrieved }
+                            updatedMessages[lastBotIdx] = {
+                                ...updatedMessages[lastBotIdx],
+                                content: botContent,
+                                reasoningContent: botReasoning,
+                                memoriesUsed: memoriesRetrieved
+                            }
+                        } else if (botContent || botReasoning) {
+                            updatedMessages.push({
+                                id: botMsgId || generateId(),
+                                role: 'assistant',
+                                content: botContent,
+                                reasoningContent: botReasoning,
+                                timestamp: Date.now(),
+                                memoriesUsed: memoriesRetrieved
+                            })
                         }
 
                         return { ...s, messages: updatedMessages, updatedAt: Date.now() }
@@ -649,12 +676,12 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                     setMemoryToast(t('chat.memory.toast.saved'))
                 }
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Chat stream failed:', error)
             setSessions(prev => prev.map(s => {
                 if (s.id === activeSessionId) {
                     const errorText = t('chat.errors.response', {
-                        message: error.message || t('chat.errors.failedResponse')
+                        message: error instanceof Error ? error.message : t('chat.errors.failedResponse')
                     })
                     let replaced = false
                     const updatedMessages = s.messages.map(m => {
@@ -794,6 +821,11 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                         {t('chat.header.longTermMemoryEnabled')}
                                     </span>
                                 )}
+
+                                <div className="ml-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-300">
+                                    <img src={EvermemLogo} alt="EverMemOS" className="h-5 w-5 rounded" />
+                                    <span className="whitespace-nowrap">Powered by EverMemOS</span>
+                                </div>
                             </h2>
                             <p className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 text-[10px] sm:text-xs">
                                 {providerLabel} <span className="opacity-50">•</span> {model || t('chat.header.defaultModel')}
@@ -1030,7 +1062,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         />
                         <button
                             onClick={handleSend}
-                            disabled={!input.trim() || loading || !activeSessionId}
+                            disabled={!input.trim() || loading || !activeSessionId || !isInitialized}
                             className="p-3.5 mb-0.5 mr-0.5 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 active:from-primary-700 active:to-primary-800 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all flex-shrink-0 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/40 hover:scale-105 active:scale-95"
                         >
                             {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={18} className="translate-x-[1px] -translate-y-[1px]" />}

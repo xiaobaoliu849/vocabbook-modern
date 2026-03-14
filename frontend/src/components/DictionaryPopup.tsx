@@ -115,7 +115,7 @@ export default function DictionaryPopup() {
                 try {
                     const savedWord = await api.get(API_PATHS.WORD(data.word));
                     setIsSaved(!!savedWord && !savedWord.error);
-                } catch (err) {
+                } catch {
                     setIsSaved(false);
                 }
             }

@@ -14,7 +14,7 @@ const GlobalStateContext = createContext<GlobalStateContextType | undefined>(und
 
 export function GlobalStateProvider({ children }: { children: ReactNode }) {
     const [dueCount, setDueCount] = useState<number>(0);
-    const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
+    const [lastUpdate, setLastUpdate] = useState<number>(0);
 
     const fetchDueCount = useCallback(async () => {
         try {

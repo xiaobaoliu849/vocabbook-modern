@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import AudioButton from '../AudioButton'
 import type { ReviewModeProps } from './types'
@@ -17,22 +17,33 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
 
         // Get distractors from other words
         const otherWords = allWords.filter(w => w.id !== word.id && w.meaning)
-        const shuffled = [...otherWords].sort(() => Math.random() - 0.5)
-        const distractors = shuffled.slice(0, 3).map(w => w.meaning.split('\n')[0].trim())
+        const rotation = otherWords.length > 0 ? word.id % otherWords.length : 0
+        const rotatedWords = otherWords.slice(rotation).concat(otherWords.slice(0, rotation))
+        const distractors = rotatedWords.slice(0, 3).map(w => w.meaning.split('\n')[0].trim())
 
         // If not enough distractors, add placeholders
         while (distractors.length < 3) {
             distractors.push(t('review.choice.placeholderMeaning', { index: distractors.length + 1 }))
         }
 
-        // Combine and shuffle
-        const allOptions = [
-            { text: correctMeaning, isCorrect: true },
-            ...distractors.map(d => ({ text: d, isCorrect: false }))
-        ].sort(() => Math.random() - 0.5)
+        const allOptions = distractors.map(d => ({ text: d, isCorrect: false }))
+        allOptions.splice(word.id % 4, 0, { text: correctMeaning, isCorrect: true })
 
         return allOptions
     }, [word, allWords, t])
+
+    const handleSelect = useCallback((index: number) => {
+        if (showResult) return
+
+        setSelectedIndex(index)
+        setShowResult(true)
+
+        const isCorrect = options[index].isCorrect
+
+        setTimeout(() => {
+            onComplete(isCorrect ? 4 : 1)
+        }, 1500)
+    }, [onComplete, options, showResult])
 
     // Reset state when word changes
     useEffect(() => {
@@ -55,21 +66,7 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [showResult, options])
-
-    const handleSelect = (index: number) => {
-        if (showResult) return
-
-        setSelectedIndex(index)
-        setShowResult(true)
-
-        const isCorrect = options[index].isCorrect
-
-        // Auto-advance after showing result
-        setTimeout(() => {
-            onComplete(isCorrect ? 4 : 1) // 4 for correct, 1 for wrong
-        }, 1500)
-    }
+    }, [handleSelect, showResult])
 
     return (
         <div className="w-full h-full flex flex-col items-center justify-center p-8">

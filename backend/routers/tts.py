@@ -13,7 +13,8 @@ router = APIRouter()
 
 # 配置
 DEFAULT_VOICE = "en-US-JennyNeural"  # 标准英文女声
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "temp_audio")
+_DATA_DIR = os.environ.get("VOCABBOOK_DATA_DIR", os.path.dirname(os.path.dirname(__file__)))
+OUTPUT_DIR = os.path.join(_DATA_DIR, "temp_audio")
 RATE = "+0%"  # 正常语速
 
 def ensure_output_dir():

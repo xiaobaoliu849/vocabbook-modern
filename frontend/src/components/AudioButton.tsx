@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { Volume2 } from 'lucide-react'
 import { API_BASE_URL } from '../utils/api'
 import { useTranslation } from 'react-i18next'
+import { extractEnglish } from '../utils/textUtils'
 
 interface AudioButtonProps {
   word?: string
@@ -31,8 +32,13 @@ export default function AudioButton({
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   const getTextToSpeak = useCallback(() => {
-    return text || word || ''
-  }, [text, word])
+    const rawText = text || word || ''
+    if (!rawText) return ''
+    if (isExample) {
+      return extractEnglish(rawText)
+    }
+    return rawText
+  }, [isExample, text, word])
 
   useEffect(() => {
     return () => {

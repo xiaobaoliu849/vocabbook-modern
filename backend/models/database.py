@@ -4,6 +4,15 @@ import os
 import time
 import threading
 from datetime import datetime, timedelta
+from typing import Optional
+
+
+class _DatabaseLocal(threading.local):
+    """Typed thread-local state for per-thread SQLite connections."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.connection: Optional[sqlite3.Connection] = None
 
 class DatabaseManager:
     """
@@ -18,7 +27,7 @@ class DatabaseManager:
     def __init__(self, db_path="vocab.db", json_path="vocab.json"):
         self.db_path = db_path
         self.json_path = json_path
-        self._local = threading.local()  # 线程本地存储
+        self._local = _DatabaseLocal()  # 线程本地存储
         self._lock = threading.Lock()     # 用于初始化时的锁
 
         self.init_db()
@@ -30,8 +39,7 @@ class DatabaseManager:
         获取当前线程的数据库连接。
         每个线程使用独立的连接，避免线程安全问题。
         """
-        # 检查当前线程是否已有连接
-        conn = getattr(self._local, 'connection', None)
+        conn = self._local.connection
 
         if conn is None:
             # 当前线程没有连接，创建新连接
@@ -44,7 +52,7 @@ class DatabaseManager:
 
     def close_connection(self):
         """关闭当前线程的数据库连接。"""
-        conn = getattr(self._local, 'connection', None)
+        conn = self._local.connection
         if conn is not None:
             try:
                 conn.close()

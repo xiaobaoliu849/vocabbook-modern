@@ -279,8 +279,8 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                             {wordData.example && (
                                 <div>
                                     <p className="text-xs font-medium text-emerald-500 mb-1">{t('quickLookup.example', 'Example')}</p>
-                                    {wordData.example.split(/\n(?=[•\-\*])|\n{2,}/).filter((s: string) => s.trim().length > 5).slice(0, 2).map((ex: string, idx: number) => {
-                                        const lines = ex.trim().replace(/^[•\-\*]\s*/, '').split('\n')
+                                    {wordData.example.split(/\n(?=[•*-])|\n{2,}/).filter((s: string) => s.trim().length > 5).slice(0, 2).map((ex: string, idx: number) => {
+                                        const lines = ex.trim().replace(/^[•*-]\s*/, '').split('\n')
                                         return (
                                             <div key={idx} className="mb-1.5 pl-2 border-l-2 border-emerald-200 dark:border-emerald-800">
                                                 {lines.map((line: string, li: number) => (

@@ -24,7 +24,9 @@ async def lifespan(app: FastAPI):
     """Application lifecycle management"""
     global db
     # Startup
-    db_path = os.environ.get("VOCABBOOK_DB_PATH", "vocab.db")
+    data_dir = os.environ.get("VOCABBOOK_DATA_DIR", os.path.dirname(os.path.abspath(__file__)))
+    os.makedirs(data_dir, exist_ok=True)
+    db_path = os.environ.get("VOCABBOOK_DB_PATH", os.path.join(data_dir, "vocab.db"))
     db = DatabaseManager(db_path=db_path)
     print(f"[VocabBook] API started with database: {db_path}")
     yield
@@ -82,4 +84,4 @@ def get_db() -> DatabaseManager:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000)

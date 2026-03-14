@@ -383,6 +383,33 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         "再见", "拜拜", "bye", "晚安", "good night",
     }
 
+    @staticmethod
+    def _format_memory_context(memories: List[Dict]) -> str:
+        """
+        Format retrieved memories into a compact, high-signal block for the model.
+        We keep only the most relevant snippets and cap length to reduce prompt dilution.
+        """
+        if not memories:
+            return ""
+
+        ranked_memories = sorted(
+            memories,
+            key=lambda item: float(item.get("score", 0.0)),
+            reverse=True
+        )[:5]
+
+        lines = []
+        for index, memory in enumerate(ranked_memories, start=1):
+            score = float(memory.get("score", 0.0))
+            content = str(memory.get("content", "")).strip()
+            if not content:
+                continue
+            if len(content) > 220:
+                content = f"{content[:217].rstrip()}..."
+            lines.append(f"{index}. (score={score:.2f}) {content}")
+
+        return "\n".join(lines)
+
     def _should_skip_memory(self, user_msg: str) -> bool:
         """
         Lightweight local check to skip memory retrieval for trivial messages.
@@ -421,20 +448,24 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         
         # EverMemOS integration (official pattern: store → retrieve → generate → store)
         if self.evermem_service:
-            system_prompt += "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。记忆中可能包含用户的单词复习记录（含评分和薄弱点），请自然地利用这些信息来个性化教学，比如针对用户薄弱的单词多做练习。不要主动提及你在使用记忆系统，除非用户明确询问。"
+            system_prompt += (
+                "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。"
+                "记忆中可能包含用户的单词复习记录（含评分和薄弱点），请优先把相关记忆转化为个性化教学建议、举例或纠错。"
+                "如果记忆与当前问题直接相关，至少使用其中一条具体事实来定制回答；如果不相关，就忽略。"
+                "不要编造记忆内容，也不要主动提及你在使用记忆系统，除非用户明确询问。"
+            )
             last_user_msg = next((self._extract_text_content(m['content']) for m in reversed(messages) if m['role'] == 'user'), None)
             
             if last_user_msg:
-                # Step 1: Store user message (fire-and-forget)
-                _asyncio.create_task(
-                    self.evermem_service.add_memory(
-                        content=last_user_msg,
-                        user_id=self.evermem_user_id,
-                        sender=self.evermem_user_id,
-                        sender_name="User"
-                    )
+                # Step 1: Persist the user message before retrieval so recall can
+                # reliably see the latest confirmed facts instead of a pending task.
+                save_result = await self.evermem_service.add_memory(
+                    content=last_user_msg,
+                    user_id=self.evermem_user_id,
+                    sender=self.evermem_user_id,
+                    sender_name="User"
                 )
-                memory_saved = True
+                memory_saved = save_result is not None
 
                 # Step 2: Retrieve context (skip only for trivial messages)
                 if not self._should_skip_memory(last_user_msg):
@@ -446,8 +477,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         )
                         if memories:
                             memories_retrieved = len(memories)
-                            memory_context = "\n".join([m.get('content', '') for m in memories])
-                            system_prompt += f"\n\n【相关记忆】\n{memory_context}"
+                            memory_context = self._format_memory_context(memories)
+                            if memory_context:
+                                system_prompt += (
+                                    "\n\n【与当前问题相关的长期记忆】\n"
+                                    f"{memory_context}\n"
+                                    "请先判断哪些记忆与当前问题最相关，再把最相关的内容自然融入回复。"
+                                )
                             print(f"[EverMem] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
                     except Exception as e:
                         print(f"[EverMem] Failed to retrieve memories: {e}")
@@ -464,14 +500,15 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 *messages
             ])
 
-            # Step 4: Store assistant response (fire-and-forget)
+            # Step 4: Store assistant response
             if self.evermem_service and response:
                 _asyncio.create_task(
                     self.evermem_service.add_memory(
                         content=response,
                         user_id=self.evermem_user_id,
                         sender="assistant_001",
-                        sender_name="Assistant"
+                        sender_name="Assistant",
+                        flush=True
                     )
                 )
 
@@ -504,20 +541,24 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         last_user_msg = None
         
         if self.evermem_service:
-            system_prompt += "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。记忆中可能包含用户的单词复习记录（含评分和薄弱点），请自然地利用这些信息来个性化教学，比如针对用户薄弱的单词多做练习。不要主动提及你在使用记忆系统，除非用户明确询问。"
+            system_prompt += (
+                "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。"
+                "记忆中可能包含用户的单词复习记录（含评分和薄弱点），请优先把相关记忆转化为个性化教学建议、举例或纠错。"
+                "如果记忆与当前问题直接相关，至少使用其中一条具体事实来定制回答；如果不相关，就忽略。"
+                "不要编造记忆内容，也不要主动提及你在使用记忆系统，除非用户明确询问。"
+            )
             last_user_msg = next((self._extract_text_content(m['content']) for m in reversed(messages) if m['role'] == 'user'), None)
             
             if last_user_msg:
-                # Step 1: Store user message
-                _asyncio.create_task(
-                    self.evermem_service.add_memory(
-                        content=last_user_msg,
-                        user_id=self.evermem_user_id,
-                        sender=self.evermem_user_id,
-                        sender_name="User"
-                    )
+                # Step 1: Persist the user message before retrieval so recall can
+                # reliably see the latest confirmed facts instead of a pending task.
+                save_result = await self.evermem_service.add_memory(
+                    content=last_user_msg,
+                    user_id=self.evermem_user_id,
+                    sender=self.evermem_user_id,
+                    sender_name="User"
                 )
-                memory_saved = True
+                memory_saved = save_result is not None
 
                 # Step 2: Retrieve context
                 if not self._should_skip_memory(last_user_msg):
@@ -529,8 +570,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         )
                         if memories:
                             memories_retrieved = len(memories)
-                            memory_context = "\n".join([m.get('content', '') for m in memories])
-                            system_prompt += f"\n\n【相关记忆】\n{memory_context}"
+                            memory_context = self._format_memory_context(memories)
+                            if memory_context:
+                                system_prompt += (
+                                    "\n\n【与当前问题相关的长期记忆】\n"
+                                    f"{memory_context}\n"
+                                    "请先判断哪些记忆与当前问题最相关，再把最相关的内容自然融入回复。"
+                                )
                             print(f"[EverMem Stream] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
                     except Exception as e:
                         print(f"[EverMem Stream] Failed to retrieve memories: {e}")
@@ -566,7 +612,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         content=full_response,
                         user_id=self.evermem_user_id,
                         sender="assistant_001",
-                        sender_name="Assistant"
+                        sender_name="Assistant",
+                        flush=True
                     )
                 )
 

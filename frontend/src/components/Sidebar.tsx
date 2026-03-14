@@ -14,6 +14,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
     const [showAuth, setShowAuth] = useState(false)
     const [showDropdown, setShowDropdown] = useState(false)
     const [showPay, setShowPay] = useState(false)
+    const [dropdownStyle, setDropdownStyle] = useState({ bottom: 0, left: 0 })
     const buttonRef = useRef<HTMLButtonElement>(null)
     const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -47,16 +48,26 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
         setShowPay(true)
     }
 
-    // Calculate dropdown position (Open UPWARDS from bottom)
-    const getDropdownStyle = () => {
-        if (!buttonRef.current) return { top: 0, left: 0 }
-        const rect = buttonRef.current.getBoundingClientRect()
-        // Calculate bottom position relative to viewport
-        return {
-            bottom: window.innerHeight - rect.top + 8,
-            left: rect.left,
+    useEffect(() => {
+        if (!showDropdown || !buttonRef.current) return
+
+        const updatePosition = () => {
+            if (!buttonRef.current) return
+            const rect = buttonRef.current.getBoundingClientRect()
+            setDropdownStyle({
+                bottom: window.innerHeight - rect.top + 8,
+                left: rect.left,
+            })
         }
-    }
+
+        updatePosition()
+        window.addEventListener('resize', updatePosition)
+        window.addEventListener('scroll', updatePosition, true)
+        return () => {
+            window.removeEventListener('resize', updatePosition)
+            window.removeEventListener('scroll', updatePosition, true)
+        }
+    }, [showDropdown])
 
     // Not logged in
     if (!user) {
@@ -83,7 +94,6 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
 
     const initials = user.email.charAt(0).toUpperCase()
     const isPremium = user.tier === 'premium'
-    const dropdownStyle = getDropdownStyle()
 
     return (
         <>

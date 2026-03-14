@@ -19,7 +19,6 @@ function createWindow() {
         height: 800,
         minWidth: 800,
         minHeight: 600,
-        icon: path.join(__dirname, 'icon.png'),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -79,10 +78,9 @@ function createWindow() {
 }
 
 function createTray() {
-    const iconPath = path.join(__dirname, 'icon.png')
-    const icon = nativeImage.createFromPath(iconPath)
-
-    tray = new Tray(icon.resize({ width: 16, height: 16 }))
+    // Use an empty native image so the OS default or no small window icon is shown
+    const emptyIcon = nativeImage.createEmpty()
+    tray = new Tray(emptyIcon)
 
     const contextMenu = Menu.buildFromTemplate([
         {
@@ -229,14 +227,30 @@ function registerGlobalShortcut() {
 }
 
 function startBackend() {
-    // Start Python backend
-    const pythonPath = process.platform === 'win32' ? 'python' : 'python3'
+    const userDataPath = app.getPath('userData')
+    const env = { ...process.env, VOCABBOOK_DATA_DIR: userDataPath }
 
-    backendProcess = spawn(pythonPath, ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'], {
-        cwd: BACKEND_PATH,
-        stdio: 'pipe',
-        shell: true
-    })
+    if (DEV_MODE) {
+        // Start Python backend
+        const pythonPath = process.platform === 'win32' ? 'python' : 'python3'
+
+        backendProcess = spawn(pythonPath, ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'], {
+            cwd: BACKEND_PATH,
+            stdio: 'pipe',
+            shell: true,
+            env: env
+        })
+    } else {
+        // Start compiled backend executable
+        const exeName = process.platform === 'win32' ? 'vocabbook-backend.exe' : 'vocabbook-backend'
+        const exePath = path.join(process.resourcesPath, 'backend-dist', exeName)
+        
+        backendProcess = spawn(exePath, [], {
+            stdio: 'pipe',
+            shell: false,
+            env: env
+        })
+    }
 
     backendProcess.stdout.on('data', (data) => {
         console.log(`Backend: ${data}`)

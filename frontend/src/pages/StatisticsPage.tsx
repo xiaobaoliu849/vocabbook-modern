@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import Heatmap from '../components/Heatmap'
 import { api, API_PATHS } from '../utils/api'
 import { useTranslation } from 'react-i18next'
@@ -22,11 +22,6 @@ export default function StatisticsPage() {
     const [stats, setStats] = useState<Stats | null>(null)
     const [studyTime, setStudyTime] = useState<StudyTime | null>(null)
 
-    useEffect(() => {
-        fetchStats()
-        fetchStudyTime()
-    }, [])
-
     const fetchStats = async () => {
         try {
             const data = await api.get(API_PATHS.STATS)
@@ -44,6 +39,11 @@ export default function StatisticsPage() {
             console.error('Failed to fetch study time:', error)
         }
     }
+
+    useEffect(() => {
+        fetchStats()
+        fetchStudyTime()
+    }, [])
 
     return (
         <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
@@ -144,7 +144,7 @@ export default function StatisticsPage() {
     )
 }
 
-function StatCard({ label, value, color }: { label: string, value: React.ReactNode, color: string }) {
+function StatCard({ label, value, color }: { label: string, value: ReactNode, color: string }) {
     return (
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 text-center shadow-sm border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-shadow">
             <div className={`text-2xl font-bold ${color}`}>{value}</div>

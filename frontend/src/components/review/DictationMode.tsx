@@ -13,14 +13,6 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
     const [showAnswer, setShowAnswer] = useState(false)
     const [attempts, setAttempts] = useState(0)
 
-    // Reset state when word changes
-    useEffect(() => {
-        setInput('')
-        setStatus('idle')
-        setShowAnswer(false)
-        setAttempts(0)
-    }, [word.id])
-
     // Auto-play audio when component mounts or word changes
     useEffect(() => {
         const timer = setTimeout(() => {

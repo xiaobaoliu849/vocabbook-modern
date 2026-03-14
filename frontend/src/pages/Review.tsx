@@ -387,6 +387,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 {reviewMode === 'choice' && (
                     <div className="w-full h-full glass-card">
                         <ChoiceMode
+                            key={`choice-${currentWord.id}`}
                             word={currentWord}
                             allWords={dueWords}
                             onComplete={handleRating}
@@ -401,6 +402,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 {reviewMode === 'dictation' && (
                     <div className="w-full h-full glass-card">
                         <DictationMode
+                            key={`dictation-${currentWord.id}`}
                             word={currentWord}
                             allWords={dueWords}
                             onComplete={handleRating}

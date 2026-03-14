@@ -1,0 +1,13 @@
+{
+  "include": [
+    "backend",
+    "cloud_server"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "backend/build",
+    "backend/dist",
+    "backend/venv-build",
+    "electron/dist"
+  ]
+}

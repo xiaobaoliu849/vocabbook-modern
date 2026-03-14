@@ -35,11 +35,16 @@
         "files": [
             "main.js",
             "preload.js",
-            "icon.png",
-            "../frontend/dist/**/*",
-            "../backend/**/*",
-            "!../backend/__pycache__",
-            "!../backend/**/*.pyc"
+            "../frontend/dist/**/*"
+        ],
+        "extraResources": [
+            {
+                "from": "../backend/dist",
+                "to": "backend-dist",
+                "filter": [
+                    "**/*"
+                ]
+            }
         ],
         "win": {
             "target": [
@@ -49,15 +54,12 @@
                         "x64"
                     ]
                 }
-            ],
-            "icon": "icon.png"
+            ]
         },
         "nsis": {
             "oneClick": false,
             "perMachine": true,
             "allowToChangeInstallationDirectory": true,
-            "installerIcon": "icon.png",
-            "uninstallerIcon": "icon.png",
             "createDesktopShortcut": true,
             "createStartMenuShortcut": true
         },

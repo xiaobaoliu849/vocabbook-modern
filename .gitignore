@@ -7,6 +7,10 @@ venv/
 
 # Build output
 frontend/dist/
+backend/build/
+backend/dist/
+backend/venv-build/
+electron/dist/
 *.egg-info/
 
 # IDE
@@ -35,4 +39,6 @@ cloud_server/*.pem
 
 # Temp files
 *.patch
+*.orig
+*.rej
 Untitled-*.txt

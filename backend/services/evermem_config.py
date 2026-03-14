@@ -10,7 +10,8 @@ from services.evermem_service import EverMemService
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "evermem_config.json")
+_DATA_DIR = os.environ.get("VOCABBOOK_DATA_DIR", os.path.dirname(os.path.dirname(__file__)))
+_CONFIG_PATH = os.path.join(_DATA_DIR, "evermem_config.json")
 _DEFAULT_URL = "https://api.evermind.ai"
 _cached_service: Optional[EverMemService] = None
 _cached_key: Optional[str] = None

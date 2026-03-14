@@ -1,37 +1,17 @@
- import { useEffect, useRef, useState } from 'react'
- import AudioButton from './AudioButton'
- import { X, BookOpen, MessageSquare, RefreshCw, Sprout, StickyNote } from 'lucide-react'
- import { api, API_PATHS } from '../utils/api'
- import { useTranslation } from 'react-i18next'
+import { useEffect, useRef, useState } from 'react'
+import AudioButton from './AudioButton'
+import { X, BookOpen, MessageSquare, RefreshCw, Sprout, StickyNote } from 'lucide-react'
+import { api, API_PATHS } from '../utils/api'
+import { useTranslation } from 'react-i18next'
+import { splitExamples, extractEnglish } from '../utils/textUtils'
  
- interface WordDetailProps {
-   word: any;
-   onClose: () => void;
-   onWordUpdated?: () => void;
- }
- 
- // 分割例句为数组
- function splitExamples(example: string): string[] {
-   if (!example) return []
- 
-   // 按 bullet point 或换行分割
-   const parts = example.split(/\n(?=[•\-\*])|\n{2,}/)
- 
-   return parts
-     .map(part => part.trim())
-     .filter(part => part.length > 10)
-     .map(part => {
-       return part.replace(/^[•\-\*]\s*/, '').trim()
-     })
- }
- 
- // 提取纯英文句子（用于TTS）
- function extractEnglish(text: string): string {
-   const sentences = text.match(/[A-Za-z][^\u4e00-\u9fff]*[.!?。]/g) || []
-   return sentences[0]?.trim() || text.split('\n')[0]?.trim() || text
- }
- 
- export default function WordDetailModal({ word, onClose, onWordUpdated }: WordDetailProps) {
+interface WordDetailProps {
+  word: any;
+  onClose: () => void;
+  onWordUpdated?: () => void;
+}
+
+export default function WordDetailModal({ word, onClose, onWordUpdated }: WordDetailProps) {
    const { t } = useTranslation()
    const modalRef = useRef<HTMLDivElement>(null)
    const audioSrc = word.audio || undefined
