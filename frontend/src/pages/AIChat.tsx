@@ -341,28 +341,26 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     }
 
     const createNewSession = () => {
-        setSessions(prev => {
-            if (prev.length > 0 && prev[0].messages.length === 0 && isDefaultNewChatTitle(prev[0].title)) {
-                setTimeout(() => {
-                    setActiveSessionId(prev[0].id)
-                    setSidebarOpen(false)
-                }, 0)
-                return prev;
-            }
-            const newSession: ChatSession = {
-                id: buildScopedSessionId(chatScope),
-                title: DEFAULT_NEW_CHAT_TITLE,
-                messages: [],
-                updatedAt: Date.now(),
-                createdAt: Date.now()
-            }
-            setTimeout(() => {
-                setActiveSessionId(newSession.id)
-                setSidebarOpen(false)
-                saveSessionToDB(newSession)
-            }, 0)
-            return [newSession, ...prev]
-        })
+        const existingEmptySession = sessions.find(
+            session => session.messages.length === 0 && isDefaultNewChatTitle(session.title)
+        )
+        if (existingEmptySession) {
+            setActiveSessionId(existingEmptySession.id)
+            setSidebarOpen(false)
+            return
+        }
+
+        const newSession: ChatSession = {
+            id: buildScopedSessionId(chatScope),
+            title: DEFAULT_NEW_CHAT_TITLE,
+            messages: [],
+            updatedAt: Date.now(),
+            createdAt: Date.now()
+        }
+        setSessions(prev => [newSession, ...prev])
+        setActiveSessionId(newSession.id)
+        setSidebarOpen(false)
+        saveSessionToDB(newSession)
     }
 
     const deleteSession = async (e: React.MouseEvent, id: string) => {
@@ -428,6 +426,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     const handleSend = async () => {
         if (!input.trim() || loading || !activeSessionId || !isInitialized) return
 
+        const targetSessionId = activeSessionId
         const userContent = input.trim()
         let botMsgId: string | null = null
 
@@ -435,7 +434,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         if (activeSession && activeSession.messages.length === 0) {
             const baseTitle = userContent.length > 15 ? userContent.substring(0, 15) + '...' : userContent
             setSessions(prev => prev.map(s =>
-                s.id === activeSessionId ? { ...s, title: baseTitle } : s
+                s.id === targetSessionId ? { ...s, title: baseTitle } : s
             ))
         }
 
@@ -448,14 +447,14 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
         setSessions(prev => {
             const updated = prev.map(s => {
-                if (s.id === activeSessionId) {
+                if (s.id === targetSessionId) {
                     return { ...s, messages: [...s.messages, userMsg], updatedAt: Date.now() }
                 }
                 return s
             })
             // Wait to sync until bot replies, or sync user msg immediately.
             // We'll sync at the very end to avoid multiple writes, but for safety:
-            const target = updated.find(s => s.id === activeSessionId)
+            const target = updated.find(s => s.id === targetSessionId)
             if (target) saveSessionToDB(target)
             return updated
         })
@@ -481,7 +480,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
             // Initially add empty bot message and mark user message as saved (optimistic or wait for end)
             setSessions(prev => prev.map(s => {
-                if (s.id === activeSessionId) {
+                if (s.id === targetSessionId) {
                     return { ...s, messages: [...s.messages, initialBotMsg], updatedAt: Date.now() }
                 }
                 return s
@@ -493,7 +492,10 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                     'Content-Type': 'application/json',
                     ...getApiHeaders()
                 },
-                body: JSON.stringify({ messages: history })
+                body: JSON.stringify({
+                    messages: history,
+                    session_id: targetSessionId
+                })
             })
 
             if (!response.ok) {
@@ -533,7 +535,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
             const applyBotStreamUpdate = () => {
                 setSessions(prev => prev.map(s => {
-                    if (s.id === activeSessionId) {
+                    if (s.id === targetSessionId) {
                         const updatedMessages = s.messages.map(m =>
                             m.id === botMsgId
                                 ? {
@@ -627,7 +629,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             // Final update with metadata
             setSessions(prev => {
                 const updated = prev.map(s => {
-                    if (s.id === activeSessionId) {
+                    if (s.id === targetSessionId) {
                         const updatedMessages = [...s.messages]
                         let lastUserIdx = -1;
                         let lastBotIdx = -1;
@@ -662,7 +664,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                     }
                     return s
                 })
-                const target = updated.find(s => s.id === activeSessionId)
+                const target = updated.find(s => s.id === targetSessionId)
                 if (target) saveSessionToDB(target)
                 return updated
             })
@@ -679,7 +681,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         } catch (error: unknown) {
             console.error('Chat stream failed:', error)
             setSessions(prev => prev.map(s => {
-                if (s.id === activeSessionId) {
+                if (s.id === targetSessionId) {
                     const errorText = t('chat.errors.response', {
                         message: error instanceof Error ? error.message : t('chat.errors.failedResponse')
                     })

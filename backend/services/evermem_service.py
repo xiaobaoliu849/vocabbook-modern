@@ -127,6 +127,15 @@ class EverMemService:
 
             data = resp.json()
             result = data.get("result", {})
+            print(
+                "[EverMem search debug] "
+                f"user_id={user_id} group_ids={group_ids} query={query[:120]!r} "
+                f"status={resp.status_code} "
+                f"top_keys={list(data.keys())[:8] if isinstance(data, dict) else type(data).__name__} "
+                f"result_keys={list(result.keys())[:8] if isinstance(result, dict) else type(result).__name__} "
+                f"memories={len(result.get('memories', [])) if isinstance(result, dict) else 0} "
+                f"profiles={len(result.get('profiles', [])) if isinstance(result, dict) else 0}"
+            )
             if not result:
                 return []
 
@@ -215,6 +224,24 @@ class EverMemService:
 
             data = resp.json()
             result = data.get("result", data) if isinstance(data, dict) else None
+            memories_preview = []
+            if isinstance(result, dict):
+                for mem in result.get("memories", [])[:2]:
+                    if isinstance(mem, dict):
+                        memories_preview.append({
+                            "memory_type": mem.get("memory_type"),
+                            "group_id": mem.get("group_id"),
+                            "timestamp": mem.get("timestamp"),
+                        })
+            print(
+                "[EverMem get debug] "
+                f"user_id={user_id} group_ids={group_ids} memory_type={memory_type} "
+                f"status={resp.status_code} "
+                f"top_keys={list(data.keys())[:8] if isinstance(data, dict) else type(data).__name__} "
+                f"result_keys={list(result.keys())[:8] if isinstance(result, dict) else type(result).__name__} "
+                f"memories={len(result.get('memories', [])) if isinstance(result, dict) else 0} "
+                f"preview={memories_preview}"
+            )
             if not result:
                 return []
 

@@ -670,6 +670,86 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 pass
         return score
 
+    @staticmethod
+    def _sort_memories_by_timestamp(memories: List[Dict]) -> List[Dict]:
+        def sort_key(item: Dict) -> float:
+            timestamp = item.get("timestamp")
+            if not timestamp:
+                return float("-inf")
+            try:
+                parsed = datetime.datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+                return parsed.timestamp()
+            except Exception:
+                return float("-inf")
+
+        return sorted(memories, key=sort_key, reverse=True)
+
+    def _build_recent_session_fallback_memories(
+        self,
+        event_logs: List[Dict],
+        user_msg: str,
+        limit: int = 3,
+    ) -> List[Dict]:
+        """
+        When the user asks a vague follow-up inside the same live session,
+        recent user event logs are more useful than returning nothing.
+        """
+        fallback_candidates: List[Dict] = []
+        normalized_user_msg = self._normalize_memory_content(user_msg).lower()
+
+        for event in self._sort_memories_by_timestamp(event_logs):
+            content = str(event.get("content", "")).strip()
+            if not content:
+                continue
+            normalized_content = self._normalize_memory_content(content).lower()
+            if normalized_content == normalized_user_msg:
+                continue
+            if self._should_skip_memory(content):
+                continue
+            if self._looks_like_assistant_summary(content):
+                continue
+            fallback_candidates.append({
+                "content": f"[事件记录] {content}",
+                "type": "event_log",
+                "score": self._score_event_log_memory(content, user_msg, event.get("timestamp")),
+                "group_id": event.get("group_id"),
+                "timestamp": event.get("timestamp"),
+                "term_matches": self._count_recall_term_matches(content, user_msg),
+            })
+            if len(fallback_candidates) >= limit:
+                break
+
+        return fallback_candidates
+
+    async def _finalize_memory_turn(self, assistant_text: str, session_id: Optional[str]) -> bool:
+        """
+        Finalize a turn so EverMem extracts pending messages into retrievable memories.
+        We still store the assistant turn because the official API uses the completed
+        conversation boundary to flush extraction.
+        """
+        if not self.evermem_service:
+            return False
+
+        content = str(assistant_text or "").strip()
+        if not content or content == "Sorry, I encountered an error.":
+            return False
+
+        try:
+            result = await self.evermem_service.add_memory(
+                content=content,
+                user_id=self.evermem_user_id,
+                sender="assistant",
+                sender_name="Assistant",
+                group_id=session_id,
+                group_name=session_id,
+                role="assistant",
+                flush=True,
+            )
+            return result is not None
+        except Exception as e:
+            print(f"[EverMem] Failed to finalize memory turn: {e}")
+            return False
+
     async def _retrieve_relevant_memories(self, user_msg: str, session_id: Optional[str] = None) -> List[Dict]:
         """
         Retrieve semantic memories for the current turn.
@@ -715,6 +795,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     print(f"[EverMem] Failed to retrieve memories for query '{query}': {e}")
 
             if recall_request:
+                user_event_logs: List[Dict] = []
                 try:
                     event_logs = await self.evermem_service.get_memories(
                         user_id=self.evermem_user_id,
@@ -731,6 +812,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         sender_name = str(event.get("sender_name", "")).lower()
                         if role == "assistant" or "assistant" in sender_name:
                             continue
+                        user_event_logs.append(event)
                         if self._count_recall_term_matches(content, user_msg) < 1:
                             continue
                         scoped_collected.append({
@@ -747,6 +829,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
             if recall_request:
                 finalized = self._finalize_recall_memories(scoped_collected, user_msg)
+                if not finalized and user_event_logs:
+                    finalized = self._build_recent_session_fallback_memories(user_event_logs, user_msg)
                 debug_parts.append(
                     f"scope={group_ids or 'ALL'} raw={scoped_raw_count} deduped={len(finalized)} "
                     f"results={self._summarize_memories_for_log(finalized)}"
@@ -861,6 +945,10 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 *messages
             ])
 
+            finalized = await self._finalize_memory_turn(response, session_id=session_id)
+            if finalized:
+                print(f"[EverMem] Finalized memory turn for session {session_id or 'ALL'}")
+
             return {
                 "text": response,
                 "memories_retrieved": memories_retrieved,
@@ -963,6 +1051,10 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
                 full_response += event_content
                 yield f"data: {json.dumps({'type': 'token', 'content': event_content})}\n\n"
+
+            finalized = await self._finalize_memory_turn(full_response, session_id=session_id)
+            if finalized:
+                print(f"[EverMem Stream] Finalized memory turn for session {session_id or 'ALL'}")
 
             # Yield final metadata
             yield f"data: {json.dumps({'type': 'done', 'memories_retrieved': memories_retrieved, 'memory_saved': memory_saved})}\n\n"
