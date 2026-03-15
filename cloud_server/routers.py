@@ -1,10 +1,11 @@
 import json
 import time
+import secrets
 from datetime import datetime, timedelta
 from uuid import uuid4
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from alipay.aop.api.AlipayClientConfig import AlipayClientConfig
@@ -23,6 +24,10 @@ from schemas import (
     PayResponse,
     OrderStatusResponse,
     MockPaySuccessRequest,
+    AdminUserTierUpdateRequest,
+    AdminUserResponse,
+    AdminOrderResponse,
+    AdminSummaryResponse,
 )
 import auth
 from config import settings
@@ -51,6 +56,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     if user is None:
         raise credentials_exception
     return user
+
+
+async def require_admin_token(x_admin_token: str = Header(None, alias="X-Admin-Token")):
+    configured_token = (settings.ADMIN_TOKEN or "").strip()
+    if not configured_token:
+        raise HTTPException(status_code=503, detail="Admin API is not configured")
+    if not x_admin_token or not secrets.compare_digest(x_admin_token, configured_token):
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+    return True
 
 # --- Auth Routes ---
 
@@ -296,3 +310,97 @@ async def mock_pay_success(req: MockPaySuccessRequest, current_user: User = Depe
     db.add(current_user)
     await db.commit()
     return {"msg": "success", "out_trade_no": req.out_trade_no}
+
+
+@app_router.get("/admin/summary", response_model=AdminSummaryResponse)
+async def admin_summary(
+    _: bool = Depends(require_admin_token),
+    db: Session = Depends(get_db),
+):
+    total_users = await db.scalar(select(func.count()).select_from(User)) or 0
+    premium_users = await db.scalar(select(func.count()).select_from(User).where(User.tier == "premium")) or 0
+    total_orders = await db.scalar(select(func.count()).select_from(Order)) or 0
+    paid_orders = await db.scalar(select(func.count()).select_from(Order).where(Order.status == "SUCCESS")) or 0
+    return AdminSummaryResponse(
+        total_users=int(total_users),
+        premium_users=int(premium_users),
+        total_orders=int(total_orders),
+        paid_orders=int(paid_orders),
+    )
+
+
+@app_router.get("/admin/users", response_model=list[AdminUserResponse])
+async def admin_list_users(
+    _: bool = Depends(require_admin_token),
+    db: Session = Depends(get_db),
+    limit: int = 100,
+):
+    safe_limit = max(1, min(limit, 500))
+    result = await db.execute(
+        select(User).order_by(User.created_at.desc()).limit(safe_limit)
+    )
+    return result.scalars().all()
+
+
+@app_router.post("/admin/users/{user_id}/tier", response_model=AdminUserResponse)
+async def admin_update_user_tier(
+    user_id: str,
+    payload: AdminUserTierUpdateRequest,
+    _: bool = Depends(require_admin_token),
+    db: Session = Depends(get_db),
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.tier == "free":
+        user.tier = "free"
+        user.license_expiry = None
+    else:
+        user.tier = "premium"
+        if payload.license_expiry is not None:
+            user.license_expiry = payload.license_expiry
+        else:
+            _activate_premium(user, days=payload.extend_days or 30)
+
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+@app_router.get("/admin/orders", response_model=list[AdminOrderResponse])
+async def admin_list_orders(
+    _: bool = Depends(require_admin_token),
+    db: Session = Depends(get_db),
+    limit: int = 100,
+):
+    safe_limit = max(1, min(limit, 500))
+    order_rows = await db.execute(
+        select(Order).order_by(Order.created_at.desc()).limit(safe_limit)
+    )
+    orders = order_rows.scalars().all()
+    if not orders:
+        return []
+
+    user_ids = {order.user_id for order in orders}
+    user_rows = await db.execute(select(User).where(User.id.in_(user_ids)))
+    users = {user.id: user.email for user in user_rows.scalars().all()}
+
+    return [
+        AdminOrderResponse(
+            id=order.id,
+            user_id=order.user_id,
+            user_email=users.get(order.user_id, ""),
+            out_trade_no=order.out_trade_no,
+            trade_no=order.trade_no,
+            payment_method=order.payment_method,
+            amount_fen=order.amount_fen,
+            status=order.status,
+            description=order.description,
+            created_at=order.created_at,
+            updated_at=order.updated_at,
+        )
+        for order in orders
+    ]

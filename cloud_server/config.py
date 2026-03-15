@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "CHANGE_THIS_IN_PRODUCTION_TO_A_LONG_RANDOM_STRING"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200
+    ADMIN_TOKEN: str = ""
     
     # Alipay Sandbox Configuration
     ALIPAY_APP_ID: str = "9021000161679538"
