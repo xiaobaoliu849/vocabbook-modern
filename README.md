@@ -210,25 +210,35 @@ If you are recording a demo video, the most valuable flow is:
 6. Show premium account state in the UI
 7. Mention that authentication and membership now go through the deployed cloud API
 
-## English Demo Script
+## Demo Video
 
-You can use this short English script directly in your video:
+- English demo video: [vocabbook.mp4](./demo/vocabbook.mp4)
 
-> Hi, this is VocabBook Modern, an AI-powered vocabulary learning app built for serious English learners.
+## Demo Talking Points
+
+Use these points as natural prompts instead of reading a full script:
+
+- What problem this project solves for language learners
+- Why storing words is not enough without retention and review
+- How the app combines vocabulary management, SM-2 review, AI assistance, and long-term memory
+- What makes AI Partner more useful than a normal chatbot
+- How image input works in the chat workflow
+- Why the deployed cloud API matters for authentication and premium membership
+- Why this project is closer to a real product than a local prototype
+
+## Short English Pitch
+
+If you still want a short English version, keep it simple:
+
+> Hi, this is VocabBook Modern, an AI-powered vocabulary learning app for serious English learners.
 >
-> The goal of this project is not just to store words, but to help users actually remember and use them.
+> The goal is not only to collect words, but to help users remember and use them through review, AI assistance, and long-term memory.
 >
-> The app combines three important parts: a structured spaced-repetition review system, an AI learning assistant, and long-term memory support.
+> The app combines vocabulary management, spaced repetition, AI chat, translation, and a memory-enabled AI Partner.
 >
-> Here I can manage vocabulary, review difficult words, generate example sentences, translate text, and chat with an AI Partner.
+> It also connects to a deployed cloud API for authentication and premium membership.
 >
-> The AI Partner also supports image input, so users can paste or upload screenshots and ask questions naturally.
->
-> On the engineering side, this is not only a local prototype. I have already deployed the cloud API on Alibaba Cloud, connected the app to remote authentication, and integrated a premium subscription architecture.
->
-> I also validated the boundary between structured learning data and long-term conversational memory, so the product remains practical and stable instead of relying on a single memory mechanism.
->
-> In short, VocabBook Modern is designed as a real AI learning product, not just a flashcard app with a chatbot attached.
+> In short, this is designed as a real AI learning product, not just a flashcard app with a chatbot attached.
 
 ## Why This Project Stands Out
 
