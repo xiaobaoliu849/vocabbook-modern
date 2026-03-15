@@ -98,12 +98,13 @@ async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Opt
         return "guest"
 
     fallback_owner_key = _owner_key_from_token(token)
+    cloud_api_url = os.getenv("VOCABBOOK_CLOUD_API_URL", "http://localhost:8001").rstrip("/")
 
     # Prefer verified identity from cloud auth service; fallback to token-derived scope.
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                "http://localhost:8001/users/me",
+                f"{cloud_api_url}/users/me",
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=3.0
             )

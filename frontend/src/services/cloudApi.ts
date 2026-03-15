@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Cloud Server URL (Change to production URL when deployed)
-const API_URL = import.meta.env.VITE_CLOUD_API_URL || 'http://localhost:8001';
+const DEFAULT_CLOUD_API_URL = 'https://api.historyai.fun';
+const API_URL = import.meta.env.VITE_CLOUD_API_URL || DEFAULT_CLOUD_API_URL;
 
 const api = axios.create({
     baseURL: API_URL,

@@ -4,4 +4,7 @@ __pycache__/
 .DS_Store
 venv/
 apiclient_key.pem
+alipay_private_key.pem
+alipay_public_key.pem
 cloud_app.db
+cloud_db.sqlite3

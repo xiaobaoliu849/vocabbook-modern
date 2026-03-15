@@ -2,9 +2,11 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 alembic
+aiosqlite
 asyncpg
 python-jose[cryptography]
 passlib[bcrypt]
+bcrypt<4.0
 alipay-sdk-python>=3.3.398
 python-multipart
 pydantic-settings
