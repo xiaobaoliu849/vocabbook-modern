@@ -6,6 +6,7 @@ import base64
 import hashlib
 import json
 import re
+import time
 from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Header
 import httpx
@@ -108,6 +109,46 @@ async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Opt
         pass
 
     return fallback_owner_key
+
+
+def _build_learning_focus_context(limit: int = 5) -> str:
+    from main import get_db
+
+    try:
+        summary = get_db().get_learning_focus_summary(limit=limit)
+    except Exception:
+        return ""
+
+    weak_words = summary.get("weak_words", [])
+    if not weak_words:
+        return ""
+
+    now_ts = time.time()
+    parts = []
+    for item in weak_words[:limit]:
+        word = str(item.get("word", "")).strip()
+        if not word:
+            continue
+        meaning = str(item.get("meaning", "")).strip()
+        error_count = int(item.get("error_count", 0) or 0)
+        easiness = float(item.get("easiness", 2.5) or 2.5)
+        next_review_time = float(item.get("next_review_time", 0) or 0)
+        due_tag = "due now" if next_review_time and next_review_time <= now_ts else "reviewing"
+        if meaning:
+            parts.append(f"{word} ({meaning}; mistakes={error_count}, ease={easiness:.2f}, {due_tag})")
+        else:
+            parts.append(f"{word} (mistakes={error_count}, ease={easiness:.2f}, {due_tag})")
+
+    if not parts:
+        return ""
+
+    due_count = int(summary.get("due_count", 0) or 0)
+    difficult_count = int(summary.get("difficult_count", 0) or 0)
+    return (
+        f"Current weak review words: {'; '.join(parts)}. "
+        f"Due now: {due_count}. Difficult words tracked: {difficult_count}. "
+        "When helpful, use these words for examples, quizzes, explanations, and targeted review."
+    )
 
 
 async def _check_ai_limit(
@@ -262,7 +303,8 @@ async def chat(
         result = await ai.chat(
             messages=[{"role": m.role, "content": m.content} for m in request.messages],
             context_word=request.context_word,
-            session_id=request.session_id
+            session_id=request.session_id,
+            learning_context=_build_learning_focus_context(),
         )
         return {
             "response": result["text"],
@@ -317,7 +359,12 @@ async def chat_stream(
     try:
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
         return StreamingResponse(
-            ai.chat_stream(messages=messages, context_word=request.context_word, session_id=request.session_id),
+            ai.chat_stream(
+                messages=messages,
+                context_word=request.context_word,
+                session_id=request.session_id,
+                learning_context=_build_learning_focus_context(),
+            ),
             media_type="text/event-stream"
         )
     except Exception as e:

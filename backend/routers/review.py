@@ -93,6 +93,35 @@ def _clean_review_words(words: List[dict]) -> List[dict]:
     return words
 
 
+def _format_learning_focus_summary(db, limit: int = 5) -> str:
+    summary = db.get_learning_focus_summary(limit=limit)
+    weak_words = summary.get("weak_words", [])
+    if not weak_words:
+        return ""
+
+    parts = []
+    for item in weak_words[:limit]:
+        word = str(item.get("word", "")).strip()
+        if not word:
+            continue
+        meaning = str(item.get("meaning", "")).strip()
+        error_count = int(item.get("error_count", 0) or 0)
+        easiness = float(item.get("easiness", 2.5) or 2.5)
+        due_tag = "due now" if item.get("is_due") else "reviewing"
+        if meaning:
+            parts.append(f"{word} ({meaning}; mistakes={error_count}, ease={easiness:.2f}, {due_tag})")
+        else:
+            parts.append(f"{word} (mistakes={error_count}, ease={easiness:.2f}, {due_tag})")
+
+    if not parts:
+        return ""
+
+    return (
+        f"Current weaker review words: {'; '.join(parts)}. "
+        f"Due now: {summary.get('due_count', 0)}. Difficult words tracked: {summary.get('difficult_count', 0)}."
+    )
+
+
 @router.get("/due")
 async def get_due_words(limit: int = Query(20, ge=1, le=100)):
     """获取待复习的单词"""
@@ -201,6 +230,7 @@ async def submit_review(
         next_time=next_time,
         rating=review.quality
     )
+    updated_word_data = db.get_word(review.word) or word_data
 
     # Store learning record to EverMemOS (fire-and-forget)
     try:
@@ -216,17 +246,26 @@ async def submit_review(
             }
             label = quality_labels.get(review.quality, f"评分{review.quality}")
             interval_text = f"{next_review_in_hours}小时后" if review.quality <= 2 else f"{interval}天后"
+            error_count = int(updated_word_data.get("error_count") or 0)
+            weakness_signal = (
+                "This word is still weak for the user."
+                if review.quality <= 2 or error_count >= 2
+                else "This word seems reasonably stable for the user."
+            )
             record = (
                 f"复习单词 '{review.word}' ({meaning}). "
                 f"评分: {review.quality}/5 ({label}). "
-                f"下次复习: {interval_text}."
+                f"下次复习: {interval_text}. "
+                f"当前难度信号: error_count={error_count}, easiness={round(easiness, 2)}, repetitions={repetitions}. "
+                f"{weakness_signal}"
             )
             asyncio.create_task(
                 evermem.add_memory(
                     content=record,
                     user_id=evermem_user_id,
                     sender="tutor_vocab",
-                    sender_name="VocabBook Tutor"
+                    sender_name="VocabBook Tutor",
+                    flush=True,
                 )
             )
     except Exception as e:
@@ -245,10 +284,39 @@ async def submit_review(
 
 
 @router.post("/session")
-async def log_session(session: ReviewSession):
+async def log_session(
+    session: ReviewSession,
+    authorization: Optional[str] = Header(None),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
+):
     """记录复习会话"""
     db = get_db()
     db.log_study_session(session.duration, session.review_count)
+
+    evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id) if _can_use_evermem(authorization) else None
+    try:
+        from services.evermem_config import get_service
+        evermem = get_service()
+        if evermem and evermem_user_id:
+            import asyncio
+            focus_summary = _format_learning_focus_summary(db, limit=5)
+            if focus_summary:
+                session_record = (
+                    f"Review session completed. Duration: {session.duration} seconds. "
+                    f"Reviewed words: {session.review_count}. "
+                    f"{focus_summary}"
+                )
+                asyncio.create_task(
+                    evermem.add_memory(
+                        content=session_record,
+                        user_id=evermem_user_id,
+                        sender="tutor_vocab",
+                        sender_name="VocabBook Tutor",
+                        flush=True,
+                    )
+                )
+    except Exception as e:
+        print(f"[EverMem] Failed to store review session summary: {e}")
     
     return {
         "message": "Session logged",

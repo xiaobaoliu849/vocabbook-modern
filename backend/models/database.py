@@ -4,7 +4,7 @@ import os
 import time
 import threading
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 
 class _DatabaseLocal(threading.local):
@@ -670,6 +670,76 @@ class DatabaseManager:
             'due_today': due_today,
             'reviewed_today': reviewed_today,
             'streak_days': streak_days
+        }
+
+    def get_learning_focus_summary(self, limit: int = 5) -> Dict[str, Any]:
+        """
+        Return a compact summary of the learner's current weak / due words.
+        This is intended for AI personalization, not for UI tables.
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        now_ts = time.time()
+
+        cursor.execute(
+            '''
+            SELECT
+                word,
+                meaning,
+                error_count,
+                easiness,
+                repetitions,
+                next_review_time,
+                review_count
+            FROM words
+            WHERE review_count > 0
+              AND (
+                    error_count > 0
+                    OR easiness < 2.2
+                    OR (next_review_time > 0 AND next_review_time <= ?)
+                  )
+            ORDER BY
+                CASE WHEN error_count > 0 THEN 0 ELSE 1 END ASC,
+                error_count DESC,
+                easiness ASC,
+                CASE WHEN next_review_time > 0 AND next_review_time <= ? THEN 0 ELSE 1 END ASC,
+                next_review_time ASC,
+                review_count DESC
+            LIMIT ?
+            ''',
+            (now_ts, now_ts, limit),
+        )
+
+        rows = cursor.fetchall()
+        weak_words: List[Dict[str, Any]] = []
+        for row in rows:
+            word, meaning, error_count, easiness, repetitions, next_review_time, review_count = row
+            weak_words.append({
+                "word": word,
+                "meaning": meaning or "",
+                "error_count": int(error_count or 0),
+                "easiness": float(easiness or 2.5),
+                "repetitions": int(repetitions or 0),
+                "next_review_time": float(next_review_time or 0),
+                "review_count": int(review_count or 0),
+                "is_due": bool(next_review_time and next_review_time <= now_ts),
+            })
+
+        cursor.execute(
+            'SELECT COUNT(*) FROM words WHERE next_review_time > 0 AND next_review_time <= ?',
+            (now_ts,),
+        )
+        due_count = int(cursor.fetchone()[0] or 0)
+
+        cursor.execute(
+            'SELECT COUNT(*) FROM words WHERE error_count > 0'
+        )
+        difficult_count = int(cursor.fetchone()[0] or 0)
+
+        return {
+            "weak_words": weak_words,
+            "due_count": due_count,
+            "difficult_count": difficult_count,
         }
 
     def log_study_session(self, duration_seconds, review_count=0):

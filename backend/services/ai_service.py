@@ -1053,7 +1053,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
         return deduped
 
-    async def chat(self, messages: List[Dict], context_word: str = "", session_id: str = None) -> Dict:
+    async def chat(
+        self,
+        messages: List[Dict],
+        context_word: str = "",
+        session_id: str = None,
+        learning_context: str = "",
+    ) -> Dict:
         """
         AI 对话练习 (optimized with EverMemOS official pattern)
         
@@ -1063,6 +1069,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             messages: 对话历史
             context_word: 当前学习的单词（可选）
             session_id: The ID of the current chat session (optional)
+            learning_context: Local review weakness summary (optional)
         
         Returns:
             Dict with 'response', 'memories_retrieved', 'memory_saved'
@@ -1131,6 +1138,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
         if context_word:
             system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
+        if learning_context:
+            system_prompt += (
+                "\n\n【当前复习薄弱点】\n"
+                f"{learning_context}\n"
+                "如果当前问题适合结合用户正在复习或容易遗忘的单词，请优先围绕这些单词给出例句、提问、解释或纠错。"
+                "如果当前问题与单词学习无关，就不要强行提及。"
+            )
         
         try:
             # Step 3: Generate response
@@ -1157,7 +1171,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 "memory_saved": False
             }
 
-    async def chat_stream(self, messages: List[Dict], context_word: str = "", session_id: str = None):
+    async def chat_stream(
+        self,
+        messages: List[Dict],
+        context_word: str = "",
+        session_id: str = None,
+        learning_context: str = "",
+    ):
         """
         AI 对话练习 (流式输出)
         Flow: Store user msg → Retrieve context → Stream response → Store assistant msg
@@ -1226,6 +1246,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
         if context_word:
             system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
+        if learning_context:
+            system_prompt += (
+                "\n\n【当前复习薄弱点】\n"
+                f"{learning_context}\n"
+                "如果当前问题适合结合用户正在复习或容易遗忘的单词，请优先围绕这些单词给出例句、提问、解释或纠错。"
+                "如果当前问题与单词学习无关，就不要强行提及。"
+            )
         
         full_response = ""
         try:

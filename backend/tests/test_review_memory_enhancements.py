@@ -83,6 +83,50 @@ def test_low_quality_uses_hour_level_retry_windows():
     assert 23.0 <= in_3_hours <= 25.0
 
 
+def test_learning_focus_summary_prioritizes_weak_words():
+    temp_dir, db = _build_temp_db()
+    try:
+        assert db.add_word({"word": "alpha", "meaning": "alpha meaning"})
+        assert db.add_word({"word": "beta", "meaning": "beta meaning"})
+        assert db.add_word({"word": "gamma", "meaning": "gamma meaning"})
+
+        now_ts = time.time()
+        db.execute(
+            """
+            UPDATE words
+            SET review_count = 5, error_count = 3, easiness = 1.8, next_review_time = ?
+            WHERE word = ?
+            """,
+            (now_ts - 300, "alpha"),
+        )
+        db.execute(
+            """
+            UPDATE words
+            SET review_count = 4, error_count = 1, easiness = 2.0, next_review_time = ?
+            WHERE word = ?
+            """,
+            (now_ts + 86400, "beta"),
+        )
+        db.execute(
+            """
+            UPDATE words
+            SET review_count = 2, error_count = 0, easiness = 2.7, next_review_time = ?
+            WHERE word = ?
+            """,
+            (now_ts + 86400, "gamma"),
+        )
+
+        summary = db.get_learning_focus_summary(limit=5)
+
+        assert summary["due_count"] >= 1
+        assert summary["difficult_count"] >= 2
+        assert [item["word"] for item in summary["weak_words"]][:2] == ["alpha", "beta"]
+        assert summary["weak_words"][0]["is_due"] is True
+    finally:
+        db.close_connection()
+        temp_dir.cleanup()
+
+
 def test_guest_client_id_isolation_keys():
     owner_a = asyncio.run(_resolve_chat_owner_key(None, "device-A"))
     owner_b = asyncio.run(_resolve_chat_owner_key(None, "device-B"))
