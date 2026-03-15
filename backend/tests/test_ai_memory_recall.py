@@ -187,3 +187,60 @@ def test_generic_follow_up_recall_uses_recent_session_event_logs():
     assert "suancai issue and ham sausage" in system_prompt
     assert "[事件记录]" in system_prompt
     assert "What two food things did I say I remembered?" not in system_prompt
+
+
+def test_identity_recall_keeps_profile_memories():
+    service = AIService(provider="openai", api_key="test-key", evermem_enabled=False)
+    service.evermem_user_id = "cloud_demo"
+    service.evermem_service = DummyEverMemService()
+
+    captured = {}
+
+    async def fake_call_llm(messages, temperature=0.7):
+        captured["messages"] = messages
+        return "ok"
+
+    async def identity_search_memories(query: str, user_id: str, min_score: float = 0.3, group_ids=None, memory_types=None, retrieve_method: str = "keyword", start_time=None, end_time=None, top_k: int = 10):
+        service.evermem_service.search_calls.append({
+            "query": query,
+            "user_id": user_id,
+            "min_score": min_score,
+            "group_ids": group_ids,
+            "memory_types": memory_types,
+            "retrieve_method": retrieve_method,
+            "top_k": top_k,
+        })
+        return [
+            {"content": "[用户画像] The user's name is Xiao Bao and they like playing Dota 2.", "type": "profile", "score": 0.88},
+            {"content": "[历史对话] User once said thank you.", "type": "episodic_memory", "score": 0.22},
+            {"content": "[历史对话] The user asked whether the assistant knew who they were, and later said their name was Xiao Bao.", "type": "episodic_memory", "score": 0.66},
+        ]
+
+    async def no_event_logs(*args, **kwargs):
+        service.evermem_service.get_calls.append({"user_id": kwargs.get("user_id"), "group_ids": kwargs.get("group_ids"), "memory_type": kwargs.get("memory_type"), "page_size": kwargs.get("page_size")})
+        if kwargs.get("memory_type") == "profile":
+            return [
+                {"content": "The user's name is Xiao Bao and they like playing Dota 2.", "type": "profile"},
+                {"content": "The user does not know or has not revealed their own name.", "type": "profile"},
+            ]
+        return []
+
+    service._call_llm = fake_call_llm
+    service.evermem_service.search_memories = identity_search_memories
+    service.evermem_service.get_memories = no_event_logs
+
+    result = asyncio.run(
+        service.chat(
+            messages=[{"role": "user", "content": "What is my name?"}],
+            session_id="session-identity",
+        )
+    )
+
+    assert result["memories_retrieved"] >= 1
+    system_prompt = captured["messages"][0]["content"]
+    assert "Xiao Bao" in system_prompt
+    assert "thank you" not in system_prompt
+    assert "does not know or has not revealed" not in system_prompt
+    assert "suancai" not in system_prompt
+    assert any("what is my name" in call["query"].lower() or "who am i" in call["query"].lower() for call in service.evermem_service.search_calls)
+    assert any(call["memory_type"] == "profile" and call["group_ids"] is None for call in service.evermem_service.get_calls)

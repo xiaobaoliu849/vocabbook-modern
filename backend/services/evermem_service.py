@@ -266,9 +266,58 @@ class EverMemService:
                     f"keys={list(first_memory.keys())} preview={memory_preview}"
                 )
             extracted_memories = []
+
+            if memory_type == "profile":
+                raw_profiles = []
+                if isinstance(result, dict):
+                    if isinstance(result.get("profiles"), list):
+                        raw_profiles.extend(result.get("profiles", []))
+                    for item in memories_list:
+                        if isinstance(item, dict) and isinstance(item.get("profiles"), list):
+                            raw_profiles.extend(item.get("profiles", []))
+
+                for profile in raw_profiles:
+                    if not isinstance(profile, dict):
+                        continue
+                    profile_data = profile.get("profile_data") if isinstance(profile.get("profile_data"), dict) else {}
+                    explicit_info = profile_data.get("explicit_info") if isinstance(profile_data.get("explicit_info"), list) else []
+
+                    descriptions = []
+                    for info in explicit_info:
+                        if not isinstance(info, dict):
+                            continue
+                        description = str(info.get("description", "")).strip()
+                        if description:
+                            descriptions.append(description)
+
+                    if not descriptions:
+                        fallback_description = (
+                            str(profile_data.get("description", "")).strip()
+                            or str(profile.get("description", "")).strip()
+                        )
+                        if fallback_description:
+                            descriptions.append(fallback_description)
+
+                    for description in descriptions:
+                        extracted_memories.append({
+                            "content": description,
+                            "type": "profile",
+                            "group_id": profile.get("group_id") or profile_data.get("group_id"),
+                            "timestamp": profile_data.get("timestamp") or profile.get("timestamp"),
+                        })
+
+                print(
+                    "[EverMem get profile parsed] "
+                    f"user_id={user_id} parsed={len(extracted_memories)}"
+                )
+                return extracted_memories
+
             for mem in memories_list:
                 content = (
-                    mem.get("atomic_fact")
+                    mem.get("description")
+                    or mem.get("profile")
+                    or mem.get("value")
+                    or mem.get("atomic_fact")
                     or mem.get("episode")
                     or mem.get("summary")
                     or mem.get("content")

@@ -22,6 +22,7 @@ The recall path only became reliable after aligning to the official API model:
 5. Use `get memories` for `event_log`.
 6. Parse the real cloud response fields instead of guessing them.
 7. Filter out assistant-generated facts and question-shaped facts before injecting recall context.
+8. For identity questions, fetch `profile` explicitly and prefer positive identity facts over generic recall matches.
 
 ## Main Pitfalls
 
@@ -91,6 +92,38 @@ Symptom:
 Fix:
 - Parse `atomic_fact` first, then fall back to `episode/summary/content/message`.
 
+### 5.1. Profile content field was not flat text
+
+For identity recall, the cloud `profile` response did not come back as a flat `content` string.
+
+Real cloud shape looked like:
+
+- top-level response item containing:
+  - `profiles`
+  - `global_profile`
+- each `profiles[]` item containing:
+  - `profile_data`
+- real identity facts inside:
+  - `profile_data.explicit_info[*].description`
+
+Example:
+
+- `The user's name is Xiao Bao.`
+
+Symptom:
+- `get memories(memory_type=profile)` returned successfully
+- raw logs clearly showed the correct name
+- local recall still behaved as if no usable identity memory existed
+
+Fix:
+- In `backend/services/evermem_service.py`, explicitly parse:
+  - `result.profiles[*].profile_data.explicit_info[*].description`
+- only fall back to `description/profile/value` style fields if `explicit_info` is empty
+
+This is an official-alignment issue:
+- the API call was correct
+- the local parser was wrong
+
 ### 6. Assistant facts polluted recall
 
 EverMem can generate atomic facts about assistant behavior too, for example:
@@ -140,6 +173,56 @@ Fix:
   - assistant facts
   - question events
   - trivial messages
+
+### 8.1. Identity recall must not fall back to unrelated fact memories
+
+Identity prompts such as:
+
+- `What is my name?`
+- `Who am I?`
+
+should not fall back to unrelated fact memories like food recall.
+
+Symptom:
+- recall injected valid but unrelated memories such as:
+  - `suancai`
+  - `ham sausage`
+- assistant still answered "I don't know your name"
+
+Fix:
+- Detect identity recall separately
+- fetch `profile` first
+- prefer positive identity memories such as:
+  - `The user's name is Xiao Bao.`
+  - `The user likes playing Dota2.`
+- reject negative identity statements such as:
+  - `The user does not know or has not revealed their own name.`
+- if no identity memory survives filtering, return empty rather than falling back to unrelated memories
+
+This matters because "some memory" is worse than "no memory" for identity questions.
+
+### 8.2. A simple loop/indent bug can invalidate the whole recall result
+
+One late-stage bug had nothing to do with EverMem at all:
+
+- profile parsing produced multiple valid entries
+- but only the last parsed profile was actually appended into recall candidates
+
+Symptom:
+- logs showed:
+  - `parsed=8`
+- but recall scope showed:
+  - `scoped_collected=1`
+- and the single surviving item happened to be the wrong one
+
+Root cause:
+- the `append(...)` logic for parsed profiles was accidentally placed outside the `for profile in profile_memories` loop
+
+Fix:
+- keep all filtering and `append(...)` logic inside the loop
+
+Lesson:
+- if raw cloud data looks right but recall candidates still look absurdly small, inspect local loop structure before assuming the API is wrong
 
 ### 9. Dashboard presence does not equal retrievable recall
 
@@ -215,6 +298,18 @@ Look at:
 
 If cloud returned non-zero results but recall still shows zero, the problem is local filtering/parsing, not EverMem storage.
 
+### Stage 6: For identity questions, did profile parsing actually produce usable entries?
+
+Look for:
+
+```text
+[EverMem get profile parsed] user_id=... parsed=...
+```
+
+If raw profile logs show the right name but `parsed=0`, the parser is wrong.
+
+If `parsed>0` but `scoped_collected` is still too small, inspect local filtering or loop structure.
+
 ## Recommended Test Procedure
 
 To test real long-term recall instead of immediate conversational context:
@@ -245,6 +340,22 @@ What two food things did I say I remembered?
 - `EverMem Recall Debug`
 - whether the assistant answers `suancai` and `ham sausage`
 
+For identity recall, use:
+
+1. Open a new chat.
+2. Ask:
+
+```text
+What is my name?
+```
+
+3. Check:
+- `EverMem get debug ... memory_type=profile`
+- `EverMem get profile parsed ...`
+- `EverMem Recall Scope`
+- `EverMem Recall Debug`
+- whether the assistant answers `Xiao Bao`
+
 ## Current Code Areas
 
 The final working behavior depends on these files:
@@ -264,6 +375,9 @@ The hard part was aligning five layers at once:
 2. turn finalization with `flush=true`
 3. correct official API usage for `search` vs `get`
 4. correct parsing of `scores` and `atomic_fact`
-5. filtering out assistant facts and question-events before prompt injection
+5. correct parsing of nested `profile_data.explicit_info[*].description`
+6. filtering out assistant facts and question-events before prompt injection
+7. keeping identity recall on the `profile` track instead of falling back to unrelated memories
+8. avoiding local loop/indent bugs that silently discard most parsed candidates
 
 Once those were aligned, recall started returning the right facts instead of empty results or polluted summaries.

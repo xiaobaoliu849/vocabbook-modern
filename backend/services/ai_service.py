@@ -14,7 +14,7 @@ from services.evermem_service import EverMemService
 
 class AIService:
     """AI 服务封装，支持多 Provider 切换"""
-    _RECALL_DEBUG_VERSION = "2026-03-15-recall-v4"
+    _RECALL_DEBUG_VERSION = "2026-03-15-recall-v5"
     _RECALL_HINT_PATTERNS = (
         "remember",
         "remind me",
@@ -38,6 +38,19 @@ class AIService:
         "前面说",
         "我说过",
         "我们聊过",
+    )
+    _IDENTITY_RECALL_PATTERNS = (
+        "what is my name",
+        "what's my name",
+        "who am i",
+        "do you know who i am",
+        "do you remember who i am",
+        "my name",
+        "我的名字",
+        "我叫什么",
+        "你知道我是谁",
+        "你记得我是谁",
+        "我是谁",
     )
     _RECALL_TERM_EXPANSIONS = {
         "march 15": ("march 15", "march 15th", "3.15", "315", "消费者权益", "consumer rights"),
@@ -100,6 +113,28 @@ class AIService:
         "the user shared",
         "the user noted",
         "the user explained",
+    )
+    _IDENTITY_MEMORY_PATTERNS = (
+        "xiao bao",
+        "my name is",
+        "the user's name",
+        "the user said their name",
+        "the user introduced themselves",
+        "who they were",
+        "who the user was",
+        "remember me",
+        "know who i am",
+        "know who they are",
+        "dota",
+    )
+    _NEGATIVE_IDENTITY_PATTERNS = (
+        "does not know or has not revealed their own name",
+        "do not know their name",
+        "does not know their name",
+        "has not revealed their own name",
+        "has not revealed their name",
+        "uncertainty about self-identity",
+        "lack of prior disclosure",
     )
     _RECALL_STOPWORDS = {
         "what",
@@ -543,6 +578,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         focused_terms = [term for term in terms if len(term) >= 5 or re.search(r"[\u4e00-\u9fff]", term)]
         if focused_terms:
             queries.append(" ".join(focused_terms[:6]))
+        elif any(pattern in normalized_original.lower() for pattern in AIService._IDENTITY_RECALL_PATTERNS):
+            queries.extend([
+                "what is my name",
+                "who am i",
+                "remember me",
+                "my name identity",
+            ])
 
         queries.extend(focused_terms[:4])
 
@@ -581,6 +623,16 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
     def _looks_like_user_fact(content: str) -> bool:
         normalized = AIService._normalize_memory_content(content).lower()
         return any(pattern in normalized for pattern in AIService._USER_FACT_PATTERNS)
+
+    @staticmethod
+    def _looks_like_identity_memory(content: str) -> bool:
+        normalized = AIService._normalize_memory_content(content).lower()
+        return any(pattern in normalized for pattern in AIService._IDENTITY_MEMORY_PATTERNS)
+
+    @staticmethod
+    def _looks_like_negative_identity_memory(content: str) -> bool:
+        normalized = AIService._normalize_memory_content(content).lower()
+        return any(pattern in normalized for pattern in AIService._NEGATIVE_IDENTITY_PATTERNS)
 
     @staticmethod
     def _format_memory_context(memories: List[Dict], prefer_recent: bool = False) -> str:
@@ -655,7 +707,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         msg = user_msg.strip().lower()
         if not msg:
             return False
-        return any(pattern in msg for pattern in self._RECALL_HINT_PATTERNS)
+        return any(pattern in msg for pattern in self._RECALL_HINT_PATTERNS) or self._is_identity_recall_request(user_msg)
+
+    def _is_identity_recall_request(self, user_msg: str) -> bool:
+        msg = user_msg.strip().lower()
+        if not msg:
+            return False
+        return any(pattern in msg for pattern in self._IDENTITY_RECALL_PATTERNS)
 
     def _build_memory_group_ids(self, session_id: Optional[str], recall_request: bool) -> Optional[List[str]]:
         if not session_id:
@@ -664,18 +722,29 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return [session_id]
         return [session_id]
 
-    @staticmethod
-    def _rank_recall_memories(memories: List[Dict]) -> List[Dict]:
+    def _rank_recall_memories(self, memories: List[Dict], user_msg: str) -> List[Dict]:
+        identity_request = self._is_identity_recall_request(user_msg)
+
         def sort_key(item: Dict) -> tuple[int, int, float]:
             memory_type = str(item.get("type", ""))
-            priority = {
-                "event_log": 0,
-                "episodic_memory": 1,
-                "history": 1,
-                "recent_memory": 2,
-                "foresight": 3,
-                "profile": 4,
-            }.get(memory_type, 3)
+            if identity_request:
+                priority = {
+                    "profile": 0,
+                    "event_log": 1,
+                    "episodic_memory": 2,
+                    "history": 2,
+                    "recent_memory": 3,
+                    "foresight": 4,
+                }.get(memory_type, 3)
+            else:
+                priority = {
+                    "event_log": 0,
+                    "episodic_memory": 1,
+                    "history": 1,
+                    "recent_memory": 2,
+                    "foresight": 3,
+                    "profile": 4,
+                }.get(memory_type, 3)
             term_matches = int(item.get("term_matches", 0))
             score = float(item.get("score", 0.0))
             return (priority, -term_matches, -score)
@@ -683,6 +752,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         return sorted(memories, key=sort_key)
 
     def _finalize_recall_memories(self, memories: List[Dict], user_msg: str) -> List[Dict]:
+        identity_request = self._is_identity_recall_request(user_msg)
         deduped: List[Dict] = []
         seen = set()
         for memory in memories:
@@ -695,14 +765,15 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             enriched["term_matches"] = self._count_recall_term_matches(content, user_msg)
             deduped.append(enriched)
 
-        non_profile_memories = [memory for memory in deduped if str(memory.get("type", "")) != "profile"]
-        if non_profile_memories:
-            deduped = non_profile_memories
+        if not identity_request:
+            non_profile_memories = [memory for memory in deduped if str(memory.get("type", "")) != "profile"]
+            if non_profile_memories:
+                deduped = non_profile_memories
 
         strongly_matching = [memory for memory in deduped if int(memory.get("term_matches", 0)) >= 1]
         if strongly_matching:
             deduped = strongly_matching
-        elif deduped:
+        elif deduped and not identity_request:
             return []
 
         user_like_memories = [
@@ -712,7 +783,26 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         if user_like_memories:
             deduped = user_like_memories
 
-        return self._rank_recall_memories(deduped)
+        if identity_request:
+            profile_memories = [
+                memory for memory in deduped
+                if str(memory.get("type", "")) == "profile"
+                and not self._looks_like_negative_identity_memory(str(memory.get("content", "")))
+            ]
+            if profile_memories:
+                deduped = profile_memories
+            else:
+                identity_memories = [
+                    memory for memory in deduped
+                    if self._looks_like_identity_memory(str(memory.get("content", "")))
+                    and not self._looks_like_negative_identity_memory(str(memory.get("content", "")))
+                ]
+                if identity_memories:
+                    deduped = identity_memories
+                else:
+                    return []
+
+        return self._rank_recall_memories(deduped, user_msg)
 
     def _score_event_log_memory(self, content: str, user_msg: str, timestamp: Optional[str] = None) -> float:
         score = 2.0 + self._count_recall_term_matches(content, user_msg) * 1.5
@@ -860,6 +950,30 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
             if recall_request:
                 user_event_logs: List[Dict] = []
+                if self._is_identity_recall_request(user_msg):
+                    try:
+                        profile_memories = await self.evermem_service.get_memories(
+                            user_id=self.evermem_user_id,
+                            group_ids=None,
+                            memory_type="profile",
+                            page_size=20,
+                        )
+                        scoped_raw_count += len(profile_memories)
+                        for profile in profile_memories:
+                            content = str(profile.get("content", "")).strip()
+                            if not content:
+                                continue
+                            if self._looks_like_negative_identity_memory(content):
+                                continue
+                            scoped_collected.append({
+                                "content": f"[用户画像] {content}" if not content.startswith("[用户画像]") else content,
+                                "type": "profile",
+                                "score": 6.0 + self._count_recall_term_matches(content, user_msg),
+                                "group_id": profile.get("group_id"),
+                                "timestamp": profile.get("timestamp"),
+                            })
+                    except Exception as e:
+                        print(f"[EverMem] Failed to retrieve profiles: {e}")
                 try:
                     event_logs = await self.evermem_service.get_memories(
                         user_id=self.evermem_user_id,
@@ -879,7 +993,11 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         if self._looks_like_assistant_event(content):
                             continue
                         if self._looks_like_question_event(content):
+                            if self._is_identity_recall_request(user_msg):
+                                continue
                             user_event_logs.append(event)
+                            continue
+                        if self._is_identity_recall_request(user_msg) and not self._looks_like_identity_memory(content):
                             continue
                         user_event_logs.append(event)
                         if self._count_recall_term_matches(content, user_msg) < 1:
