@@ -297,3 +297,11 @@ def test_review_recall_uses_review_event_logs():
     assert "default" in system_prompt
     assert "theme" in system_prompt
     assert any("weak words" in call["query"].lower() or "review session completed" in call["query"].lower() for call in service.evermem_service.search_calls)
+
+
+def test_personal_fact_recall_detects_favorite_and_time_questions():
+    service = AIService(provider="openai", api_key="test-key", evermem_enabled=False)
+
+    assert service._is_memory_recall_request("What is my favorite fruit?")
+    assert service._is_memory_recall_request("When do I often study English?")
+    assert not service._is_memory_recall_request("What is a mango?")

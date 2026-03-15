@@ -780,9 +780,27 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return False
         return (
             any(pattern in msg for pattern in self._RECALL_HINT_PATTERNS)
+            or self._looks_like_personal_fact_recall_request(msg)
             or self._is_identity_recall_request(user_msg)
             or self._is_review_recall_request(user_msg)
         )
+
+    @staticmethod
+    def _looks_like_personal_fact_recall_request(msg: str) -> bool:
+        """Catch factual self-referential recall questions like 'What is my favorite fruit?'."""
+        normalized = re.sub(r"\s+", " ", msg.strip().lower())
+        if not normalized:
+            return False
+
+        personal_fact_patterns = (
+            r"^(what)\s+(is|was)\s+my\s+",
+            r"^(what's)\s+my\s+",
+            r"^(when)\s+(do|did)\s+i\s+",
+            r"^(where)\s+(do|did)\s+i\s+",
+            r"^(what)\s+(do|did)\s+i\s+",
+            r"^(which)\s+\w+\s+(do|did)\s+i\s+",
+        )
+        return any(re.match(pattern, normalized) for pattern in personal_fact_patterns)
 
     def _is_identity_recall_request(self, user_msg: str) -> bool:
         msg = user_msg.strip().lower()
