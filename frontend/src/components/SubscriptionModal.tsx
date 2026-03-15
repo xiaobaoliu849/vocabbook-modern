@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { API_PATHS } from '../utils/api';
+import { payService } from '../services/cloudApi';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface SubscriptionModalProps {
@@ -27,6 +27,27 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
         }
     }, [isOpen]);
 
+    useEffect(() => {
+        let interval: number | undefined;
+        if (isOpen && token && orderNo && qrCodeUrl) {
+            interval = window.setInterval(async () => {
+                try {
+                    const order = await payService.getOrderStatus(orderNo);
+                    if (order.status === 'SUCCESS') {
+                        await checkAuth(token);
+                        onClose();
+                    }
+                } catch (err) {
+                    console.error('Failed to poll subscription order status', err);
+                }
+            }, 3000);
+        }
+
+        return () => {
+            if (interval) window.clearInterval(interval);
+        };
+    }, [isOpen, token, orderNo, qrCodeUrl, checkAuth, onClose]);
+
     if (!isOpen) return null;
 
     const handleSubscribe = async () => {
@@ -38,30 +59,12 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch(API_PATHS.CLOUD_PAY_PRECREATE, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    amount_fen: 2900, // 29 Yuan
-                    description: 'VocabBook Modern Premium - 1 Month'
-                })
-            });
-
-            if (!res.ok) throw new Error(await res.text() || t('subscription.errors.createOrderFailed', 'Failed to create payment order'));
-
-            const data = await res.json();
+            const data = await payService.createNativeOrder(2900, 'VocabBook Modern Premium - 1 Month');
             setQrCodeUrl(data.code_url);
             setOrderNo(data.out_trade_no);
-
-            // Note: In a real app, you would start polling the backend here
-            // to check if the order status has changed to SUCCESS.
-            // For now, we'll just show the QR code and a manual refresh button.
-
         } catch (err: any) {
-            setError(err.message || t('subscription.errors.generic', 'Something went wrong'));
+            const message = err?.response?.data?.detail || err.message;
+            setError(message || t('subscription.errors.generic', 'Something went wrong'));
         } finally {
             setLoading(false);
         }
@@ -71,24 +74,20 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
         if (!token) return;
         setLoading(true);
         try {
-            // Re-fetch user profile to see if tier changed to premium
-            const res = await fetch(API_PATHS.CLOUD_ME, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const userData = await res.json();
-                await checkAuth(token);
-                if (userData.tier === 'premium') {
-                    onClose();
-                } else {
+            if (orderNo) {
+                const order = await payService.getOrderStatus(orderNo);
+                if (order.status !== 'SUCCESS') {
                     setError(t('subscription.errors.paymentPending', 'Payment has not been received yet. Please wait a moment and try again.'));
+                    return;
                 }
-            } else {
-                setError(t('subscription.errors.checkStatusFailed', 'Failed to check payment status.'));
             }
-        } catch (err) {
+
+            await checkAuth(token);
+            onClose();
+        } catch (err: any) {
             console.error(err);
-            setError(t('subscription.errors.checkStatusFailed', 'Failed to check payment status.'));
+            const message = err?.response?.data?.detail || err.message;
+            setError(message || t('subscription.errors.checkStatusFailed', 'Failed to check payment status.'));
         } finally {
             setLoading(false);
         }
@@ -102,30 +101,12 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
         }
         setMockLoading(true);
         try {
-            // Using a hardcoded URL since this is a new endpoint only on the mock server
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8001';
-            const mockUrl = apiUrl.includes('8000') ? 'http://localhost:8001' : apiUrl; // simple fallback
-
-            const res = await fetch(`${mockUrl}/api/pay/mock_success`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ out_trade_no: orderNo })
-            });
-            if (res.ok) {
-                await handleCheckStatus();
-            } else {
-                setError(t('subscription.errors.mockPaymentFailed', {
-                    defaultValue: 'Mock payment failed: {{message}}',
-                    message: await res.text()
-                }));
-            }
+            await payService.mockSuccess(orderNo);
+            await handleCheckStatus();
         } catch (err: any) {
             setError(t('subscription.errors.mockPaymentError', {
                 defaultValue: 'Mock payment error: {{message}}',
-                message: err.message
+                message: err?.response?.data?.detail || err.message
             }));
         } finally {
             setMockLoading(false);

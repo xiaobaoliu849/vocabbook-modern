@@ -14,7 +14,7 @@ class User(Base):
     is_superuser = Column(Boolean, default=False)
     
     # License info
-    tier = Column(String, default="free") # free, pro
+    tier = Column(String, default="free") # free, premium
     license_expiry = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

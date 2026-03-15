@@ -213,7 +213,8 @@
   "chat": {
     "session": {
       "newChat": "新对话",
-      "migratedChat": "迁移对话"
+      "migratedChat": "迁移的对话",
+      "imageChat": "图片对话"
     },
     "actions": {
       "rename": "重命名",
@@ -224,7 +225,15 @@
       "newChatTitle": "新建对话",
       "moreOptions": "更多选项",
       "clearCurrentMessages": "清空当前消息",
-      "deleteSessionRecord": "删除对话记录"
+      "deleteSessionRecord": "删除对话记录",
+      "deleteAllSessions": "删除全部对话"
+    },
+    "sidebar": {
+      "title": "最近对话",
+      "count": "{{count}} 条记录",
+      "emptySession": "还没有消息",
+      "imageMessage": "{{count}} 张图片",
+      "yesterday": "昨天"
     },
     "header": {
       "title": "AI 语伴",
@@ -233,7 +242,8 @@
     },
     "confirm": {
       "deleteSession": "确定要删除这条对话记录吗？",
-      "clearSession": "确定要清空当前对话的所有消息吗？上下文记忆将重置。"
+      "clearSession": "确定要清空当前对话的所有消息吗？上下文记忆将重置。",
+      "clearAllSessions": "确定要删除全部对话记录吗？此操作无法撤销。"
     },
     "empty": {
       "title": "开始和 AI 练习英语对话吧！",
@@ -260,6 +270,16 @@
     },
     "input": {
       "placeholder": "输入消息 (Enter 发送, Shift+Enter 换行)..."
+    },
+    "attachments": {
+      "onlyImages": "这里只支持图片文件。",
+      "maxImages": "最多只能添加 {{count}} 张图片。",
+      "firstImagesOnly": "只添加了前 {{count}} 张图片。",
+      "fileTooLarge": "{{name}} 超过了 8 MB。",
+      "loadFailed": "图片加载失败，请换一张再试。",
+      "removeImage": "移除图片",
+      "attachImage": "添加图片",
+      "hint": "可直接粘贴图片或拖拽到输入框"
     },
     "errors": {
       "api": "API 错误：{{message}}",

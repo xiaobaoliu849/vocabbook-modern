@@ -1,3 +1,4 @@
+import os
 import httpx
 from datetime import datetime
 from models.database import DatabaseManager
@@ -11,6 +12,7 @@ class LimitException(Exception):
 class LimitService:
     def __init__(self, db: DatabaseManager):
         self.db = db
+        self.cloud_api_url = os.getenv('VOCABBOOK_CLOUD_API_URL', 'http://localhost:8001').rstrip('/')
         # Free limits per day
         self.LIMITS = {
             'ai_chat': 10,
@@ -73,10 +75,9 @@ class LimitService:
         # 1. Check token with Cloud Server
         if token:
             try:
-                # Assuming cloud server is running on 8001
                 async with httpx.AsyncClient() as client:
                     resp = await client.get(
-                        "http://localhost:8001/users/me",
+                        f"{self.cloud_api_url}/users/me",
                         headers={"Authorization": f"Bearer {token}"},
                         timeout=3.0
                     )

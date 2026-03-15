@@ -1,6 +1,6 @@
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -15,7 +15,15 @@ from alipay.aop.api.util.SignatureUtils import verify_with_rsa
 
 from base import get_db
 from models import User, Order
-from schemas import UserCreate, UserResponse, Token, PayRequest, PayResponse, MockPaySuccessRequest
+from schemas import (
+    UserCreate,
+    UserResponse,
+    Token,
+    PayRequest,
+    PayResponse,
+    OrderStatusResponse,
+    MockPaySuccessRequest,
+)
 import auth
 from config import settings
 
@@ -81,11 +89,18 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 # --- Alipay Routes ---
 
 
-def _build_out_trade_no(prefix: str, user_id: int) -> str:
+def _build_out_trade_no(prefix: str, user_id: str) -> str:
     """Build a collision-resistant order ID within Alipay length limits."""
     # Alipay requires out_trade_no length <= 64
     short_user = str(user_id).replace("-", "")[:12]
     return f"{prefix}_{short_user}_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
+
+
+def _activate_premium(user: User, days: int = 30) -> None:
+    now = datetime.utcnow()
+    start_at = user.license_expiry if user.license_expiry and user.license_expiry > now else now
+    user.tier = "premium"
+    user.license_expiry = start_at + timedelta(days=days)
 
 
 # Initialize Alipay
@@ -110,8 +125,11 @@ if settings.ALIPAY_APP_ID:
     except Exception as e:
         print(f"Alipay init failed (Expected if files are missing during dev): {e}")
 
-@app_router.post("/api/pay/alipay/precreate", response_model=PayResponse)
-async def create_payment(req: PayRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def _create_payment_order(
+    req: PayRequest,
+    current_user: User,
+    db: Session,
+) -> PayResponse:
     if not alipay_client:
         # Mock for Dev if keys are missing - still persist order for status polling.
         out_trade_no = _build_out_trade_no("MOCK", current_user.id)
@@ -124,7 +142,7 @@ async def create_payment(req: PayRequest, current_user: User = Depends(get_curre
         )
         db.add(new_order)
         await db.commit()
-        return {"code_url": "https://qr.alipay.com/mock_qr_code", "out_trade_no": out_trade_no}
+        return PayResponse(code_url="https://qr.alipay.com/mock_qr_code", out_trade_no=out_trade_no)
 
     out_trade_no = _build_out_trade_no("ORDER", current_user.id)
     
@@ -156,7 +174,7 @@ async def create_payment(req: PayRequest, current_user: User = Depends(get_curre
             await db.commit()
             
             # qr_code field contains the URL to generate QR locally
-            return {"code_url": api_response.get("qr_code"), "out_trade_no": out_trade_no}
+            return PayResponse(code_url=api_response.get("qr_code"), out_trade_no=out_trade_no)
         else:
             print(f"Alipay API Failed. Raw Response: {response_content}")
             raise HTTPException(status_code=400, detail=f"Alipay API Error: {response_content}")
@@ -166,6 +184,34 @@ async def create_payment(req: PayRequest, current_user: User = Depends(get_curre
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Payment execution failed: {e}")
+
+
+@app_router.post("/api/pay/alipay/precreate", response_model=PayResponse)
+async def create_payment(req: PayRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return await _create_payment_order(req, current_user, db)
+
+
+@app_router.post("/api/pay/native", response_model=PayResponse)
+async def create_native_payment(req: PayRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return await _create_payment_order(req, current_user, db)
+
+
+@app_router.get("/api/orders/{out_trade_no}", response_model=OrderStatusResponse)
+async def get_order_status(
+    out_trade_no: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    result = await db.execute(
+        select(Order).where(
+            Order.out_trade_no == out_trade_no,
+            Order.user_id == current_user.id,
+        )
+    )
+    order = result.scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
 
 @app_router.post("/api/pay/alipay/notify")
 async def pay_notify(request: Request, db: Session = Depends(get_db)):
@@ -217,8 +263,7 @@ async def pay_notify(request: Request, db: Session = Depends(get_db)):
             u_res = await db.execute(select(User).where(User.id == order.user_id))
             user = u_res.scalars().first()
             if user:
-                user.tier = 'premium'
-                # Optionally set license_expiry
+                _activate_premium(user)
             
             await db.commit()
             
@@ -246,7 +291,7 @@ async def mock_pay_success(req: MockPaySuccessRequest, current_user: User = Depe
     order.status = "SUCCESS"
     order.trade_no = f"MOCK_TRADE_{uuid4().hex[:16]}"
     order.updated_at = datetime.utcnow()
-    current_user.tier = 'premium'
+    _activate_premium(current_user)
     db.add(order)
     db.add(current_user)
     await db.commit()

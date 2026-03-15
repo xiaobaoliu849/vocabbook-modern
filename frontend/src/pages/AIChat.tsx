@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight } from 'lucide-react'
+import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X } from 'lucide-react'
 import { API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import EvermemLogo from '../assets/evermind-powered.svg'
@@ -47,10 +47,19 @@ interface Message {
     id: string
     role: 'user' | 'assistant'
     content: string
+    attachments?: ImageAttachment[]
     timestamp: number
     memoriesUsed?: number
     memorySaved?: boolean
     reasoningContent?: string
+}
+
+interface ImageAttachment {
+    id: string
+    name: string
+    dataUrl: string
+    mediaType: string
+    size: number
 }
 
 interface ChatSession {
@@ -76,6 +85,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
     const [editingTitle, setEditingTitle] = useState('')
     const inputRef = useRef<HTMLTextAreaElement>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     // Config state
     const [provider, setProvider] = useState('')
@@ -85,6 +95,11 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     // Memory activity toast
     const [memoryToast, setMemoryToast] = useState<string | null>(null)
     const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({})
+    const [pendingImages, setPendingImages] = useState<ImageAttachment[]>([])
+    const [isDragOverComposer, setIsDragOverComposer] = useState(false)
+
+    const MAX_IMAGE_ATTACHMENTS = 3
+    const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024
 
     const getCommonHeaders = () => {
         const headers: Record<string, string> = {
@@ -293,6 +308,112 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' })
     }
 
+    const buildMessagePayload = (message: Message) => {
+        if (message.role !== 'user' || !message.attachments || message.attachments.length === 0) {
+            return message.content
+        }
+
+        const parts: Array<Record<string, unknown>> = []
+        if (message.content.trim()) {
+            parts.push({ type: 'text', text: message.content })
+        }
+        for (const attachment of message.attachments) {
+            parts.push({
+                type: 'image_url',
+                image_url: {
+                    url: attachment.dataUrl
+                }
+            })
+        }
+        return parts.length > 0 ? parts : message.content
+    }
+
+    const readImageFile = (file: File): Promise<ImageAttachment> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => {
+                const result = typeof reader.result === 'string' ? reader.result : ''
+                if (!result) {
+                    reject(new Error('Failed to read image'))
+                    return
+                }
+                resolve({
+                    id: generateId(),
+                    name: file.name,
+                    dataUrl: result,
+                    mediaType: file.type || 'image/png',
+                    size: file.size,
+                })
+            }
+            reader.onerror = () => reject(new Error('Failed to read image'))
+            reader.readAsDataURL(file)
+        })
+    }
+
+    const addImageFiles = async (files: File[]) => {
+        if (files.length === 0) return
+
+        const imageFiles = files.filter(file => file.type.startsWith('image/'))
+        if (imageFiles.length !== files.length) {
+            window.alert(t('chat.attachments.onlyImages'))
+        }
+
+        const availableSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - pendingImages.length)
+        if (availableSlots <= 0) {
+            window.alert(t('chat.attachments.maxImages', { count: MAX_IMAGE_ATTACHMENTS }))
+            return
+        }
+
+        const nextFiles = imageFiles.slice(0, availableSlots)
+        if (imageFiles.length > availableSlots) {
+            window.alert(t('chat.attachments.firstImagesOnly', { count: availableSlots }))
+        }
+
+        try {
+            const oversized = nextFiles.find(file => file.size > MAX_IMAGE_SIZE_BYTES)
+            if (oversized) {
+                window.alert(t('chat.attachments.fileTooLarge', { name: oversized.name }))
+                return
+            }
+
+            const attachments = await Promise.all(nextFiles.map(readImageFile))
+            setPendingImages(prev => [...prev, ...attachments])
+        } catch (error) {
+            console.error('Failed to load image attachments', error)
+            window.alert(t('chat.attachments.loadFailed'))
+        }
+    }
+
+    const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const inputElement = event.currentTarget
+        const files = Array.from(event.target.files || [])
+        try {
+            await addImageFiles(files)
+        } finally {
+            inputElement.value = ''
+        }
+    }
+
+    const handleComposerPaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const clipboardFiles = Array.from(event.clipboardData?.files || [])
+        const imageFiles = clipboardFiles.filter(file => file.type.startsWith('image/'))
+        if (imageFiles.length === 0) return
+
+        event.preventDefault()
+        await addImageFiles(imageFiles)
+    }
+
+    const handleComposerDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        setIsDragOverComposer(false)
+        const droppedFiles = Array.from(event.dataTransfer?.files || [])
+        await addImageFiles(droppedFiles)
+    }
+
+    const removePendingImage = (attachmentId: string) => {
+        setPendingImages(prev => prev.filter(item => item.id !== attachmentId))
+    }
+
     const getApiHeaders = () => {
         const headers: Record<string, string> = getCommonHeaders()
         if (provider) headers['X-AI-Provider'] = provider
@@ -334,10 +455,41 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
 
     const activeSession = sessions.find(s => s.id === activeSessionId)
     const messages = activeSession?.messages || []
+    const sortedSessions = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
     const getDisplaySessionTitle = (title: string) => {
         if (isDefaultNewChatTitle(title)) return t('chat.session.newChat')
         if (title === LEGACY_MIGRATED_CHAT_TITLE) return t('chat.session.migratedChat')
         return title
+    }
+
+    const formatSessionTimestamp = (timestamp: number) => {
+        const date = new Date(timestamp)
+        const now = new Date()
+        const sameDay = date.toDateString() === now.toDateString()
+        const yesterday = new Date(now)
+        yesterday.setDate(now.getDate() - 1)
+        const isYesterday = date.toDateString() === yesterday.toDateString()
+
+        if (sameDay) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+        if (isYesterday) {
+            return t('chat.sidebar.yesterday')
+        }
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    }
+
+    const getSessionPreview = (session: ChatSession) => {
+        const lastMessage = [...session.messages].reverse().find(message => {
+            if (message.content?.trim()) return true
+            return Boolean(message.attachments && message.attachments.length > 0)
+        })
+        if (!lastMessage) return t('chat.sidebar.emptySession')
+        if (lastMessage.content?.trim()) return lastMessage.content.trim()
+        if (lastMessage.attachments && lastMessage.attachments.length > 0) {
+            return t('chat.sidebar.imageMessage', { count: lastMessage.attachments.length })
+        }
+        return t('chat.sidebar.emptySession')
     }
 
     const createNewSession = () => {
@@ -422,17 +574,38 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         }
     }
 
+    const clearAllSessions = async () => {
+        if (sessions.length === 0) return
+        if (!window.confirm(t('chat.confirm.clearAllSessions'))) return
+
+        try {
+            await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
+                method: 'DELETE',
+                headers: getCommonHeaders()
+            })
+        } catch (error) {
+            console.error('Failed to clear all chat sessions from DB', error)
+        }
+
+        setSessions([])
+        setActiveSessionId(null)
+        setSidebarOpen(false)
+        setTimeout(() => createNewSession(), 0)
+    }
+
 
     const handleSend = async () => {
-        if (!input.trim() || loading || !activeSessionId || !isInitialized) return
+        if ((!input.trim() && pendingImages.length === 0) || loading || !activeSessionId || !isInitialized) return
 
         const targetSessionId = activeSessionId
         const userContent = input.trim()
         let botMsgId: string | null = null
+        const attachmentsToSend = pendingImages
 
         // Auto-rename session if it's the first message
         if (activeSession && activeSession.messages.length === 0) {
-            const baseTitle = userContent.length > 15 ? userContent.substring(0, 15) + '...' : userContent
+            const baseTitleSource = userContent || (attachmentsToSend.length > 0 ? t('chat.session.imageChat') : '')
+            const baseTitle = baseTitleSource.length > 15 ? baseTitleSource.substring(0, 15) + '...' : baseTitleSource
             setSessions(prev => prev.map(s =>
                 s.id === targetSessionId ? { ...s, title: baseTitle } : s
             ))
@@ -442,6 +615,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             id: generateId(),
             role: 'user',
             content: userContent,
+            attachments: attachmentsToSend,
             timestamp: Date.now()
         }
 
@@ -460,14 +634,15 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         })
 
         setInput('')
+        setPendingImages([])
         setLoading(true)
 
         try {
             const history = messages.slice(-10).map(m => ({
                 role: m.role,
-                content: m.content
+                content: buildMessagePayload(m)
             }))
-            history.push({ role: userMsg.role, content: userMsg.content })
+            history.push({ role: userMsg.role, content: buildMessagePayload(userMsg) })
 
             botMsgId = generateId()
             const initialBotMsg: Message = {
@@ -718,7 +893,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                     provider === 'ollama' ? 'Ollama' : provider
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative bg-gradient-to-br from-primary-100/80 via-primary-50/40 to-white dark:from-slate-900 dark:via-slate-900 dark:to-primary-950/30 rounded-2xl overflow-hidden border border-primary-200 dark:border-primary-800/50 shadow-lg shadow-primary-500/10">
+        <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg shadow-slate-300/20 dark:shadow-slate-950/30">
             {/* Global Sidebar Overlay */}
             <div
                 className={`absolute inset-0 z-40 bg-slate-900/20 dark:bg-slate-900/50 backdrop-blur-[2px] transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -730,12 +905,32 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             {/* Sidebar Drawer */}
             <div className={`
                 absolute inset-y-0 left-0 z-50
-                w-72 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-r border-white/20 dark:border-slate-700/50 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.05)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)]
+                w-72 bg-white/96 dark:bg-slate-800/96 backdrop-blur-xl border-r border-slate-200/80 dark:border-slate-700/60 flex flex-col shadow-[4px_0_24px_rgba(15,23,42,0.06)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)]
                 transition-transform duration-300 ease-out
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
-                <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1 custom-scrollbar">
-                    {[...sessions].sort((a, b) => b.updatedAt - a.updatedAt).map(session => (
+                <div className="flex-none border-b border-slate-200/80 dark:border-slate-700/60 px-4 py-4 bg-slate-50/70 dark:bg-slate-900/30">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                {t('chat.sidebar.title')}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                {t('chat.sidebar.count', { count: sortedSessions.length })}
+                            </p>
+                        </div>
+                        <button
+                            onClick={createNewSession}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm shadow-primary-500/25 transition-colors hover:bg-primary-700"
+                            title={t('chat.actions.newChatTitle')}
+                        >
+                            <Plus size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 custom-scrollbar">
+                    {sortedSessions.map(session => (
                         <div
                             key={session.id}
                             onClick={() => {
@@ -743,15 +938,17 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                 setSidebarOpen(false);
                             }}
                             className={`
-                                group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all
+                                group rounded-2xl border p-3 cursor-pointer transition-all
                                 ${activeSessionId === session.id
-                                    ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-200 border-l-2 border-primary-500'
-                                    : 'text-slate-600 dark:text-slate-400 hover:bg-primary-50/50 dark:hover:bg-slate-700/50'
+                                    ? 'border-primary-200 bg-primary-50/80 text-primary-700 shadow-sm shadow-primary-500/10 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-200'
+                                    : 'border-slate-200/90 text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700/80 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-slate-700/40'
                                 }
                             `}
                         >
-                            <div className="flex items-center gap-3 overflow-hidden flex-1">
-                                <MessageSquare size={16} className="flex-shrink-0" />
+                            <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0">
+                                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${activeSessionId === session.id ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/70 dark:text-slate-300'}`}>
+                                    <MessageSquare size={15} className="flex-shrink-0" />
+                                </div>
                                 {editingSessionId === session.id ? (
                                     <input
                                         autoFocus
@@ -770,12 +967,22 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                         className="w-full bg-white dark:bg-slate-900 border border-primary-500 rounded px-2 py-0.5 text-sm text-slate-800 dark:text-white outline-none"
                                     />
                                 ) : (
-                                    <span className="truncate text-sm font-medium">{getDisplaySessionTitle(session.title)}</span>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="truncate text-sm font-semibold">{getDisplaySessionTitle(session.title)}</span>
+                                            <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">
+                                                {formatSessionTimestamp(session.updatedAt)}
+                                            </span>
+                                        </div>
+                                        <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                                            {getSessionPreview(session)}
+                                        </p>
+                                    </div>
                                 )}
                             </div>
 
                             {editingSessionId !== session.id && (
-                                <div className={`relative z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${activeSessionId === session.id ? 'opacity-100' : ''}`}>
+                                <div className={`relative z-10 ml-2 flex items-center gap-1 self-start opacity-0 group-hover:opacity-100 transition-opacity ${activeSessionId === session.id ? 'opacity-100' : ''}`}>
                                     <button
                                         onClick={(e) => startRenameSession(e, session)}
                                         className="p-1.5 text-slate-400 hover:text-primary-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors cursor-pointer"
@@ -799,12 +1006,23 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         </div>
                     ))}
                 </div>
+
+                <div className="flex-none border-t border-slate-200/80 dark:border-slate-700/60 px-3 py-3 bg-white/80 dark:bg-slate-800/80">
+                    <button
+                        onClick={clearAllSessions}
+                        disabled={sortedSessions.length === 0}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-red-900/40 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+                    >
+                        <Trash2 size={15} />
+                        {t('chat.actions.deleteAllSessions')}
+                    </button>
+                </div>
             </div>
 
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0 bg-transparent relative">
                 {/* Header */}
-                <div className="flex-none h-16 border-b border-primary-200/50 dark:border-primary-800/40 flex items-center justify-between px-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl sticky top-0 z-10">
+                <div className="flex-none h-16 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl sticky top-0 z-10">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -815,10 +1033,10 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         </button>
 
                         <div>
-                            <h2 className="text-xl font-bold bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent dark:from-primary-400 dark:to-primary-300 flex items-center gap-2">
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 tracking-tight">
                                 <span className="hidden sm:inline">{t('chat.header.title')}</span>
                                 {evermemEnabled && (
-                                    <span className="px-2 py-0.5 text-[10px] font-bold bg-gradient-to-r from-primary-100 to-primary-200 text-primary-700 dark:from-primary-900/40 dark:to-primary-800/40 dark:text-primary-300 rounded-full flex items-center gap-1 border border-primary-200/60 dark:border-primary-700/50">
+                                    <span className="px-2 py-0.5 text-[10px] font-bold bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 rounded-full flex items-center gap-1 border border-primary-200/70 dark:border-primary-700/50">
                                         <Brain size={10} className="animate-pulse" />
                                         {t('chat.header.longTermMemoryEnabled')}
                                     </span>
@@ -916,24 +1134,23 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 )}
 
                 {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar scroll-smooth">
+                <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar scroll-smooth bg-slate-50/60 dark:bg-slate-900/30">
                     {messages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center">
-                            {/* Decorative gradient orb */}
                             <div className="relative mb-8">
-                                <div className="absolute -inset-6 bg-gradient-to-br from-primary-400/20 to-primary-300/10 dark:from-primary-600/10 dark:to-primary-500/5 rounded-full blur-2xl" />
+                                <div className="absolute -inset-6 bg-gradient-to-br from-primary-100/45 to-slate-200/30 dark:from-primary-900/20 dark:to-slate-800/20 rounded-full blur-2xl" />
                                 <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 dark:from-primary-500 dark:to-primary-700 flex items-center justify-center shadow-lg shadow-primary-500/30">
                                     <Sparkles size={36} className="text-white drop-shadow-sm" />
                                 </div>
                             </div>
-                            <p className="text-lg font-bold bg-gradient-to-r from-primary-700 to-primary-500 bg-clip-text text-transparent dark:from-primary-300 dark:to-primary-400 mb-1">{t('chat.empty.title')}</p>
-                            <p className="text-sm text-slate-400 dark:text-slate-500">{t('chat.empty.subtitle')}</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-white mb-1 tracking-tight">{t('chat.empty.title')}</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">{t('chat.empty.subtitle')}</p>
                             {evermemEnabled && (
-                                <div className="mt-6 px-6 py-5 bg-gradient-to-br from-primary-50 to-primary-100/60 dark:from-primary-900/30 dark:to-slate-800/40 rounded-2xl border border-primary-200/80 dark:border-primary-700/50 text-center max-w-sm shadow-md shadow-primary-500/10">
+                                <div className="mt-6 px-6 py-5 bg-white dark:bg-slate-850/70 rounded-2xl border border-slate-200 dark:border-slate-800/80 text-center max-w-sm shadow-sm shadow-slate-300/15 dark:shadow-slate-950/30">
                                     <p className="text-sm text-primary-600 dark:text-primary-400 flex items-center justify-center gap-1.5 font-bold mb-1">
                                         <Brain size={16} /> {t('chat.empty.memoryTitle')}
                                     </p>
-                                    <p className="text-xs text-primary-500/80 dark:text-primary-400/70">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-6">
                                         {t('chat.empty.memoryDesc')}
                                     </p>
                                 </div>
@@ -953,12 +1170,31 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             )}
 
                             <div className={`flex flex-col gap-1.5 max-w-[85%] md:max-w-[75%]`}>
-                                <div className={`rounded-2xl px-5 py-3.5 shadow-sm text-[16.5px] leading-[1.7] whitespace-pre-wrap relative
+                                <div className={`rounded-2xl px-5 py-3.5 shadow-sm text-[16.5px] leading-[1.75] whitespace-pre-wrap relative
                                     ${msg.role === 'user'
-                                        ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-tr-sm shadow-md shadow-primary-500/30'
-                                        : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-md text-slate-800 dark:text-slate-200 rounded-tl-sm border border-primary-100 dark:border-primary-800/40 shadow-sm'
+                                        ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-tr-sm shadow-md shadow-primary-500/25'
+                                        : 'bg-white dark:bg-slate-800/94 text-slate-800 dark:text-slate-200 rounded-tl-sm border border-slate-200 dark:border-slate-700/70 shadow-sm shadow-slate-300/10 dark:shadow-slate-950/20'
                                     }`}
                                 >
+                                    {msg.attachments && msg.attachments.length > 0 && (
+                                        <div className={`mb-3 grid gap-2 ${msg.attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                                            {msg.attachments.map(attachment => (
+                                                <div
+                                                    key={attachment.id}
+                                                    className={`overflow-hidden rounded-2xl border ${msg.role === 'user'
+                                                        ? 'border-white/20 bg-white/10'
+                                                        : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/60'
+                                                        }`}
+                                                >
+                                                    <img
+                                                        src={attachment.dataUrl}
+                                                        alt={attachment.name}
+                                                        className="block max-h-64 w-full object-cover"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     {msg.content || (msg.reasoningContent && msg.reasoningContent.trim()) ? (
                                         <div className="space-y-2">
                                             {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
@@ -1044,13 +1280,79 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 </div>
 
                 {/* Input Area */}
-                <div className="flex-none p-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border-t border-primary-200/40 dark:border-primary-800/30">
-                    <div className="max-w-4xl mx-auto flex gap-3 items-end bg-white dark:bg-slate-800 rounded-2xl shadow-md shadow-primary-500/5 border border-primary-100 dark:border-slate-700 p-2 relative focus-within:ring-2 focus-within:ring-primary-400/30 focus-within:border-primary-400/60 transition-all cursor-text" onClick={() => inputRef.current?.focus()}>
+                <div className="flex-none p-4 bg-white/92 dark:bg-slate-900/88 backdrop-blur-xl border-t border-slate-200 dark:border-slate-700/70">
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleImageSelect}
+                    />
+                    <div
+                        className={`max-w-4xl mx-auto bg-white dark:bg-slate-800 rounded-2xl shadow-sm shadow-slate-300/15 dark:shadow-slate-950/20 border p-2 relative focus-within:ring-2 focus-within:ring-primary-400/25 focus-within:border-primary-300/70 transition-all cursor-text ${isDragOverComposer ? 'border-primary-300 bg-primary-50/40 dark:border-primary-700 dark:bg-primary-900/10' : 'border-slate-200 dark:border-slate-700'}`}
+                        onClick={() => inputRef.current?.focus()}
+                        onDragOver={(event) => {
+                            event.preventDefault()
+                            setIsDragOverComposer(true)
+                        }}
+                        onDragEnter={(event) => {
+                            event.preventDefault()
+                            setIsDragOverComposer(true)
+                        }}
+                        onDragLeave={(event) => {
+                            if (event.currentTarget.contains(event.relatedTarget as Node)) return
+                            setIsDragOverComposer(false)
+                        }}
+                        onDrop={handleComposerDrop}
+                    >
+                        {pendingImages.length > 0 && (
+                            <div className="px-2 pt-2 pb-1">
+                                <div className="flex flex-wrap gap-2">
+                                    {pendingImages.map(attachment => (
+                                        <div
+                                            key={attachment.id}
+                                            className="group relative w-20 h-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                                        >
+                                            <img
+                                                src={attachment.dataUrl}
+                                                alt={attachment.name}
+                                                className="h-full w-full object-cover"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    removePendingImage(attachment.id)
+                                                }}
+                                                className="absolute top-1 right-1 rounded-full bg-slate-900/65 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                                title={t('chat.attachments.removeImage')}
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex gap-3 items-end">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    fileInputRef.current?.click()
+                                }}
+                                className="mb-0.5 ml-0.5 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300"
+                                title={t('chat.attachments.attachImage')}
+                            >
+                                <Paperclip size={18} />
+                            </button>
                         <textarea
                             ref={inputRef}
                             autoFocus
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
+                            onPaste={handleComposerPaste}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault()
@@ -1063,14 +1365,16 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                         />
                         <button
                             onClick={handleSend}
-                            disabled={!input.trim() || loading || !activeSessionId || !isInitialized}
+                            disabled={(!input.trim() && pendingImages.length === 0) || loading || !activeSessionId || !isInitialized}
                             className="p-3.5 mb-0.5 mr-0.5 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 active:from-primary-700 active:to-primary-800 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all flex-shrink-0 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/40 hover:scale-105 active:scale-95"
                         >
                             {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={18} className="translate-x-[1px] -translate-y-[1px]" />}
                         </button>
+                        </div>
                     </div>
                     <div className="text-center mt-2.5">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                            {t('chat.attachments.hint')} <span className="opacity-60">•</span>{' '}
                             {t('chat.disclaimer')}
                         </span>
                     </div>

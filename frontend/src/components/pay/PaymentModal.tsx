@@ -19,27 +19,33 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     const { user, checkAuth } = useAuth();
 
     useEffect(() => {
-        if (isOpen && user) {
+        if (isOpen && user && !qrCode && !outTradeNo) {
             initPayment();
+        } else if (!isOpen) {
+            setQrCode('');
+            setOutTradeNo('');
+            setStatus('pending');
         }
-    }, [isOpen]);
+    }, [isOpen, user, qrCode, outTradeNo]);
 
-    // Simple Polling Mock 
-    // In real app, you'd poll backend /api/order/{outTradeNo} 
-    // Here we just re-check user profile every 3s to see if 'tier' changed (since cloud server updates user tier on success)
     useEffect(() => {
         let interval: any;
         if (isOpen && status === 'pending' && outTradeNo) {
             interval = setInterval(async () => {
-                await checkAuth();
-                if (user?.tier === 'premium') {
-                    setStatus('success');
-                    clearInterval(interval);
+                try {
+                    const order = await payService.getOrderStatus(outTradeNo);
+                    if (order.status === 'SUCCESS') {
+                        await checkAuth();
+                        setStatus('success');
+                        clearInterval(interval);
+                    }
+                } catch (error) {
+                    console.error('Failed to poll order status', error);
                 }
             }, 3000);
         }
         return () => clearInterval(interval);
-    }, [isOpen, status, outTradeNo, user]);
+    }, [isOpen, status, outTradeNo, checkAuth]);
 
     const initPayment = async () => {
         setLoading(true);
@@ -68,8 +74,8 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                         <X className="w-5 h-5" />
                     </button>
 
-                    <h3 className="text-xl font-bold mb-2">Upgrade to Pro</h3>
-                    <p className="text-zinc-500 mb-6">Scan with WeChat to Pay</p>
+                    <h3 className="text-xl font-bold mb-2">Upgrade to Premium</h3>
+                    <p className="text-zinc-500 mb-6">Scan with Alipay to pay</p>
 
                     <div className="flex flex-col items-center justify-center min-h-[250px] bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4">
                         {loading ? (

@@ -24,6 +24,7 @@ class UserResponse(UserBase):
     id: str
     is_active: bool
     tier: str
+    license_expiry: Optional[datetime] = None
     created_at: datetime
     
     class Config:
@@ -38,6 +39,18 @@ class PayResponse(BaseModel):
     code_url: str
     out_trade_no: str
 
+
+class OrderStatusResponse(BaseModel):
+    out_trade_no: str
+    status: str
+    amount_fen: int
+    description: str
+    trade_no: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 
 class MockPaySuccessRequest(BaseModel):
     out_trade_no: str

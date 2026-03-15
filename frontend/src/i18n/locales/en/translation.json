@@ -213,7 +213,8 @@
   "chat": {
     "session": {
       "newChat": "New Chat",
-      "migratedChat": "Migrated Chat"
+      "migratedChat": "Migrated Chat",
+      "imageChat": "Image Chat"
     },
     "actions": {
       "rename": "Rename",
@@ -224,7 +225,15 @@
       "newChatTitle": "Start a new chat",
       "moreOptions": "More options",
       "clearCurrentMessages": "Clear current messages",
-      "deleteSessionRecord": "Delete chat session"
+      "deleteSessionRecord": "Delete chat session",
+      "deleteAllSessions": "Delete all chats"
+    },
+    "sidebar": {
+      "title": "Recent chats",
+      "count": "{{count}} chats",
+      "emptySession": "No messages yet",
+      "imageMessage": "{{count}} image(s)",
+      "yesterday": "Yesterday"
     },
     "header": {
       "title": "AI Partner",
@@ -233,7 +242,8 @@
     },
     "confirm": {
       "deleteSession": "Are you sure you want to delete this chat session?",
-      "clearSession": "Are you sure you want to clear all messages in this chat? Context memory will be reset."
+      "clearSession": "Are you sure you want to clear all messages in this chat? Context memory will be reset.",
+      "clearAllSessions": "Are you sure you want to delete all chat sessions? This cannot be undone."
     },
     "empty": {
       "title": "Start practicing English with AI!",
@@ -260,6 +270,16 @@
     },
     "input": {
       "placeholder": "Type a message (Enter to send, Shift+Enter for newline)..."
+    },
+    "attachments": {
+      "onlyImages": "Only image files are supported here.",
+      "maxImages": "You can attach up to {{count}} images.",
+      "firstImagesOnly": "Only the first {{count}} image(s) were added.",
+      "fileTooLarge": "{{name}} is larger than 8 MB.",
+      "loadFailed": "Failed to load image. Please try another file.",
+      "removeImage": "Remove image",
+      "attachImage": "Attach image",
+      "hint": "Paste or drag images into the composer"
     },
     "errors": {
       "api": "API Error: {{message}}",

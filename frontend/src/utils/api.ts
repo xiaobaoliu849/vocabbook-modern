@@ -5,6 +5,7 @@
 
 // API 基础 URL - 支持环境变量覆盖
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+export const CLOUD_API_BASE_URL = import.meta.env.VITE_CLOUD_API_URL || 'http://localhost:8001'
 const CLIENT_ID_STORAGE_KEY = 'vocabbook_client_id'
 
 export function getClientId(): string {
@@ -218,8 +219,9 @@ export const API_PATHS = {
     IMPORT_WORDS: '/api/import/words',
 
     // Cloud Auth & Pay (Note: points to cloud server port 8001 by default unless configured)
-    CLOUD_LOGIN: 'http://localhost:8001/token',
-    CLOUD_REGISTER: 'http://localhost:8001/register',
-    CLOUD_ME: 'http://localhost:8001/users/me',
-    CLOUD_PAY_PRECREATE: 'http://localhost:8001/api/pay/alipay/precreate'
+    CLOUD_LOGIN: `${CLOUD_API_BASE_URL}/token`,
+    CLOUD_REGISTER: `${CLOUD_API_BASE_URL}/register`,
+    CLOUD_ME: `${CLOUD_API_BASE_URL}/users/me`,
+    CLOUD_PAY_PRECREATE: `${CLOUD_API_BASE_URL}/api/pay/native`,
+    CLOUD_ORDER_STATUS: (outTradeNo: string) => `${CLOUD_API_BASE_URL}/api/orders/${encodeURIComponent(outTradeNo)}`,
 } as const

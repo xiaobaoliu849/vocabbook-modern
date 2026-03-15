@@ -59,7 +59,17 @@ export const payService = {
     createNativeOrder: async (amountFen = 2900, description = "VocabBook Pro") => {
         const response = await api.post('/api/pay/native', { amount_fen: amountFen, description });
         return response.data; // { code_url, out_trade_no }
-    }
+    },
+
+    getOrderStatus: async (outTradeNo: string) => {
+        const response = await api.get(`/api/orders/${encodeURIComponent(outTradeNo)}`);
+        return response.data;
+    },
+
+    mockSuccess: async (outTradeNo: string) => {
+        const response = await api.post('/api/pay/mock_success', { out_trade_no: outTradeNo });
+        return response.data;
+    },
 };
 
 export default api;
