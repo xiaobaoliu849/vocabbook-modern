@@ -1,19 +1,20 @@
 # VocabBook Modern
 
-An AI-powered vocabulary learning app for serious English learners, built with React, FastAPI, Electron, and cloud memory integration.
+A small AI-powered vocabulary learning project built with React, FastAPI, Electron, and EverMem integration.
 
 ## Overview
 
-VocabBook Modern is designed to solve a practical learning problem: most vocabulary apps are good at storing words, but weak at helping users actually remember, review, and reuse them in context.
+VocabBook Modern is a smart vocab book for English learning.
 
-This project combines:
+The idea is simple:
 
-- structured spaced repetition for real retention
-- AI-powered explanation, translation, and conversation practice
-- long-term memory for more personalized learning
-- desktop-first usability with a clean, focused interface
+- search a word quickly
+- see multiple dictionary results at the same time
+- review difficult words with spaced repetition
+- chat with an AI partner
+- connect EverMem so the assistant can remember useful facts across sessions
 
-The result is a learning tool that feels closer to a personal AI language partner than a static flashcard app.
+It is a small project, but it already includes a deployed cloud API and a working long-memory flow.
 
 ## Core Features
 
@@ -67,34 +68,31 @@ The result is a learning tool that feels closer to a personal AI language partne
 
 ## Highlights
 
-### 1. Hybrid Learning Architecture
+### 1. Practical Learning Workflow
 
-This project does not rely on a single memory system.
+- Search a word
+- Read multiple dictionary results
+- Save it
+- Review it later
+- Use AI chat to practice
+- Use long memory when relevant
 
-- Structured learning state stays in the local database
-- Cloud auth and subscription state live in the cloud server
-- Long-term conversational memory is handled through EverMem
-
-This separation is important because it keeps critical review logic stable while still enabling richer AI memory features.
-
-### 2. From Prototype to Deployable Product
-
-This is not just a local demo.
+### 2. From Prototype to Deployed Demo
 
 - Cloud server is deployed on Alibaba Cloud
 - Domain-based access is live through `https://api.historyai.fun`
 - The app can authenticate against the remote cloud API
-- Premium-tier architecture is already integrated into the product flow
+- Premium-tier architecture is already connected to the product flow
 
-### 3. Practical AI UX
+### 3. Useful AI Features
 
-Instead of adding AI as decoration, the app uses AI where it actually helps:
+The app uses AI in a few practical places:
 
 - sentence generation
 - translation
 - memory reinforcement
 - conversation practice
-- personalized recall
+- memory-based recall
 
 ### 4. Multi-Modal AI Partner
 
@@ -107,7 +105,7 @@ The AI Partner supports:
 
 This makes the assistant useful for real study scenarios, such as asking about screenshots, notes, or learning materials.
 
-### 5. Real Engineering Iteration
+### 5. Real Deployment Work
 
 The current version includes:
 
@@ -117,7 +115,7 @@ The current version includes:
 - front-end and back-end integration fixes
 - memory-system validation and fallback design decisions
 
-This means the project is not only feature-rich, but also engineered with real deployment constraints in mind.
+So even though this is a small project, it is not only local. It has already been connected to a real deployed backend.
 
 ## Tech Stack
 
@@ -216,29 +214,30 @@ If you are recording a demo video, the most valuable flow is:
 
 ## Demo Talking Points
 
-Use these points as natural prompts instead of reading a full script:
+Use these points as natural prompts instead of reading a polished script:
 
-- What problem this project solves for language learners
-- Why storing words is not enough without retention and review
-- How the app combines vocabulary management, SM-2 review, AI assistance, and long-term memory
-- What makes AI Partner more useful than a normal chatbot
-- How image input works in the chat workflow
-- Why the deployed cloud API matters for authentication and premium membership
-- Why this project is closer to a real product than a local prototype
+- This is a small smart vocab book project
+- You can search a word and get multiple dictionary results at the same time
+- You can save words and review them later
+- You can chat with an AI partner
+- EverMem is integrated for long memory
+- You can ask something like "What is my favorite fruit?"
+- If the memory is retrieved correctly, the assistant can answer with the saved fact
+- The cloud API is already deployed and connected
 
 ## Short English Pitch
 
-If you still want a short English version, keep it simple:
+If you want a very simple English introduction, use this:
 
-> Hi, this is VocabBook Modern, an AI-powered vocabulary learning app for serious English learners.
+> Hi everyone, this is a small project called VocabBook Modern.
 >
-> The goal is not only to collect words, but to help users remember and use them through review, AI assistance, and long-term memory.
+> It is a smart vocab book for English learning.
 >
-> The app combines vocabulary management, spaced repetition, AI chat, translation, and a memory-enabled AI Partner.
+> You can search a word, get multiple dictionary results, review words later, and chat with an AI partner.
 >
-> It also connects to a deployed cloud API for authentication and premium membership.
+> I also integrated EverMem, so the assistant can use long memory across sessions.
 >
-> In short, this is designed as a real AI learning product, not just a flashcard app with a chatbot attached.
+> For example, if I tell it that my favorite fruit is mango, I can ask again later and it can remember that fact.
 
 ## Why This Project Stands Out
 
