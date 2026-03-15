@@ -6,6 +6,7 @@ AI 增强功能服务
 import os
 import json
 import re
+import datetime
 from typing import List, Dict, Optional, Tuple
 import httpx
 from services.evermem_service import EverMemService
@@ -60,6 +61,40 @@ class AIService:
         "助理",
         "助手",
     )
+    _RECALL_STOPWORDS = {
+        "what",
+        "did",
+        "tell",
+        "you",
+        "about",
+        "that",
+        "remember",
+        "remembered",
+        "earlier",
+        "before",
+        "when",
+        "talked",
+        "talking",
+        "issue",
+        "issues",
+        "only",
+        "mentioned",
+        "mention",
+        "said",
+        "saying",
+        "recall",
+        "recalled",
+        "conversation",
+        "conversations",
+        "chat",
+        "chats",
+        "march",
+        "last",
+        "time",
+        "previous",
+        "history",
+        "records",
+    }
     
     def __init__(self, provider: str = None, api_key: str = None, model: str = None, api_base: str = None,
                  evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None,
@@ -446,7 +481,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 terms.update(expansions)
 
         for token in re.findall(r"[a-z0-9\.]{3,}", msg):
-            if token in {"what", "did", "tell", "you", "about", "that", "remember", "earlier", "before", "when", "talked", "issue", "only"}:
+            if token in AIService._RECALL_STOPWORDS:
                 continue
             terms.add(token)
 
@@ -508,9 +543,10 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 return (0, -score)
 
             priority = {
-                "recent_memory": 0,
-                "episodic_memory": 1,
-                "history": 1,
+                "event_log": 0,
+                "recent_memory": 1,
+                "episodic_memory": 2,
+                "history": 2,
                 "foresight": 2,
                 "profile": 3,
             }.get(memory_type, 2)
@@ -566,11 +602,79 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return False
         return any(pattern in msg for pattern in self._RECALL_HINT_PATTERNS)
 
-    async def _retrieve_relevant_memories(self, user_msg: str) -> List[Dict]:
+    def _build_memory_group_ids(self, session_id: Optional[str], recall_request: bool) -> Optional[List[str]]:
+        if not session_id:
+            return None
+        if recall_request:
+            return [session_id]
+        return [session_id]
+
+    @staticmethod
+    def _rank_recall_memories(memories: List[Dict]) -> List[Dict]:
+        def sort_key(item: Dict) -> tuple[int, int, float]:
+            memory_type = str(item.get("type", ""))
+            priority = {
+                "event_log": 0,
+                "episodic_memory": 1,
+                "history": 1,
+                "recent_memory": 2,
+                "foresight": 3,
+                "profile": 4,
+            }.get(memory_type, 3)
+            term_matches = int(item.get("term_matches", 0))
+            score = float(item.get("score", 0.0))
+            return (priority, -term_matches, -score)
+
+        return sorted(memories, key=sort_key)
+
+    def _finalize_recall_memories(self, memories: List[Dict], user_msg: str) -> List[Dict]:
+        deduped: List[Dict] = []
+        seen = set()
+        for memory in memories:
+            content = str(memory.get("content", "")).strip()
+            normalized_content = self._normalize_memory_content(content)
+            if not normalized_content or normalized_content in seen:
+                continue
+            seen.add(normalized_content)
+            enriched = dict(memory)
+            enriched["term_matches"] = self._count_recall_term_matches(content, user_msg)
+            deduped.append(enriched)
+
+        non_profile_memories = [memory for memory in deduped if str(memory.get("type", "")) != "profile"]
+        if non_profile_memories:
+            deduped = non_profile_memories
+
+        strongly_matching = [memory for memory in deduped if int(memory.get("term_matches", 0)) >= 1]
+        if strongly_matching:
+            deduped = strongly_matching
+        elif deduped:
+            return []
+
+        user_like_memories = [
+            memory for memory in deduped
+            if not self._looks_like_assistant_summary(str(memory.get("content", "")))
+        ]
+        if user_like_memories:
+            deduped = user_like_memories
+
+        return self._rank_recall_memories(deduped)
+
+    def _score_event_log_memory(self, content: str, user_msg: str, timestamp: Optional[str] = None) -> float:
+        score = 2.0 + self._count_recall_term_matches(content, user_msg) * 1.5
+        if timestamp:
+            try:
+                parsed = datetime.datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+                age_days = max(0.0, (datetime.datetime.now(datetime.timezone.utc) - parsed).total_seconds() / 86400)
+                score += max(0.0, 1.0 - min(age_days, 30.0) / 30.0)
+            except Exception:
+                pass
+        return score
+
+    async def _retrieve_relevant_memories(self, user_msg: str, session_id: Optional[str] = None) -> List[Dict]:
         """
         Retrieve semantic memories for the current turn.
-        For explicit recall questions, run focused multi-query semantic search
-        against EverMem and keep only strongly matching, non-generic memories.
+        For explicit recall questions, combine episodic search with event-log
+        retrieval so factual recall stays grounded in specific user messages.
         """
         if not self.evermem_service or not user_msg or self._should_skip_memory(user_msg):
             return []
@@ -579,17 +683,85 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         min_score = 0.15 if recall_request else 0.3
         collected: List[Dict] = []
         queries = self._build_recall_search_queries(user_msg) if recall_request else [user_msg]
+        raw_collected_count = 0
+        scope_candidates: List[Optional[List[str]]] = []
+        primary_group_ids = self._build_memory_group_ids(session_id, recall_request)
+        if primary_group_ids:
+            scope_candidates.append(primary_group_ids)
+        if recall_request or not primary_group_ids:
+            scope_candidates.append(None)
 
-        for query in queries:
-            try:
-                search_min_score = 0.05 if recall_request and query != user_msg else min_score
-                collected.extend(await self.evermem_service.search_memories(
-                    query=query,
-                    user_id=self.evermem_user_id,
-                    min_score=search_min_score
-                ))
-            except Exception as e:
-                print(f"[EverMem] Failed to retrieve memories for query '{query}': {e}")
+        debug_parts: List[str] = []
+
+        for group_ids in scope_candidates:
+            scoped_collected: List[Dict] = []
+            scoped_raw_count = 0
+
+            for query in queries:
+                try:
+                    search_min_score = 0.05 if recall_request and query != user_msg else min_score
+                    found = await self.evermem_service.search_memories(
+                        query=query,
+                        user_id=self.evermem_user_id,
+                        min_score=search_min_score,
+                        group_ids=group_ids,
+                        memory_types=["episodic_memory"],
+                        retrieve_method="rrf" if recall_request else "hybrid",
+                        top_k=8,
+                    )
+                    scoped_raw_count += len(found)
+                    scoped_collected.extend(found)
+                except Exception as e:
+                    print(f"[EverMem] Failed to retrieve memories for query '{query}': {e}")
+
+            if recall_request:
+                try:
+                    event_logs = await self.evermem_service.get_memories(
+                        user_id=self.evermem_user_id,
+                        group_ids=group_ids,
+                        memory_type="event_log",
+                        page_size=100,
+                    )
+                    scoped_raw_count += len(event_logs)
+                    for event in event_logs:
+                        content = str(event.get("content", "")).strip()
+                        if not content:
+                            continue
+                        role = str(event.get("role", "")).lower()
+                        sender_name = str(event.get("sender_name", "")).lower()
+                        if role == "assistant" or "assistant" in sender_name:
+                            continue
+                        if self._count_recall_term_matches(content, user_msg) < 1:
+                            continue
+                        scoped_collected.append({
+                            "content": f"[事件记录] {content}",
+                            "type": "event_log",
+                            "score": self._score_event_log_memory(content, user_msg, event.get("timestamp")),
+                            "group_id": event.get("group_id"),
+                            "timestamp": event.get("timestamp"),
+                        })
+                except Exception as e:
+                    print(f"[EverMem] Failed to retrieve event logs: {e}")
+
+            raw_collected_count += scoped_raw_count
+
+            if recall_request:
+                finalized = self._finalize_recall_memories(scoped_collected, user_msg)
+                debug_parts.append(
+                    f"scope={group_ids or 'ALL'} raw={scoped_raw_count} deduped={len(finalized)} "
+                    f"results={self._summarize_memories_for_log(finalized)}"
+                )
+                if finalized:
+                    print(
+                        f"[EverMem Recall Debug] queries={queries} scopes={debug_parts}"
+                    )
+                    return finalized
+            else:
+                collected.extend(scoped_collected)
+
+        if recall_request:
+            print(f"[EverMem Recall Debug] queries={queries} scopes={debug_parts}")
+            return []
 
         deduped: List[Dict] = []
         seen = set()
@@ -600,23 +772,6 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 continue
             seen.add(normalized_content)
             deduped.append(memory)
-
-        if recall_request:
-            non_profile_memories = [memory for memory in deduped if str(memory.get("type", "")) != "profile"]
-            if non_profile_memories:
-                deduped = non_profile_memories
-            strongly_matching = [
-                memory for memory in deduped
-                if self._count_recall_term_matches(str(memory.get("content", "")), user_msg) >= 1
-            ]
-            if strongly_matching:
-                deduped = strongly_matching
-            user_like_memories = [
-                memory for memory in deduped
-                if not self._looks_like_assistant_summary(str(memory.get("content", "")))
-            ]
-            if user_like_memories:
-                deduped = user_like_memories
 
         return deduped
 
@@ -659,13 +814,16 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     content=last_user_msg,
                     user_id=self.evermem_user_id,
                     sender=self.evermem_user_id,
-                    sender_name="User"
+                    sender_name="User",
+                    group_id=session_id,
+                    group_name=session_id,
+                    role="user",
                 )
                 memory_saved = save_result is not None
 
                 # Step 2: Retrieve context (skip only for trivial messages)
                 if not self._should_skip_memory(last_user_msg):
-                    memories = await self._retrieve_relevant_memories(last_user_msg)
+                    memories = await self._retrieve_relevant_memories(last_user_msg, session_id=session_id)
                     if memories:
                         memories_retrieved = len(memories)
                         memory_context = self._format_memory_context(
@@ -681,7 +839,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                             if self._is_memory_recall_request(last_user_msg):
                                 system_prompt += (
                                     "\n如果用户正在询问你记得什么、之前聊过什么，"
-                                    "请优先总结最近几条具体事实，必要时直接列点回答；"
+                                    "请优先总结精确的历史事实，必要时直接列点回答；"
                                     "不要先讲泛化画像，也不要泛泛地说你没有记录，"
                                     "除非上面的长期记忆确实为空。"
                                 )
@@ -747,13 +905,16 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     content=last_user_msg,
                     user_id=self.evermem_user_id,
                     sender=self.evermem_user_id,
-                    sender_name="User"
+                    sender_name="User",
+                    group_id=session_id,
+                    group_name=session_id,
+                    role="user",
                 )
                 memory_saved = save_result is not None
 
                 # Step 2: Retrieve context
                 if not self._should_skip_memory(last_user_msg):
-                    memories = await self._retrieve_relevant_memories(last_user_msg)
+                    memories = await self._retrieve_relevant_memories(last_user_msg, session_id=session_id)
                     if memories:
                         memories_retrieved = len(memories)
                         memory_context = self._format_memory_context(
@@ -769,7 +930,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                             if self._is_memory_recall_request(last_user_msg):
                                 system_prompt += (
                                     "\n如果用户正在询问你记得什么、之前聊过什么，"
-                                    "请优先总结最近几条具体事实，必要时直接列点回答；"
+                                    "请优先总结精确的历史事实，必要时直接列点回答；"
                                     "不要先讲泛化画像，也不要泛泛地说你没有记录，"
                                     "除非上面的长期记忆确实为空。"
                                 )

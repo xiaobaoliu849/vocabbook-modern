@@ -24,9 +24,18 @@ class EverMemService:
         else:
             self.client = None
 
-    async def add_memory(self, content: str, user_id: str = "user_001",
-                         sender: str = None, sender_name: str = "User",
-                         flush: bool = False) -> Optional[Dict]:
+    async def add_memory(
+        self,
+        content: str,
+        user_id: str = "user_001",
+        sender: str = None,
+        sender_name: str = "User",
+        flush: bool = False,
+        group_id: str = None,
+        group_name: str = None,
+        role: str = "user",
+        refer_list: Optional[List[str]] = None,
+    ) -> Optional[Dict]:
         """
         Add a memory to EverMemOS (v0 API).
         
@@ -52,6 +61,10 @@ class EverMemService:
                 sender=actual_sender,
                 sender_name=sender_name,
                 content=content,
+                group_id=group_id,
+                group_name=group_name,
+                role=role,
+                refer_list=refer_list,
                 flush=flush
             )
 
@@ -62,8 +75,18 @@ class EverMemService:
             logger.error(f"Failed to add memory to EverMemOS: {e}")
             return None
 
-    async def search_memories(self, query: str, user_id: str = "user_001",
-                               min_score: float = 0.3) -> List[Dict]:
+    async def search_memories(
+        self,
+        query: str,
+        user_id: str = "user_001",
+        min_score: float = 0.3,
+        group_ids: Optional[List[str]] = None,
+        memory_types: Optional[List[str]] = None,
+        retrieve_method: str = "keyword",
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        top_k: int = 10,
+    ) -> List[Dict]:
         """
         Search for relevant memories in EverMemOS (v0 API).
         Uses direct REST call instead of SDK to avoid parameter validation
@@ -81,9 +104,17 @@ class EverMemService:
         params = {
             "user_id": user_id,
             "query": query,
-            "retrieve_method": "hybrid",
-            "top_k": 5,
+            "retrieve_method": retrieve_method,
+            "top_k": top_k,
         }
+        if group_ids:
+            params["group_ids"] = group_ids
+        if memory_types:
+            params["memory_types"] = memory_types
+        if start_time:
+            params["start_time"] = start_time
+        if end_time:
+            params["end_time"] = end_time
 
         def sync_search():
             return httpx.get(search_url, headers=headers, params=params, timeout=30.0)
@@ -111,7 +142,8 @@ class EverMemService:
                     extracted_memories.append({
                         "content": f"[用户画像] {desc}",
                         "type": "profile",
-                        "score": profile.get("score", 1.0)
+                        "score": profile.get("score", 1.0),
+                        "group_id": profile.get("group_id"),
                     })
 
             # Extract episodic memories with score filtering
@@ -130,7 +162,9 @@ class EverMemService:
                     extracted_memories.append({
                         "content": f"[{type_label}] {content}",
                         "type": mem_type,
-                        "score": score
+                        "score": score,
+                        "group_id": mem.get("group_id"),
+                        "timestamp": mem.get("timestamp"),
                     })
 
             return extracted_memories
@@ -138,36 +172,65 @@ class EverMemService:
             logger.error(f"Failed to search memories in EverMemOS: {e}")
             return []
 
-    async def get_memories(self, user_id: str = "user_001") -> List[Dict]:
+    async def get_memories(
+        self,
+        user_id: str = "user_001",
+        group_ids: Optional[List[str]] = None,
+        memory_type: str = "episodic_memory",
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        page_size: int = 100,
+    ) -> List[Dict]:
         """
         Get all core memories for a user (v0 API).
-        Uses key-value approach for fast access to user's fixed memory set.
+        Uses direct REST calls so group_ids and memory_type parameters match
+        the documented cloud API exactly.
         """
-        if not self.client:
+        if not self.api_key:
             logger.error("EverMemService: Missing API key. Cannot get memories.")
             return []
 
+        import httpx
+
+        get_url = f"{self.api_url}/api/v0/memories"
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        params = {
+                "user_id": user_id,
+                "group_ids": group_ids,
+                "memory_type": memory_type,
+                "start_time": start_time,
+                "end_time": end_time,
+                "page_size": page_size,
+        }
+        params = {key: value for key, value in params.items() if value is not None}
+
         def sync_get():
-            return self.client.get(
-                extra_query={
-                    "user_id": user_id,
-                    "memory_type": "episodic_memory"
-                }
-            )
+            return httpx.get(get_url, headers=headers, params=params, timeout=30.0)
 
         try:
             resp = await asyncio.to_thread(sync_get)
-            result = resp.result if resp else None
-            
+            if resp.status_code != 200:
+                logger.error(f"EverMem get returned {resp.status_code}: {resp.text[:200]}")
+                return []
+
+            data = resp.json()
+            result = data.get("result", data) if isinstance(data, dict) else None
             if not result:
                 return []
-                
-            memories_list = result.memories if hasattr(result, 'memories') and result.memories else []
+
+            memories_list = result.get("memories", []) if isinstance(result, dict) else []
             extracted_memories = []
             for mem in memories_list:
-                content = getattr(mem, 'episode', None) or getattr(mem, 'summary', None) or getattr(mem, 'content', None)
+                content = mem.get("episode") or mem.get("summary") or mem.get("content") or mem.get("message")
                 if content:
-                    extracted_memories.append({"content": content})
+                    extracted_memories.append({
+                        "content": content,
+                        "type": mem.get("memory_type", memory_type),
+                        "group_id": mem.get("group_id"),
+                        "timestamp": mem.get("timestamp"),
+                        "role": mem.get("role"),
+                        "sender_name": mem.get("sender_name"),
+                    })
             return extracted_memories
         except Exception as e:
             logger.error(f"Failed to get memories from EverMemOS: {e}")

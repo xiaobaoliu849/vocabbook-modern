@@ -9,7 +9,18 @@ class DummyEverMemService:
         self.get_calls = []
         self.add_calls = []
 
-    async def add_memory(self, content: str, user_id: str, sender: str, sender_name: str, flush: bool = False):
+    async def add_memory(
+        self,
+        content: str,
+        user_id: str,
+        sender: str,
+        sender_name: str,
+        flush: bool = False,
+        group_id: str = None,
+        group_name: str = None,
+        role: str = "user",
+        refer_list=None,
+    ):
         self.add_calls.append(
             {
                 "content": content,
@@ -17,12 +28,42 @@ class DummyEverMemService:
                 "sender": sender,
                 "sender_name": sender_name,
                 "flush": flush,
+                "group_id": group_id,
+                "group_name": group_name,
+                "role": role,
             }
         )
         return {"status": "success"}
 
-    async def search_memories(self, query: str, user_id: str, min_score: float = 0.3):
-        self.search_calls.append({"query": query, "user_id": user_id, "min_score": min_score})
+    async def search_memories(
+        self,
+        query: str,
+        user_id: str,
+        min_score: float = 0.3,
+        group_ids=None,
+        memory_types=None,
+        retrieve_method: str = "keyword",
+        start_time=None,
+        end_time=None,
+        top_k: int = 10,
+    ):
+        self.search_calls.append({
+            "query": query,
+            "user_id": user_id,
+            "min_score": min_score,
+            "group_ids": group_ids,
+            "memory_types": memory_types,
+            "retrieve_method": retrieve_method,
+            "top_k": top_k,
+        })
+        if group_ids == ["session-1"]:
+            return [
+                {
+                    "content": "[历史对话] The user asked about today's weather.",
+                    "type": "episodic_memory",
+                    "score": 0.95,
+                }
+            ]
         lowered = query.lower()
         if "suancai" in lowered or "march 15" in lowered or "sausages" in lowered:
             return [
@@ -42,11 +83,13 @@ class DummyEverMemService:
             {"content": "[历史对话] User once said thank you.", "type": "episodic_memory", "score": 0.22},
         ]
 
-    async def get_memories(self, user_id: str = "user_001"):
-        self.get_calls.append({"user_id": user_id})
+    async def get_memories(self, user_id: str = "user_001", group_ids=None, memory_type: str = "episodic_memory", start_time=None, end_time=None, page_size: int = 100):
+        self.get_calls.append({"user_id": user_id, "group_ids": group_ids, "memory_type": memory_type, "page_size": page_size})
+        if group_ids == ["session-1"]:
+            return []
         return [
-            {"content": "On March 14, the user asked whether the assistant knew who they were."},
-            {"content": "The user mentioned suancai and sausages when talking about March 15."},
+            {"content": "On March 14, the user asked whether the assistant knew who they were.", "timestamp": "2026-03-14T18:01:00+00:00", "role": "user", "sender_name": "User"},
+            {"content": "The user mentioned suancai and sausages when talking about March 15.", "timestamp": "2026-03-15T01:00:00+00:00", "role": "user", "sender_name": "User"},
         ]
 
 
@@ -73,11 +116,21 @@ def test_recall_questions_fall_back_to_recent_memories():
     assert result["memory_saved"] is True
     assert result["memories_retrieved"] >= 1
     assert service.evermem_service.search_calls[0]["min_score"] == 0.15
-    assert service.evermem_service.get_calls == []
+    assert service.evermem_service.search_calls[0]["group_ids"] == ["session-1"]
+    assert service.evermem_service.search_calls[0]["retrieve_method"] == "rrf"
+    assert any(call["group_ids"] is None for call in service.evermem_service.search_calls)
+    assert service.evermem_service.get_calls == [
+        {"user_id": "cloud_demo", "group_ids": ["session-1"], "memory_type": "event_log", "page_size": 100},
+        {"user_id": "cloud_demo", "group_ids": None, "memory_type": "event_log", "page_size": 100},
+    ]
     assert any("suancai" in call["query"].lower() or "march 15" in call["query"].lower() for call in service.evermem_service.search_calls)
+    assert service.evermem_service.add_calls[0]["group_id"] == "session-1"
+    assert service.evermem_service.add_calls[0]["role"] == "user"
 
     system_prompt = captured["messages"][0]["content"]
     assert "User likes discussing hobbies" not in system_prompt
+    assert "today's weather" not in system_prompt
     assert "Assistant responded to a user inquiry" not in system_prompt
-    assert "suancai issue and ham sausage" in system_prompt
-    assert "请优先总结最近几条具体事实" in system_prompt
+    assert "suancai and sausages" in system_prompt
+    assert "[事件记录]" in system_prompt
+    assert "请优先总结精确的历史事实" in system_prompt
