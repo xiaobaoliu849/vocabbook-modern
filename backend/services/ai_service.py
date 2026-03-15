@@ -13,6 +13,30 @@ from services.evermem_service import EverMemService
 
 class AIService:
     """AI 服务封装，支持多 Provider 切换"""
+    _RECALL_HINT_PATTERNS = (
+        "remember",
+        "remind me",
+        "what did we talk",
+        "what did i tell",
+        "what do you remember",
+        "do you remember",
+        "previous chat",
+        "last time",
+        "earlier",
+        "before",
+        "mentioned before",
+        "还记得",
+        "记得我",
+        "记不记得",
+        "之前说",
+        "之前聊",
+        "上次说",
+        "上次聊",
+        "刚才说",
+        "前面说",
+        "我说过",
+        "我们聊过",
+    )
     
     def __init__(self, provider: str = None, api_key: str = None, model: str = None, api_base: str = None,
                  evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None,
@@ -424,6 +448,64 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return True
         return False
 
+    def _is_memory_recall_request(self, user_msg: str) -> bool:
+        """Detect prompts that explicitly ask the assistant to recall prior facts."""
+        msg = user_msg.strip().lower()
+        if not msg:
+            return False
+        return any(pattern in msg for pattern in self._RECALL_HINT_PATTERNS)
+
+    async def _retrieve_relevant_memories(self, user_msg: str) -> List[Dict]:
+        """
+        Retrieve semantic memories for the current turn.
+        For explicit recall questions, supplement semantic search with recent
+        episodic memories so prompts like "what did I tell you before" can still
+        surface concrete facts even when the query shares little vocabulary with
+        the original memory.
+        """
+        if not self.evermem_service or not user_msg or self._should_skip_memory(user_msg):
+            return []
+
+        recall_request = self._is_memory_recall_request(user_msg)
+        min_score = 0.15 if recall_request else 0.3
+        collected: List[Dict] = []
+
+        try:
+            collected = await self.evermem_service.search_memories(
+                query=user_msg,
+                user_id=self.evermem_user_id,
+                min_score=min_score
+            )
+        except Exception as e:
+            print(f"[EverMem] Failed to retrieve memories: {e}")
+            collected = []
+
+        if recall_request:
+            try:
+                recent_memories = await self.evermem_service.get_memories(user_id=self.evermem_user_id)
+                for index, memory in enumerate(reversed(recent_memories[-5:]), start=1):
+                    content = str(memory.get("content", "")).strip()
+                    if not content:
+                        continue
+                    collected.append({
+                        "content": f"[最近记忆] {content}",
+                        "type": "recent_memory",
+                        "score": max(0.05, 0.2 - index * 0.01),
+                    })
+            except Exception as e:
+                print(f"[EverMem] Failed to load recent memories: {e}")
+
+        deduped: List[Dict] = []
+        seen = set()
+        for memory in collected:
+            content = str(memory.get("content", "")).strip()
+            if not content or content in seen:
+                continue
+            seen.add(content)
+            deduped.append(memory)
+
+        return deduped
+
     async def chat(self, messages: List[Dict], context_word: str = "", session_id: str = None) -> Dict:
         """
         AI 对话练习 (optimized with EverMemOS official pattern)
@@ -469,24 +551,23 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
                 # Step 2: Retrieve context (skip only for trivial messages)
                 if not self._should_skip_memory(last_user_msg):
-                    try:
-                        memories = await self.evermem_service.search_memories(
-                            query=last_user_msg,
-                            user_id=self.evermem_user_id,
-                            min_score=0.3
-                        )
-                        if memories:
-                            memories_retrieved = len(memories)
-                            memory_context = self._format_memory_context(memories)
-                            if memory_context:
+                    memories = await self._retrieve_relevant_memories(last_user_msg)
+                    if memories:
+                        memories_retrieved = len(memories)
+                        memory_context = self._format_memory_context(memories)
+                        if memory_context:
+                            system_prompt += (
+                                "\n\n【与当前问题相关的长期记忆】\n"
+                                f"{memory_context}\n"
+                                "请先判断哪些记忆与当前问题最相关，再把最相关的内容自然融入回复。"
+                            )
+                            if self._is_memory_recall_request(last_user_msg):
                                 system_prompt += (
-                                    "\n\n【与当前问题相关的长期记忆】\n"
-                                    f"{memory_context}\n"
-                                    "请先判断哪些记忆与当前问题最相关，再把最相关的内容自然融入回复。"
+                                    "\n如果用户正在询问你记得什么、之前聊过什么，"
+                                    "请优先直接总结这些具体记忆，不要泛泛地说你没有记录，"
+                                    "除非上面的长期记忆确实为空。"
                                 )
-                            print(f"[EverMem] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
-                    except Exception as e:
-                        print(f"[EverMem] Failed to retrieve memories: {e}")
+                        print(f"[EverMem] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
                 else:
                     print(f"[EverMem] Skipped retrieval for trivial message: '{last_user_msg}'")
 
@@ -562,24 +643,23 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
                 # Step 2: Retrieve context
                 if not self._should_skip_memory(last_user_msg):
-                    try:
-                        memories = await self.evermem_service.search_memories(
-                            query=last_user_msg,
-                            user_id=self.evermem_user_id,
-                            min_score=0.3
-                        )
-                        if memories:
-                            memories_retrieved = len(memories)
-                            memory_context = self._format_memory_context(memories)
-                            if memory_context:
+                    memories = await self._retrieve_relevant_memories(last_user_msg)
+                    if memories:
+                        memories_retrieved = len(memories)
+                        memory_context = self._format_memory_context(memories)
+                        if memory_context:
+                            system_prompt += (
+                                "\n\n【与当前问题相关的长期记忆】\n"
+                                f"{memory_context}\n"
+                                "请先判断哪些记忆与当前问题最相关，再把最相关的内容自然融入回复。"
+                            )
+                            if self._is_memory_recall_request(last_user_msg):
                                 system_prompt += (
-                                    "\n\n【与当前问题相关的长期记忆】\n"
-                                    f"{memory_context}\n"
-                                    "请先判断哪些记忆与当前问题最相关，再把最相关的内容自然融入回复。"
+                                    "\n如果用户正在询问你记得什么、之前聊过什么，"
+                                    "请优先直接总结这些具体记忆，不要泛泛地说你没有记录，"
+                                    "除非上面的长期记忆确实为空。"
                                 )
-                            print(f"[EverMem Stream] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
-                    except Exception as e:
-                        print(f"[EverMem Stream] Failed to retrieve memories: {e}")
+                        print(f"[EverMem Stream] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
                 else:
                     print(f"[EverMem Stream] Skipped retrieval for trivial message: '{last_user_msg}'")
 

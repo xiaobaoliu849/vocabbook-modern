@@ -951,7 +951,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             )}
 
                             <div className={`flex flex-col gap-1.5 max-w-[85%] md:max-w-[75%]`}>
-                                <div className={`rounded-2xl px-5 py-3.5 shadow-sm text-[16.5px] leading-[1.7] whitespace-pre-wrap relative group/msg
+                                <div className={`rounded-2xl px-5 py-3.5 shadow-sm text-[16.5px] leading-[1.7] whitespace-pre-wrap relative
                                     ${msg.role === 'user'
                                         ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-tr-sm shadow-md shadow-primary-500/30'
                                         : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-md text-slate-800 dark:text-slate-200 rounded-tl-sm border border-primary-100 dark:border-primary-800/40 shadow-sm'
@@ -991,6 +991,16 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                                 </div>
                                             )}
                                             {msg.content && <div>{msg.content}</div>}
+                                            {msg.role === 'assistant' && msg.content && (
+                                                <div className="mt-3 flex items-center justify-end border-t border-slate-200/70 dark:border-slate-700/70 pt-2">
+                                                    <AudioButton
+                                                        text={msg.content}
+                                                        useTTS={true}
+                                                        size={16}
+                                                        className="!p-2.5 bg-slate-50 hover:bg-primary-50 dark:bg-slate-900/70 dark:hover:bg-primary-900/30 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-500 hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-300"
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
                                         msg.role === 'assistant' && loading && (
@@ -1011,17 +1021,6 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                         )
                                     )}
 
-                                    {/* TTS Button for Assistant Messages */}
-                                    {msg.role === 'assistant' && msg.content && (
-                                        <div className="absolute -right-10 top-2 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-200">
-                                            <AudioButton
-                                                text={msg.content}
-                                                useTTS={true}
-                                                size={16}
-                                                className="!p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-full text-slate-500 hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400"
-                                            />
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Memory indicators */}
