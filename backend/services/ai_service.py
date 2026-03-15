@@ -37,6 +37,29 @@ class AIService:
         "我说过",
         "我们聊过",
     )
+    _RECALL_TERM_EXPANSIONS = {
+        "march 15": ("march 15", "march 15th", "3.15", "315", "消费者权益", "consumer rights"),
+        "3.15": ("march 15", "march 15th", "3.15", "315", "消费者权益", "consumer rights"),
+        "suancai": ("suancai", "酸菜", "pickled vegetable", "pickled vegetables"),
+        "pickled vegetable": ("suancai", "酸菜", "pickled vegetable", "pickled vegetables"),
+        "pickled vegetables": ("suancai", "酸菜", "pickled vegetable", "pickled vegetables"),
+        "ham sausage": ("ham sausage", "ham sausages", "sausage", "sausages", "火腿肠"),
+        "ham sausages": ("ham sausage", "ham sausages", "sausage", "sausages", "火腿肠"),
+        "sausage": ("ham sausage", "ham sausages", "sausage", "sausages", "火腿肠"),
+        "sausages": ("ham sausage", "ham sausages", "sausage", "sausages", "火腿肠"),
+    }
+    _ASSISTANT_SUMMARY_PATTERNS = (
+        "assistant responded",
+        "assistant confirmed",
+        "assistant provided",
+        "assistant invited",
+        "assistant clarified",
+        "assistant's ",
+        "assistant ",
+        "the assistant ",
+        "助理",
+        "助手",
+    )
     
     def __init__(self, provider: str = None, api_key: str = None, model: str = None, api_base: str = None,
                  evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None,
@@ -412,6 +435,64 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         return re.sub(r"^\[[^\]]+\]\s*", "", str(content or "")).strip()
 
     @staticmethod
+    def _extract_recall_search_terms(user_msg: str) -> List[str]:
+        msg = user_msg.strip().lower()
+        if not msg:
+            return []
+
+        terms = set()
+        for phrase, expansions in AIService._RECALL_TERM_EXPANSIONS.items():
+            if phrase in msg:
+                terms.update(expansions)
+
+        for token in re.findall(r"[a-z0-9\.]{3,}", msg):
+            if token in {"what", "did", "tell", "you", "about", "that", "remember", "earlier", "before", "when", "talked", "issue", "only"}:
+                continue
+            terms.add(token)
+
+        for token in re.findall(r"[\u4e00-\u9fff]{1,6}", user_msg):
+            if token not in {"之前", "记得", "前面", "刚才", "上次"}:
+                terms.add(token)
+
+        return sorted(terms, key=len, reverse=True)
+
+    @staticmethod
+    def _build_recall_search_queries(user_msg: str) -> List[str]:
+        terms = AIService._extract_recall_search_terms(user_msg)
+        queries: List[str] = []
+
+        normalized_original = user_msg.strip()
+        if normalized_original:
+            queries.append(normalized_original)
+
+        focused_terms = [term for term in terms if len(term) >= 5 or re.search(r"[\u4e00-\u9fff]", term)]
+        if focused_terms:
+            queries.append(" ".join(focused_terms[:6]))
+
+        queries.extend(focused_terms[:4])
+
+        deduped_queries: List[str] = []
+        seen = set()
+        for query in queries:
+            normalized = query.strip().lower()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped_queries.append(query.strip())
+        return deduped_queries
+
+    @staticmethod
+    def _count_recall_term_matches(content: str, user_msg: str) -> int:
+        normalized_content = AIService._normalize_memory_content(content).lower()
+        terms = AIService._extract_recall_search_terms(user_msg)
+        return sum(1 for term in terms if term.lower() in normalized_content)
+
+    @staticmethod
+    def _looks_like_assistant_summary(content: str) -> bool:
+        normalized = AIService._normalize_memory_content(content).lower()
+        return any(pattern in normalized for pattern in AIService._ASSISTANT_SUMMARY_PATTERNS)
+
+    @staticmethod
     def _format_memory_context(memories: List[Dict], prefer_recent: bool = False) -> str:
         """
         Format retrieved memories into a compact, high-signal block for the model.
@@ -449,6 +530,21 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
         return "\n".join(lines)
 
+    @staticmethod
+    def _summarize_memories_for_log(memories: List[Dict], limit: int = 5) -> str:
+        if not memories:
+            return "[]"
+
+        parts = []
+        for memory in memories[:limit]:
+            memory_type = str(memory.get("type", "unknown"))
+            score = float(memory.get("score", 0.0))
+            content = str(memory.get("content", "")).strip().replace("\n", " ")
+            if len(content) > 120:
+                content = f"{content[:117].rstrip()}..."
+            parts.append(f"{memory_type}@{score:.2f}: {content}")
+        return " | ".join(parts)
+
     def _should_skip_memory(self, user_msg: str) -> bool:
         """
         Lightweight local check to skip memory retrieval for trivial messages.
@@ -473,10 +569,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
     async def _retrieve_relevant_memories(self, user_msg: str) -> List[Dict]:
         """
         Retrieve semantic memories for the current turn.
-        For explicit recall questions, supplement semantic search with recent
-        episodic memories so prompts like "what did I tell you before" can still
-        surface concrete facts even when the query shares little vocabulary with
-        the original memory.
+        For explicit recall questions, run focused multi-query semantic search
+        against EverMem and keep only strongly matching, non-generic memories.
         """
         if not self.evermem_service or not user_msg or self._should_skip_memory(user_msg):
             return []
@@ -484,31 +578,18 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         recall_request = self._is_memory_recall_request(user_msg)
         min_score = 0.15 if recall_request else 0.3
         collected: List[Dict] = []
+        queries = self._build_recall_search_queries(user_msg) if recall_request else [user_msg]
 
-        try:
-            collected = await self.evermem_service.search_memories(
-                query=user_msg,
-                user_id=self.evermem_user_id,
-                min_score=min_score
-            )
-        except Exception as e:
-            print(f"[EverMem] Failed to retrieve memories: {e}")
-            collected = []
-
-        if recall_request:
+        for query in queries:
             try:
-                recent_memories = await self.evermem_service.get_memories(user_id=self.evermem_user_id)
-                for index, memory in enumerate(reversed(recent_memories[-5:]), start=1):
-                    content = str(memory.get("content", "")).strip()
-                    if not content:
-                        continue
-                    collected.append({
-                        "content": f"[最近记忆] {content}",
-                        "type": "recent_memory",
-                        "score": max(1.1, 1.4 - index * 0.05),
-                    })
+                search_min_score = 0.05 if recall_request and query != user_msg else min_score
+                collected.extend(await self.evermem_service.search_memories(
+                    query=query,
+                    user_id=self.evermem_user_id,
+                    min_score=search_min_score
+                ))
             except Exception as e:
-                print(f"[EverMem] Failed to load recent memories: {e}")
+                print(f"[EverMem] Failed to retrieve memories for query '{query}': {e}")
 
         deduped: List[Dict] = []
         seen = set()
@@ -524,6 +605,18 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             non_profile_memories = [memory for memory in deduped if str(memory.get("type", "")) != "profile"]
             if non_profile_memories:
                 deduped = non_profile_memories
+            strongly_matching = [
+                memory for memory in deduped
+                if self._count_recall_term_matches(str(memory.get("content", "")), user_msg) >= 1
+            ]
+            if strongly_matching:
+                deduped = strongly_matching
+            user_like_memories = [
+                memory for memory in deduped
+                if not self._looks_like_assistant_summary(str(memory.get("content", "")))
+            ]
+            if user_like_memories:
+                deduped = user_like_memories
 
         return deduped
 
@@ -592,7 +685,11 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                                     "不要先讲泛化画像，也不要泛泛地说你没有记录，"
                                     "除非上面的长期记忆确实为空。"
                                 )
-                        print(f"[EverMem] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
+                        print(
+                            f"[EverMem] Injected {memories_retrieved} memories "
+                            f"(recall_request={self._is_memory_recall_request(last_user_msg)}): "
+                            f"{self._summarize_memories_for_log(memories)}"
+                        )
                 else:
                     print(f"[EverMem] Skipped retrieval for trivial message: '{last_user_msg}'")
 
@@ -605,18 +702,6 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 {"role": "system", "content": system_prompt},
                 *messages
             ])
-
-            # Step 4: Store assistant response
-            if self.evermem_service and response:
-                _asyncio.create_task(
-                    self.evermem_service.add_memory(
-                        content=response,
-                        user_id=self.evermem_user_id,
-                        sender="assistant_001",
-                        sender_name="Assistant",
-                        flush=True
-                    )
-                )
 
             return {
                 "text": response,
@@ -688,7 +773,11 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                                     "不要先讲泛化画像，也不要泛泛地说你没有记录，"
                                     "除非上面的长期记忆确实为空。"
                                 )
-                        print(f"[EverMem Stream] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
+                        print(
+                            f"[EverMem Stream] Injected {memories_retrieved} memories "
+                            f"(recall_request={self._is_memory_recall_request(last_user_msg)}): "
+                            f"{self._summarize_memories_for_log(memories)}"
+                        )
                 else:
                     print(f"[EverMem Stream] Skipped retrieval for trivial message: '{last_user_msg}'")
 
@@ -713,18 +802,6 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
                 full_response += event_content
                 yield f"data: {json.dumps({'type': 'token', 'content': event_content})}\n\n"
-
-            # Step 4: Store assistant response
-            if self.evermem_service and full_response:
-                _asyncio.create_task(
-                    self.evermem_service.add_memory(
-                        content=full_response,
-                        user_id=self.evermem_user_id,
-                        sender="assistant_001",
-                        sender_name="Assistant",
-                        flush=True
-                    )
-                )
 
             # Yield final metadata
             yield f"data: {json.dumps({'type': 'done', 'memories_retrieved': memories_retrieved, 'memory_saved': memory_saved})}\n\n"
