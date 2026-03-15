@@ -52,6 +52,22 @@ class AIService:
         "你记得我是谁",
         "我是谁",
     )
+    _REVIEW_RECALL_PATTERNS = (
+        "weak on",
+        "weak words",
+        "often forget",
+        "forget often",
+        "difficult words",
+        "review words",
+        "which words am i still weak on",
+        "which words do i often forget",
+        "哪些词还不熟",
+        "哪些词不牢",
+        "薄弱词",
+        "容易忘",
+        "总忘",
+        "复习得不好",
+    )
     _RECALL_TERM_EXPANSIONS = {
         "march 15": ("march 15", "march 15th", "3.15", "315", "消费者权益", "consumer rights"),
         "3.15": ("march 15", "march 15th", "3.15", "315", "消费者权益", "consumer rights"),
@@ -127,6 +143,34 @@ class AIService:
         "know who they are",
         "dota",
     )
+    _REVIEW_MEMORY_PATTERNS = (
+        "[review_record]",
+        "[review_session]",
+        "current weaker review words",
+        "current weak review words",
+        "review session completed",
+        "this word is still weak",
+        "weak for the user",
+        "this word seems reasonably stable",
+        "difficult words tracked",
+        "reviewed words",
+        "reviewed the word",
+        "reviewed word",
+        "reviewed a word",
+        "completed a review session",
+        "rated it",
+        "rated the word",
+        "rating:",
+        "next review",
+        "difficulty signal",
+        "复习单词",
+        "当前难度信号",
+        "评分:",
+        "下次复习",
+        "mistakes=",
+        "ease=",
+        "due now",
+    )
     _NEGATIVE_IDENTITY_PATTERNS = (
         "does not know or has not revealed their own name",
         "do not know their name",
@@ -169,6 +213,16 @@ class AIService:
         "previous",
         "history",
         "records",
+        "which",
+        "words",
+        "word",
+        "weak",
+        "still",
+        "often",
+        "forget",
+        "forgot",
+        "difficult",
+        "review",
     }
     
     def __init__(self, provider: str = None, api_key: str = None, model: str = None, api_base: str = None,
@@ -575,6 +629,14 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         if normalized_original:
             queries.append(normalized_original)
 
+        if AIService._is_review_recall_request(user_msg):
+            queries.extend([
+                "weak words difficult words review words often forget",
+                "current weaker review words",
+                "this word is still weak",
+                "review session completed",
+            ])
+
         focused_terms = [term for term in terms if len(term) >= 5 or re.search(r"[\u4e00-\u9fff]", term)]
         if focused_terms:
             queries.append(" ".join(focused_terms[:6]))
@@ -633,6 +695,15 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
     def _looks_like_negative_identity_memory(content: str) -> bool:
         normalized = AIService._normalize_memory_content(content).lower()
         return any(pattern in normalized for pattern in AIService._NEGATIVE_IDENTITY_PATTERNS)
+
+    @staticmethod
+    def _looks_like_review_memory(content: str) -> bool:
+        normalized = AIService._normalize_memory_content(content).lower()
+        return any(pattern in normalized for pattern in AIService._REVIEW_MEMORY_PATTERNS)
+
+    @staticmethod
+    def _review_memory_text(memory: Dict) -> str:
+        return str(memory.get("raw_content") or memory.get("content", "")).strip()
 
     @staticmethod
     def _format_memory_context(memories: List[Dict], prefer_recent: bool = False) -> str:
@@ -707,13 +778,24 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         msg = user_msg.strip().lower()
         if not msg:
             return False
-        return any(pattern in msg for pattern in self._RECALL_HINT_PATTERNS) or self._is_identity_recall_request(user_msg)
+        return (
+            any(pattern in msg for pattern in self._RECALL_HINT_PATTERNS)
+            or self._is_identity_recall_request(user_msg)
+            or self._is_review_recall_request(user_msg)
+        )
 
     def _is_identity_recall_request(self, user_msg: str) -> bool:
         msg = user_msg.strip().lower()
         if not msg:
             return False
         return any(pattern in msg for pattern in self._IDENTITY_RECALL_PATTERNS)
+
+    @staticmethod
+    def _is_review_recall_request(user_msg: str) -> bool:
+        msg = user_msg.strip().lower()
+        if not msg:
+            return False
+        return any(pattern in msg for pattern in AIService._REVIEW_RECALL_PATTERNS)
 
     def _build_memory_group_ids(self, session_id: Optional[str], recall_request: bool) -> Optional[List[str]]:
         if not session_id:
@@ -722,8 +804,14 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return [session_id]
         return [session_id]
 
+    def _review_group_id(self) -> Optional[str]:
+        if not self.evermem_user_id:
+            return None
+        return f"{self.evermem_user_id}::review"
+
     def _rank_recall_memories(self, memories: List[Dict], user_msg: str) -> List[Dict]:
         identity_request = self._is_identity_recall_request(user_msg)
+        review_request = self._is_review_recall_request(user_msg)
 
         def sort_key(item: Dict) -> tuple[int, int, float]:
             memory_type = str(item.get("type", ""))
@@ -735,6 +823,15 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     "history": 2,
                     "recent_memory": 3,
                     "foresight": 4,
+                }.get(memory_type, 3)
+            elif review_request:
+                priority = {
+                    "event_log": 0,
+                    "episodic_memory": 1,
+                    "history": 1,
+                    "recent_memory": 2,
+                    "foresight": 3,
+                    "profile": 4,
                 }.get(memory_type, 3)
             else:
                 priority = {
@@ -753,6 +850,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
     def _finalize_recall_memories(self, memories: List[Dict], user_msg: str) -> List[Dict]:
         identity_request = self._is_identity_recall_request(user_msg)
+        review_request = self._is_review_recall_request(user_msg)
         deduped: List[Dict] = []
         seen = set()
         for memory in memories:
@@ -801,6 +899,15 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     deduped = identity_memories
                 else:
                     return []
+        elif review_request:
+            review_memories = [
+                memory for memory in deduped
+                if self._looks_like_review_memory(str(memory.get("content", "")))
+            ]
+            if review_memories:
+                deduped = review_memories
+            else:
+                return []
 
         return self._rank_recall_memories(deduped, user_msg)
 
@@ -811,6 +918,19 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 parsed = datetime.datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
                 age_days = max(0.0, (datetime.datetime.now(datetime.timezone.utc) - parsed).total_seconds() / 86400)
                 score += max(0.0, 1.0 - min(age_days, 30.0) / 30.0)
+            except Exception:
+                pass
+        return score
+
+    def _score_review_memory(self, content: str, user_msg: str, timestamp: Optional[str] = None) -> float:
+        score = 4.0 + self._count_recall_term_matches(content, user_msg)
+        if self._looks_like_review_memory(content):
+            score += 2.5
+        if timestamp:
+            try:
+                parsed = datetime.datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+                age_days = max(0.0, (datetime.datetime.now(datetime.timezone.utc) - parsed).total_seconds() / 86400)
+                score += max(0.0, 1.0 - min(age_days, 14.0) / 14.0)
             except Exception:
                 pass
         return score
@@ -841,9 +961,11 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         """
         fallback_candidates: List[Dict] = []
         normalized_user_msg = self._normalize_memory_content(user_msg).lower()
+        review_request = self._is_review_recall_request(user_msg)
 
         for event in self._sort_memories_by_timestamp(event_logs):
             content = str(event.get("content", "")).strip()
+            review_content = self._review_memory_text(event)
             if not content:
                 continue
             normalized_content = self._normalize_memory_content(content).lower()
@@ -857,14 +979,21 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 continue
             if self._looks_like_assistant_event(content):
                 continue
+            if review_request and not self._looks_like_review_memory(review_content):
+                continue
+            display_content = review_content if review_request else content
             fallback_candidates.append({
-                "content": f"[事件记录] {content}",
+                "content": f"[事件记录] {display_content}",
                 "type": "event_log",
-                "score": self._score_event_log_memory(content, user_msg, event.get("timestamp"))
-                + (1.5 if self._looks_like_user_fact(content) else 0.0),
+                "score": (
+                    self._score_review_memory(display_content, user_msg, event.get("timestamp"))
+                    if review_request
+                    else self._score_event_log_memory(content, user_msg, event.get("timestamp"))
+                    + (1.5 if self._looks_like_user_fact(content) else 0.0)
+                ),
                 "group_id": event.get("group_id"),
                 "timestamp": event.get("timestamp"),
-                "term_matches": self._count_recall_term_matches(content, user_msg),
+                "term_matches": self._count_recall_term_matches(display_content, user_msg),
             })
             if len(fallback_candidates) >= limit:
                 break
@@ -919,7 +1048,12 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         queries = self._build_recall_search_queries(user_msg) if recall_request else [user_msg]
         raw_collected_count = 0
         scope_candidates: List[Optional[List[str]]] = []
-        primary_group_ids = self._build_memory_group_ids(session_id, recall_request)
+        review_request = self._is_review_recall_request(user_msg)
+        if review_request:
+            review_group = self._review_group_id()
+            primary_group_ids = [review_group] if review_group else None
+        else:
+            primary_group_ids = self._build_memory_group_ids(session_id, recall_request)
         if primary_group_ids:
             scope_candidates.append(primary_group_ids)
         if recall_request or not primary_group_ids:
@@ -982,8 +1116,10 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         page_size=100,
                     )
                     scoped_raw_count += len(event_logs)
+                    review_like_events = 0
                     for event in event_logs:
                         content = str(event.get("content", "")).strip()
+                        review_content = self._review_memory_text(event)
                         if not content:
                             continue
                         role = str(event.get("role", "")).lower()
@@ -997,19 +1133,33 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                                 continue
                             user_event_logs.append(event)
                             continue
+                        if review_request and not self._looks_like_review_memory(review_content):
+                            continue
+                        if review_request:
+                            review_like_events += 1
                         if self._is_identity_recall_request(user_msg) and not self._looks_like_identity_memory(content):
                             continue
                         user_event_logs.append(event)
-                        if self._count_recall_term_matches(content, user_msg) < 1:
+                        display_content = review_content if review_request else content
+                        if not review_request and self._count_recall_term_matches(content, user_msg) < 1:
                             continue
                         scoped_collected.append({
-                            "content": f"[事件记录] {content}",
+                            "content": f"[事件记录] {display_content}",
                             "type": "event_log",
-                            "score": self._score_event_log_memory(content, user_msg, event.get("timestamp"))
-                            + (1.5 if self._looks_like_user_fact(content) else 0.0),
+                            "score": (
+                                self._score_review_memory(display_content, user_msg, event.get("timestamp"))
+                                if review_request
+                                else self._score_event_log_memory(content, user_msg, event.get("timestamp"))
+                                + (1.5 if self._looks_like_user_fact(content) else 0.0)
+                            ),
                             "group_id": event.get("group_id"),
                             "timestamp": event.get("timestamp"),
                         })
+                    if review_request:
+                        print(
+                            f"[EverMem Review Recall] scope={group_ids or 'ALL'} "
+                            f"review_like_events={review_like_events}"
+                        )
                 except Exception as e:
                     print(f"[EverMem] Failed to retrieve event logs: {e}")
 

@@ -5,6 +5,7 @@ AI 增强功能
 import base64
 import hashlib
 import json
+import os
 import re
 import time
 from typing import Any, List, Optional
@@ -26,6 +27,11 @@ def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
 def _is_enabled(value: Optional[str]) -> bool:
     """Parse common boolean header values."""
     return str(value).strip().lower() == "true"
+
+
+def _is_learning_context_enabled() -> bool:
+    """Allow disabling local review-summary injection for cloud recall testing."""
+    return str(os.environ.get("REVIEW_CONTEXT_ENABLED", "true")).strip().lower() != "false"
 
 
 def _is_local_ollama_request(provider: Optional[str], api_base: Optional[str]) -> bool:
@@ -304,7 +310,7 @@ async def chat(
             messages=[{"role": m.role, "content": m.content} for m in request.messages],
             context_word=request.context_word,
             session_id=request.session_id,
-            learning_context=_build_learning_focus_context(),
+            learning_context=_build_learning_focus_context() if _is_learning_context_enabled() else "",
         )
         return {
             "response": result["text"],
@@ -363,7 +369,7 @@ async def chat_stream(
                 messages=messages,
                 context_word=request.context_word,
                 session_id=request.session_id,
-                learning_context=_build_learning_focus_context(),
+                learning_context=_build_learning_focus_context() if _is_learning_context_enabled() else "",
             ),
             media_type="text/event-stream"
         )

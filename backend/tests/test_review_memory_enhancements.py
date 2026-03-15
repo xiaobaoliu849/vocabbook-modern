@@ -8,7 +8,11 @@ import pytest
 
 from models.database import DatabaseManager
 from routers.ai import _resolve_chat_owner_key, _can_use_evermem as _ai_can_use_evermem
-from routers.review import _resolve_evermem_user_id, _can_use_evermem as _review_can_use_evermem
+from routers.review import (
+    _resolve_evermem_user_id,
+    _can_use_evermem as _review_can_use_evermem,
+    _prime_evermem_runtime,
+)
 from services.review_service import ReviewService
 
 try:
@@ -188,3 +192,51 @@ def test_evermem_key_not_persisted_to_disk(monkeypatch, tmp_path):
     evermem_config._cached_key = None
     evermem_config._cached_url = None
     assert evermem_config.get_service() is None
+
+
+def test_review_runtime_can_bootstrap_evermem_from_headers(monkeypatch):
+    calls = []
+
+    class DummyService:
+        pass
+
+    def fake_save_config(enabled: bool, url: str = None, key: str = None):
+        calls.append((enabled, url, key))
+
+    def fake_get_service():
+        return DummyService()
+
+    monkeypatch.setattr("services.evermem_config.save_config", fake_save_config)
+    monkeypatch.setattr("services.evermem_config.get_service", fake_get_service)
+
+    service, enabled = _prime_evermem_runtime(
+        authorization="Bearer jwt-token",
+        x_evermem_enabled="true",
+        x_evermem_url="https://api.evermind.ai",
+        x_evermem_key="secret-key",
+    )
+
+    assert enabled is True
+    assert isinstance(service, DummyService)
+    assert calls == [(True, "https://api.evermind.ai", "secret-key")]
+
+
+def test_review_runtime_disables_evermem_when_header_off(monkeypatch):
+    calls = []
+
+    def fake_save_config(enabled: bool, url: str = None, key: str = None):
+        calls.append((enabled, url, key))
+
+    monkeypatch.setattr("services.evermem_config.save_config", fake_save_config)
+    monkeypatch.setattr("services.evermem_config.get_service", lambda: None)
+
+    service, enabled = _prime_evermem_runtime(
+        authorization="Bearer jwt-token",
+        x_evermem_enabled="false",
+        x_evermem_url="https://api.evermind.ai",
+        x_evermem_key="secret-key",
+    )
+
+    assert enabled is False
+    assert service is None
+    assert calls == [(False, "https://api.evermind.ai", None)]

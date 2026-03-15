@@ -23,6 +23,24 @@ export function getClientId(): string {
     }
 }
 
+function getEverMemHeaders(): Record<string, string> {
+    try {
+        const enabled = localStorage.getItem('evermem_enabled') || 'false'
+        const url = localStorage.getItem('evermem_url') || ''
+        const key = localStorage.getItem('evermem_key') || ''
+        const headers: Record<string, string> = {
+            'X-EverMem-Enabled': enabled,
+        }
+        if (url) headers['X-EverMem-Url'] = url
+        if (key) headers['X-EverMem-Key'] = key
+        return headers
+    } catch {
+        return {
+            'X-EverMem-Enabled': 'false',
+        }
+    }
+}
+
 export class ApiError extends Error {
     status: number
     body: string
@@ -46,7 +64,9 @@ export const api = {
      */
     _getHeaders(customHeaders?: HeadersInit): HeadersInit {
         const token = useAuthStore.getState().token
-        const headers: Record<string, string> = {}
+        const headers: Record<string, string> = {
+            ...getEverMemHeaders(),
+        }
         headers['X-Client-Id'] = getClientId()
         if (token) {
             headers['Authorization'] = `Bearer ${token}`

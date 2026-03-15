@@ -244,3 +244,56 @@ def test_identity_recall_keeps_profile_memories():
     assert "suancai" not in system_prompt
     assert any("what is my name" in call["query"].lower() or "who am i" in call["query"].lower() for call in service.evermem_service.search_calls)
     assert any(call["memory_type"] == "profile" and call["group_ids"] is None for call in service.evermem_service.get_calls)
+
+
+def test_review_recall_uses_review_event_logs():
+    service = AIService(provider="openai", api_key="test-key", evermem_enabled=False)
+    service.evermem_user_id = "cloud_demo"
+    service.evermem_service = DummyEverMemService()
+
+    captured = {}
+
+    async def fake_call_llm(messages, temperature=0.7):
+        captured["messages"] = messages
+        return "ok"
+
+    async def review_search_memories(query: str, user_id: str, min_score: float = 0.3, group_ids=None, memory_types=None, retrieve_method: str = "keyword", start_time=None, end_time=None, top_k: int = 10):
+        service.evermem_service.search_calls.append({
+            "query": query,
+            "user_id": user_id,
+            "min_score": min_score,
+            "group_ids": group_ids,
+            "memory_types": memory_types,
+            "retrieve_method": retrieve_method,
+            "top_k": top_k,
+        })
+        return []
+
+    async def review_get_memories(user_id: str = "user_001", group_ids=None, memory_type: str = "episodic_memory", start_time=None, end_time=None, page_size: int = 100):
+        service.evermem_service.get_calls.append({"user_id": user_id, "group_ids": group_ids, "memory_type": memory_type, "page_size": page_size})
+        if group_ids == ["session-review"]:
+            return []
+        if memory_type == "event_log":
+            return [
+                {"content": "The tutor completed a review session for the user.", "raw_content": "[REVIEW_SESSION] Review session completed. Duration: 92 seconds. Reviewed words: 5. Current weaker review words: connectivity (mistakes=3, ease=1.80, due now); default (mistakes=2, ease=2.00, reviewing). Difficult words tracked: 5.", "timestamp": "2026-03-15T03:58:00+00:00", "role": "user", "sender_name": "VocabBook Tutor"},
+                {"content": "复习单词 'theme' (主题). 评分: 1/5 (完全不认识). 下次复习: 8小时后. 当前难度信号: error_count=3, easiness=1.7, repetitions=0. This word is still weak for the user.", "timestamp": "2026-03-15T03:57:00+00:00", "role": "user", "sender_name": "VocabBook Tutor"},
+            ]
+        return []
+
+    service._call_llm = fake_call_llm
+    service.evermem_service.search_memories = review_search_memories
+    service.evermem_service.get_memories = review_get_memories
+
+    result = asyncio.run(
+        service.chat(
+            messages=[{"role": "user", "content": "Which words am I still weak on?"}],
+            session_id="session-review",
+        )
+    )
+
+    assert result["memories_retrieved"] >= 1
+    system_prompt = captured["messages"][0]["content"]
+    assert "connectivity" in system_prompt
+    assert "default" in system_prompt
+    assert "theme" in system_prompt
+    assert any("weak words" in call["query"].lower() or "review session completed" in call["query"].lower() for call in service.evermem_service.search_calls)

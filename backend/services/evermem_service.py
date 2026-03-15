@@ -265,6 +265,48 @@ class EverMemService:
                     "[EverMem get raw memory] "
                     f"keys={list(first_memory.keys())} preview={memory_preview}"
                 )
+            if memory_type == "event_log" and memories_list:
+                review_candidates = []
+                for mem in memories_list[:25]:
+                    if not isinstance(mem, dict):
+                        continue
+                    atomic_fact = str(mem.get("atomic_fact", "")).strip()
+                    original_text = self._extract_original_data_text(mem.get("original_data")) or ""
+                    sender_name = str(
+                        mem.get("sender_name")
+                        or mem.get("user_name")
+                        or (
+                            mem.get("original_data", {}).get("sender_name")
+                            if isinstance(mem.get("original_data"), dict) else ""
+                        )
+                    ).strip()
+                    combined = " ".join(part for part in (atomic_fact, original_text, sender_name) if part).lower()
+                    if any(
+                        marker in combined for marker in (
+                            "[review",
+                            "review session",
+                            "reviewed word",
+                            "复习",
+                            "评分",
+                            "tutor_vocab",
+                            "vocabbook tutor",
+                            "current weaker review words",
+                            "this word is still weak",
+                        )
+                    ):
+                        review_candidates.append({
+                            "group_id": mem.get("group_id"),
+                            "timestamp": mem.get("timestamp"),
+                            "sender_name": sender_name,
+                            "atomic_fact": atomic_fact[:120],
+                            "original_text": original_text[:160],
+                            "original_data_type": type(mem.get("original_data")).__name__,
+                        })
+                print(
+                    "[EverMem get review candidates] "
+                    f"user_id={user_id} group_ids={group_ids} count={len(review_candidates)} "
+                    f"samples={review_candidates[:3]}"
+                )
             extracted_memories = []
 
             if memory_type == "profile":
@@ -313,6 +355,7 @@ class EverMemService:
                 return extracted_memories
 
             for mem in memories_list:
+                raw_content = self._extract_original_data_text(mem.get("original_data"))
                 content = (
                     mem.get("description")
                     or mem.get("profile")
@@ -323,9 +366,12 @@ class EverMemService:
                     or mem.get("content")
                     or mem.get("message")
                 )
+                if not content:
+                    content = raw_content
                 if content:
                     extracted_memories.append({
                         "content": content,
+                        "raw_content": raw_content,
                         "type": mem.get("memory_type", memory_type),
                         "group_id": mem.get("group_id"),
                         "timestamp": mem.get("timestamp"),
@@ -336,3 +382,32 @@ class EverMemService:
         except Exception as e:
             logger.error(f"Failed to get memories from EverMemOS: {e}")
             return []
+
+    @staticmethod
+    def _extract_original_data_text(original_data) -> Optional[str]:
+        if not original_data:
+            return None
+
+        if isinstance(original_data, str):
+            stripped = original_data.strip()
+            if not stripped:
+                return None
+            return stripped
+
+        if isinstance(original_data, dict):
+            direct_text = (
+                original_data.get("content")
+                or original_data.get("message")
+                or original_data.get("text")
+                or original_data.get("body")
+            )
+            if isinstance(direct_text, str) and direct_text.strip():
+                return direct_text.strip()
+
+            for nested_key in ("original_data", "data", "event", "payload"):
+                nested = original_data.get(nested_key)
+                nested_text = EverMemService._extract_original_data_text(nested)
+                if nested_text:
+                    return nested_text
+
+        return None

@@ -81,6 +81,39 @@ def _resolve_evermem_user_id(authorization: Optional[str], x_client_id: Optional
     return f"token_{token_fingerprint}"
 
 
+def _review_group_id_for_user(user_id: Optional[str]) -> Optional[str]:
+    if not isinstance(user_id, str) or not user_id.strip():
+        return None
+    return f"{user_id}::review"
+
+
+def _prime_evermem_runtime(
+    authorization: Optional[str],
+    x_evermem_enabled: Optional[str],
+    x_evermem_url: Optional[str],
+    x_evermem_key: Optional[str],
+):
+    from routers.ai import _is_enabled
+    from services.evermem_config import save_config, get_service
+
+    evermem_requested = _is_enabled(x_evermem_enabled)
+    evermem_enabled = evermem_requested and _can_use_evermem(authorization)
+
+    if evermem_enabled and isinstance(x_evermem_key, str) and x_evermem_key.strip():
+        save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
+    elif not evermem_enabled:
+        save_config(enabled=False, url=x_evermem_url, key=None)
+
+    service = get_service()
+    if not service:
+        print(
+            "[EverMem Review] Runtime unavailable "
+            f"requested={evermem_requested} enabled={evermem_enabled} "
+            f"has_auth={_can_use_evermem(authorization)} has_key={bool((x_evermem_key or '').strip())}"
+        )
+    return service, evermem_enabled
+
+
 def _clean_review_words(words: List[dict]) -> List[dict]:
     """Clean Chinese text in review word list."""
     for w in words:
@@ -203,7 +236,10 @@ async def get_difficult_words(limit: int = Query(20, ge=1, le=100)):
 async def submit_review(
     review: ReviewSubmit,
     authorization: Optional[str] = Header(None),
-    x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
+    x_evermem_enabled: Optional[str] = Header("false", alias="X-EverMem-Enabled"),
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
 ):
     """提交单词复习结果（SM-2 算法）"""
     db = get_db()
@@ -234,11 +270,16 @@ async def submit_review(
 
     # Store learning record to EverMemOS (fire-and-forget)
     try:
-        from services.evermem_config import get_service
-        evermem = get_service()
+        evermem, evermem_enabled = _prime_evermem_runtime(
+            authorization=authorization,
+            x_evermem_enabled=x_evermem_enabled,
+            x_evermem_url=x_evermem_url,
+            x_evermem_key=x_evermem_key,
+        )
         if evermem and evermem_user_id:
             import asyncio
             meaning = word_data.get('meaning', '')
+            review_group_id = _review_group_id_for_user(evermem_user_id)
             # Build structured learning record
             quality_labels = {
                 0: "完全不认识", 1: "勉强见过", 2: "有印象但想不起来",
@@ -253,20 +294,30 @@ async def submit_review(
                 else "This word seems reasonably stable for the user."
             )
             record = (
-                f"复习单词 '{review.word}' ({meaning}). "
+                f"[REVIEW_RECORD] 复习单词 '{review.word}' ({meaning}). "
                 f"评分: {review.quality}/5 ({label}). "
                 f"下次复习: {interval_text}. "
                 f"当前难度信号: error_count={error_count}, easiness={round(easiness, 2)}, repetitions={repetitions}. "
                 f"{weakness_signal}"
             )
-            asyncio.create_task(
-                evermem.add_memory(
+            async def _store_review_record():
+                result = await evermem.add_memory(
                     content=record,
                     user_id=evermem_user_id,
                     sender="tutor_vocab",
                     sender_name="VocabBook Tutor",
                     flush=True,
+                    group_id=review_group_id,
+                    group_name=review_group_id,
                 )
+                if result is not None:
+                    print(f"[EverMem Review] Stored review record user={evermem_user_id} group_id={review_group_id} word={review.word} quality={review.quality}")
+
+            asyncio.create_task(_store_review_record())
+        elif evermem_enabled:
+            print(
+                "[EverMem Review] Skipped review record "
+                f"user_id={evermem_user_id} service_available={bool(evermem)}"
             )
     except Exception as e:
         print(f"[EverMem] Failed to store review record: {e}")
@@ -287,7 +338,10 @@ async def submit_review(
 async def log_session(
     session: ReviewSession,
     authorization: Optional[str] = Header(None),
-    x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
+    x_evermem_enabled: Optional[str] = Header("false", alias="X-EverMem-Enabled"),
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
 ):
     """记录复习会话"""
     db = get_db()
@@ -295,26 +349,41 @@ async def log_session(
 
     evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id) if _can_use_evermem(authorization) else None
     try:
-        from services.evermem_config import get_service
-        evermem = get_service()
+        evermem, evermem_enabled = _prime_evermem_runtime(
+            authorization=authorization,
+            x_evermem_enabled=x_evermem_enabled,
+            x_evermem_url=x_evermem_url,
+            x_evermem_key=x_evermem_key,
+        )
         if evermem and evermem_user_id:
             import asyncio
             focus_summary = _format_learning_focus_summary(db, limit=5)
             if focus_summary:
+                review_group_id = _review_group_id_for_user(evermem_user_id)
                 session_record = (
-                    f"Review session completed. Duration: {session.duration} seconds. "
+                    f"[REVIEW_SESSION] Review session completed. Duration: {session.duration} seconds. "
                     f"Reviewed words: {session.review_count}. "
                     f"{focus_summary}"
                 )
-                asyncio.create_task(
-                    evermem.add_memory(
+                async def _store_review_session():
+                    result = await evermem.add_memory(
                         content=session_record,
                         user_id=evermem_user_id,
                         sender="tutor_vocab",
                         sender_name="VocabBook Tutor",
                         flush=True,
+                        group_id=review_group_id,
+                        group_name=review_group_id,
                     )
-                )
+                    if result is not None:
+                        print(f"[EverMem Review] Stored review session summary user={evermem_user_id} group_id={review_group_id} reviewed={session.review_count}")
+
+                asyncio.create_task(_store_review_session())
+        elif evermem_enabled:
+            print(
+                "[EverMem Review] Skipped review session "
+                f"user_id={evermem_user_id} service_available={bool(evermem)}"
+            )
     except Exception as e:
         print(f"[EverMem] Failed to store review session summary: {e}")
     

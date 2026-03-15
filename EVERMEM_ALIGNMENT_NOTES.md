@@ -24,6 +24,46 @@ The recall path only became reliable after aligning to the official API model:
 7. Filter out assistant-generated facts and question-shaped facts before injecting recall context.
 8. For identity questions, fetch `profile` explicitly and prefer positive identity facts over generic recall matches.
 
+## Final Boundary: Review Records Are Not Reliable Cloud Recall Inputs
+
+After the chat recall path was aligned, review memory was validated separately.
+
+What worked:
+
+- Review submit/session writes succeeded.
+- Review records appeared in EverMem Cloud under a dedicated group:
+  - `cloud_<user>::review`
+- Raw review payloads were visible in the dashboard as `MemCell` entries, including:
+  - `[REVIEW_RECORD] ...`
+  - `[REVIEW_SESSION] ...`
+
+What did not work:
+
+- The same review records did not reliably appear through the public v0 core-memory recall path:
+  - `search memories`
+  - `get memories(memory_type=event_log)`
+  - `get memories(memory_type=episodic_memory)`
+- Even after waiting, the review group could still return:
+  - `memories=0`
+  - no `event_log`
+  - no `episodic_memory`
+
+Practical conclusion:
+
+- EverMem Cloud is useful for:
+  - chat long-term memory
+  - identity/fact recall
+  - review audit trail / raw storage
+- EverMem Cloud is not currently a reliable source of truth for:
+  - `Which words am I still weak on?`
+  - structured review-state recall
+
+Product decision:
+
+- Keep review weakness recall grounded in the local structured database.
+- Keep EverMem review writes enabled as a cloud history/audit layer.
+- Do not depend on EverMem core-memory recall for critical review-state answers unless the cloud side begins converting those `MemCell` entries into retrievable `event_log` / `episodic_memory`.
+
 ## Main Pitfalls
 
 ### 1. `session_id` was not sent from the frontend
@@ -239,6 +279,26 @@ You must distinguish:
 
 These are different stages.
 
+### 10. `MemCell` presence does not guarantee core-memory recall
+
+This became especially important for review history.
+
+Observed reality:
+
+- Review writes succeeded.
+- Dashboard showed the records inside the dedicated review group.
+- But the records only existed as raw `MemCell`.
+- `get memories(memory_type=event_log)` still returned `0`.
+- `search memories` for review queries still returned unrelated chat memories or nothing.
+
+Implication:
+
+- The cloud system accepted the write.
+- But the public recall APIs expose core memories, not raw `MemCell`.
+- Therefore "I can see it in the dashboard" still does not imply "the assistant can retrieve it through recall APIs".
+
+For review-state features, this distinction is decisive.
+
 ## Practical Debugging Checklist
 
 When recall looks wrong, check in this order.
@@ -309,6 +369,27 @@ Look for:
 If raw profile logs show the right name but `parsed=0`, the parser is wrong.
 
 If `parsed>0` but `scoped_collected` is still too small, inspect local filtering or loop structure.
+
+### Stage 7: For review history, is it only in `MemCell`?
+
+Check the dedicated review group in the cloud dashboard:
+
+- `cloud_<user>::review`
+
+If you can see:
+
+- `[REVIEW_RECORD] ...`
+- `[REVIEW_SESSION] ...`
+
+but cannot see matching `Event Logs` / `Episodes`, then the problem is no longer in local retrieval code.
+
+It means:
+
+- write path is correct
+- cloud accepted the data
+- but cloud did not expose it as retrievable core memory
+
+At that point, treat review recall as a local-database responsibility, not a cloud-recall responsibility.
 
 ## Recommended Test Procedure
 
