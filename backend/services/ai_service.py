@@ -14,6 +14,7 @@ from services.evermem_service import EverMemService
 
 class AIService:
     """AI 服务封装，支持多 Provider 切换"""
+    _RECALL_DEBUG_VERSION = "2026-03-15-recall-v4"
     _RECALL_HINT_PATTERNS = (
         "remember",
         "remind me",
@@ -60,6 +61,45 @@ class AIService:
         "the assistant ",
         "助理",
         "助手",
+    )
+    _QUESTION_EVENT_PATTERNS = (
+        "the user asked",
+        "the user wondered",
+        "the user questioned",
+        "the user inquired",
+        "asked what",
+        "asked whether",
+        "asked if",
+        "asked who",
+        "asked when",
+        "asked where",
+        "asked why",
+        "asked how",
+        "asked about",
+    )
+    _ASSISTANT_EVENT_PATTERNS = (
+        "the assistant ",
+        "assistant said",
+        "assistant asked",
+        "assistant provided",
+        "assistant complimented",
+        "assistant explained",
+        "assistant noted",
+        "assistant suggested",
+        "assistant stated",
+        "assistant invited",
+        "assistant responded",
+        "assistant clarified",
+    )
+    _USER_FACT_PATTERNS = (
+        "the user said",
+        "the user mentioned",
+        "the user remembered",
+        "the user recalled",
+        "the user told",
+        "the user shared",
+        "the user noted",
+        "the user explained",
     )
     _RECALL_STOPWORDS = {
         "what",
@@ -528,6 +568,21 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         return any(pattern in normalized for pattern in AIService._ASSISTANT_SUMMARY_PATTERNS)
 
     @staticmethod
+    def _looks_like_question_event(content: str) -> bool:
+        normalized = AIService._normalize_memory_content(content).lower()
+        return any(pattern in normalized for pattern in AIService._QUESTION_EVENT_PATTERNS)
+
+    @staticmethod
+    def _looks_like_assistant_event(content: str) -> bool:
+        normalized = AIService._normalize_memory_content(content).lower()
+        return any(pattern in normalized for pattern in AIService._ASSISTANT_EVENT_PATTERNS)
+
+    @staticmethod
+    def _looks_like_user_fact(content: str) -> bool:
+        normalized = AIService._normalize_memory_content(content).lower()
+        return any(pattern in normalized for pattern in AIService._USER_FACT_PATTERNS)
+
+    @staticmethod
     def _format_memory_context(memories: List[Dict], prefer_recent: bool = False) -> str:
         """
         Format retrieved memories into a compact, high-signal block for the model.
@@ -708,10 +763,15 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 continue
             if self._looks_like_assistant_summary(content):
                 continue
+            if self._looks_like_question_event(content):
+                continue
+            if self._looks_like_assistant_event(content):
+                continue
             fallback_candidates.append({
                 "content": f"[事件记录] {content}",
                 "type": "event_log",
-                "score": self._score_event_log_memory(content, user_msg, event.get("timestamp")),
+                "score": self._score_event_log_memory(content, user_msg, event.get("timestamp"))
+                + (1.5 if self._looks_like_user_fact(content) else 0.0),
                 "group_id": event.get("group_id"),
                 "timestamp": event.get("timestamp"),
                 "term_matches": self._count_recall_term_matches(content, user_msg),
@@ -760,6 +820,10 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return []
 
         recall_request = self._is_memory_recall_request(user_msg)
+        print(
+            f"[EverMem Recall Version] version={self._RECALL_DEBUG_VERSION} "
+            f"recall_request={recall_request} session_id={session_id}"
+        )
         min_score = 0.15 if recall_request else 0.3
         collected: List[Dict] = []
         queries = self._build_recall_search_queries(user_msg) if recall_request else [user_msg]
@@ -812,13 +876,19 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         sender_name = str(event.get("sender_name", "")).lower()
                         if role == "assistant" or "assistant" in sender_name:
                             continue
+                        if self._looks_like_assistant_event(content):
+                            continue
+                        if self._looks_like_question_event(content):
+                            user_event_logs.append(event)
+                            continue
                         user_event_logs.append(event)
                         if self._count_recall_term_matches(content, user_msg) < 1:
                             continue
                         scoped_collected.append({
                             "content": f"[事件记录] {content}",
                             "type": "event_log",
-                            "score": self._score_event_log_memory(content, user_msg, event.get("timestamp")),
+                            "score": self._score_event_log_memory(content, user_msg, event.get("timestamp"))
+                            + (1.5 if self._looks_like_user_fact(content) else 0.0),
                             "group_id": event.get("group_id"),
                             "timestamp": event.get("timestamp"),
                         })
@@ -834,6 +904,12 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 debug_parts.append(
                     f"scope={group_ids or 'ALL'} raw={scoped_raw_count} deduped={len(finalized)} "
                     f"results={self._summarize_memories_for_log(finalized)}"
+                )
+                print(
+                    f"[EverMem Recall Scope] version={self._RECALL_DEBUG_VERSION} "
+                    f"scope={group_ids or 'ALL'} search_plus_get={scoped_raw_count} "
+                    f"scoped_collected={len(scoped_collected)} user_event_logs={len(user_event_logs)} "
+                    f"finalized={len(finalized)}"
                 )
                 if finalized:
                     print(

@@ -141,6 +141,14 @@ class EverMemService:
 
             memories_list = result.get("memories", [])
             profiles_list = result.get("profiles", [])
+            scores_list = result.get("scores", []) if isinstance(result.get("scores", []), list) else []
+            if memories_list and isinstance(memories_list[0], dict):
+                first_memory = memories_list[0]
+                memory_preview = {key: first_memory.get(key) for key in list(first_memory.keys())[:10]}
+                print(
+                    "[EverMem search raw memory] "
+                    f"keys={list(first_memory.keys())} preview={memory_preview}"
+                )
 
             extracted_memories = []
 
@@ -156,8 +164,12 @@ class EverMemService:
                     })
 
             # Extract episodic memories with score filtering
-            for mem in memories_list:
-                score = mem.get("score", 0.0)
+            for index, mem in enumerate(memories_list):
+                score = mem.get("score")
+                if score is None and index < len(scores_list):
+                    score = scores_list[index]
+                if score is None:
+                    score = 0.0
                 if score < min_score:
                     continue
                 mem_type = mem.get("memory_type", "episodic_memory")
@@ -246,9 +258,22 @@ class EverMemService:
                 return []
 
             memories_list = result.get("memories", []) if isinstance(result, dict) else []
+            if memories_list and isinstance(memories_list[0], dict):
+                first_memory = memories_list[0]
+                memory_preview = {key: first_memory.get(key) for key in list(first_memory.keys())[:10]}
+                print(
+                    "[EverMem get raw memory] "
+                    f"keys={list(first_memory.keys())} preview={memory_preview}"
+                )
             extracted_memories = []
             for mem in memories_list:
-                content = mem.get("episode") or mem.get("summary") or mem.get("content") or mem.get("message")
+                content = (
+                    mem.get("atomic_fact")
+                    or mem.get("episode")
+                    or mem.get("summary")
+                    or mem.get("content")
+                    or mem.get("message")
+                )
                 if content:
                     extracted_memories.append({
                         "content": content,

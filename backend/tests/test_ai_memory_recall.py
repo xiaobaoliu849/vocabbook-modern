@@ -186,3 +186,4 @@ def test_generic_follow_up_recall_uses_recent_session_event_logs():
     system_prompt = captured["messages"][0]["content"]
     assert "suancai issue and ham sausage" in system_prompt
     assert "[事件记录]" in system_prompt
+    assert "What two food things did I say I remembered?" not in system_prompt
