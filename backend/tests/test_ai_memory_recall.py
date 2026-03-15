@@ -23,7 +23,10 @@ class DummyEverMemService:
 
     async def search_memories(self, query: str, user_id: str, min_score: float = 0.3):
         self.search_calls.append({"query": query, "user_id": user_id, "min_score": min_score})
-        return []
+        return [
+            {"content": "[用户画像] User likes discussing hobbies.", "type": "profile", "score": 1.0},
+            {"content": "[历史对话] User once said thank you.", "type": "episodic_memory", "score": 0.22},
+        ]
 
     async def get_memories(self, user_id: str = "user_001"):
         self.get_calls.append({"user_id": user_id})
@@ -54,10 +57,11 @@ def test_recall_questions_fall_back_to_recent_memories():
     )
 
     assert result["memory_saved"] is True
-    assert result["memories_retrieved"] == 2
+    assert result["memories_retrieved"] == 3
     assert service.evermem_service.search_calls[0]["min_score"] == 0.15
     assert service.evermem_service.get_calls == [{"user_id": "cloud_demo"}]
 
     system_prompt = captured["messages"][0]["content"]
+    assert "User likes discussing hobbies" not in system_prompt
     assert "用户前面提到他记得酸菜鱼" in system_prompt
-    assert "请优先直接总结这些具体记忆" in system_prompt
+    assert "请优先总结最近几条具体事实" in system_prompt

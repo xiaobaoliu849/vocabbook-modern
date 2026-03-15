@@ -408,7 +408,11 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
     }
 
     @staticmethod
-    def _format_memory_context(memories: List[Dict]) -> str:
+    def _normalize_memory_content(content: str) -> str:
+        return re.sub(r"^\[[^\]]+\]\s*", "", str(content or "")).strip()
+
+    @staticmethod
+    def _format_memory_context(memories: List[Dict], prefer_recent: bool = False) -> str:
         """
         Format retrieved memories into a compact, high-signal block for the model.
         We keep only the most relevant snippets and cap length to reduce prompt dilution.
@@ -416,11 +420,22 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         if not memories:
             return ""
 
-        ranked_memories = sorted(
-            memories,
-            key=lambda item: float(item.get("score", 0.0)),
-            reverse=True
-        )[:5]
+        def memory_rank(item: Dict) -> tuple[int, float]:
+            memory_type = str(item.get("type", ""))
+            score = float(item.get("score", 0.0))
+            if not prefer_recent:
+                return (0, -score)
+
+            priority = {
+                "recent_memory": 0,
+                "episodic_memory": 1,
+                "history": 1,
+                "foresight": 2,
+                "profile": 3,
+            }.get(memory_type, 2)
+            return (priority, -score)
+
+        ranked_memories = sorted(memories, key=memory_rank)[:5]
 
         lines = []
         for index, memory in enumerate(ranked_memories, start=1):
@@ -490,7 +505,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     collected.append({
                         "content": f"[最近记忆] {content}",
                         "type": "recent_memory",
-                        "score": max(0.05, 0.2 - index * 0.01),
+                        "score": max(1.1, 1.4 - index * 0.05),
                     })
             except Exception as e:
                 print(f"[EverMem] Failed to load recent memories: {e}")
@@ -499,10 +514,16 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         seen = set()
         for memory in collected:
             content = str(memory.get("content", "")).strip()
-            if not content or content in seen:
+            normalized_content = self._normalize_memory_content(content)
+            if not normalized_content or normalized_content in seen:
                 continue
-            seen.add(content)
+            seen.add(normalized_content)
             deduped.append(memory)
+
+        if recall_request:
+            non_profile_memories = [memory for memory in deduped if str(memory.get("type", "")) != "profile"]
+            if non_profile_memories:
+                deduped = non_profile_memories
 
         return deduped
 
@@ -554,7 +575,10 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     memories = await self._retrieve_relevant_memories(last_user_msg)
                     if memories:
                         memories_retrieved = len(memories)
-                        memory_context = self._format_memory_context(memories)
+                        memory_context = self._format_memory_context(
+                            memories,
+                            prefer_recent=self._is_memory_recall_request(last_user_msg)
+                        )
                         if memory_context:
                             system_prompt += (
                                 "\n\n【与当前问题相关的长期记忆】\n"
@@ -564,7 +588,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                             if self._is_memory_recall_request(last_user_msg):
                                 system_prompt += (
                                     "\n如果用户正在询问你记得什么、之前聊过什么，"
-                                    "请优先直接总结这些具体记忆，不要泛泛地说你没有记录，"
+                                    "请优先总结最近几条具体事实，必要时直接列点回答；"
+                                    "不要先讲泛化画像，也不要泛泛地说你没有记录，"
                                     "除非上面的长期记忆确实为空。"
                                 )
                         print(f"[EverMem] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
@@ -646,7 +671,10 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     memories = await self._retrieve_relevant_memories(last_user_msg)
                     if memories:
                         memories_retrieved = len(memories)
-                        memory_context = self._format_memory_context(memories)
+                        memory_context = self._format_memory_context(
+                            memories,
+                            prefer_recent=self._is_memory_recall_request(last_user_msg)
+                        )
                         if memory_context:
                             system_prompt += (
                                 "\n\n【与当前问题相关的长期记忆】\n"
@@ -656,7 +684,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                             if self._is_memory_recall_request(last_user_msg):
                                 system_prompt += (
                                     "\n如果用户正在询问你记得什么、之前聊过什么，"
-                                    "请优先直接总结这些具体记忆，不要泛泛地说你没有记录，"
+                                    "请优先总结最近几条具体事实，必要时直接列点回答；"
+                                    "不要先讲泛化画像，也不要泛泛地说你没有记录，"
                                     "除非上面的长期记忆确实为空。"
                                 )
                         print(f"[EverMem Stream] Injected {memories_retrieved} memories (scores: {[round(m.get('score', 0), 2) for m in memories]})")
