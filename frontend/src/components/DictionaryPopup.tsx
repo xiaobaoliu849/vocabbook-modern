@@ -291,6 +291,7 @@ export default function DictionaryPopup() {
     return (
         <div
             ref={popupRef}
+            data-selection-overlay="true"
             className="absolute z-[9999] w-[340px] bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700/60 flex flex-col overflow-hidden animate-scale-up"
             style={{
                 top: `${position.top}px`,

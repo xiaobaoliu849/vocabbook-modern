@@ -18,6 +18,8 @@
     "translationTooltip": "Multilingual AI translation assistant",
     "chat": "AI Partner",
     "chatTooltip": "Conversation practice with long-term memory",
+    "admin": "Admin",
+    "adminTooltip": "Manage cloud users, tiers, and orders",
     "settings": "Settings",
     "settingsTooltip": "App Settings",
     "loginRegister": "Login / Sign Up",
@@ -53,6 +55,49 @@
     "addToVocabBook": "Add to VocabBook",
     "generateExample": "Generate Example with AI",
     "searchConfirm": "Search / Confirm"
+  },
+  "admin": {
+    "title": "Cloud Admin",
+    "subtitle": "Manage registered users, membership state, and order data",
+    "token": {
+      "placeholder": "Enter admin token",
+      "connect": "Connect",
+      "refresh": "Refresh",
+      "clear": "Clear"
+    },
+    "summary": {
+      "totalUsers": "Total Users",
+      "premiumUsers": "Premium Users",
+      "totalOrders": "Total Orders",
+      "paidOrders": "Paid Orders"
+    },
+    "users": {
+      "title": "Users",
+      "subtitle": "Recent registered accounts and their current membership state",
+      "email": "Email",
+      "tier": "Tier",
+      "expiry": "Expiry",
+      "createdAt": "Created",
+      "actions": "Actions",
+      "empty": "No users found yet.",
+      "locked": "Enter an admin token to load user data.",
+      "premium": "Premium",
+      "free": "Free",
+      "updating": "Updating...",
+      "upgrade30": "+30d Premium",
+      "setFree": "Set Free"
+    },
+    "orders": {
+      "title": "Orders",
+      "subtitle": "Latest payment records returned by the cloud service",
+      "empty": "No orders yet.",
+      "locked": "Enter an admin token to load order data."
+    },
+    "errors": {
+      "missingToken": "Please enter your admin token first.",
+      "loadFailed": "Failed to load admin data.",
+      "updateFailed": "Failed to update user tier."
+    }
   },
   "settings": {
     "title": "Settings",
@@ -262,6 +307,32 @@
     "memory": {
       "savedIndicator": "Saved to long-term memory",
       "retrievedIndicator": "Retrieved {{count}} key memories",
+      "panel": {
+        "button": "Memory",
+        "title": "Learning Memory",
+        "subtitle": "See what the AI has remembered and how it can help next.",
+        "close": "Close memory panel",
+        "refresh": "Refresh",
+        "loading": "Loading learning memory...",
+        "loadFailed": "Failed to load memory overview. Please try again.",
+        "updatedAt": "Updated at {{time}}",
+        "requiresAuth": "Sign in to view cross-session long-term memory.",
+        "reviewFocusTitle": "Current Review Focus",
+        "reviewFocusDesc": "These words will shape future practice and personalized guidance.",
+        "dueCount": "Due {{count}}",
+        "difficultCount": "Difficult {{count}}",
+        "noMeaning": "No meaning yet",
+        "noWeakWords": "No obvious weak words right now. Keep going.",
+        "practiceAction": "Practice these weak words now",
+        "practicePrompt": "Please practice an English conversation with me using these weak words: {{words}}",
+        "profileTitle": "Saved Learning Preferences",
+        "noProfile": "No stable long-term preference memories yet. More sessions will make this stronger.",
+        "recentTitle": "Recently Remembered",
+        "noRecent": "No recent memory records to show yet.",
+        "reviewBucket": "Review",
+        "chatBucket": "Chat",
+        "nextTitle": "Next Step Suggestions"
+      },
       "toast": {
         "recalled": "Recalled {{count}} related memories",
         "saved": "Saved this conversation",
@@ -314,13 +385,18 @@
       "choice": "Choice",
       "dictation": "Dictation"
     },
+    "labels": {
+      "controls": "Controls"
+    },
     "progress": "{{current}} / {{total}} · Reviewed {{reviewed}}",
     "shortcuts": {
       "flip": "Press Space to flip",
       "check": "Type and press Enter to check",
       "rate": "Number keys 1-5 to rate",
       "flipCard": "Press Space to flip the card",
-      "typeAndCheck": "Type the spelling and press Enter to check"
+      "typeAndCheck": "Type the spelling and press Enter to check",
+      "chooseOption": "Click or press 1-4 to choose the answer",
+      "listenAndType": "Listen first, then type the spelling"
     },
     "spelling": {
       "placeholder": "Type the word spelling...",
@@ -613,12 +689,16 @@
   "quickLookup": {
     "wordTitle": "Quick lookup",
     "translateTitle": "Quick translation",
+    "explainTitle": "AI explanation",
     "loadingWord": "Looking up word...",
     "loadingTranslation": "Translating...",
+    "loadingExplanation": "Generating explanation...",
     "example": "Example",
     "sourceText": "Source",
     "translation": "Translation",
+    "explanation": "Explanation",
     "copyTranslation": "Copy translation",
+    "copyExplanation": "Copy explanation",
     "saving": "Saving...",
     "savedToBook": "Saved to VocabBook",
     "alreadyInBook": "Already in VocabBook",
@@ -626,8 +706,14 @@
     "savedToHistory": "Saved to translation history",
     "details": "Details",
     "close": "Close",
+    "actions": {
+      "lookup": "Lookup",
+      "explain": "Explain",
+      "translate": "Translate"
+    },
     "errors": {
-      "translateFailed": "Translation failed. Please check your AI settings."
+      "translateFailed": "Translation failed. Please check your AI settings.",
+      "explainFailed": "Explanation failed. Please check your AI settings."
     }
   },
   "subscription": {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Trash2, Brain, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X } from 'lucide-react'
+import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages } from 'lucide-react'
 import { API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import EvermemLogo from '../assets/evermind-powered.svg'
@@ -70,7 +70,32 @@ interface ChatSession {
     createdAt: number
 }
 
-export default function AIChat({ isActive }: { isActive?: boolean }) {
+interface MemoryOverview {
+    enabled: boolean
+    requested: boolean
+    requires_auth: boolean
+    available: boolean
+    profile_facts: string[]
+    recent_memories: Array<{
+        content: string
+        timestamp?: string
+        bucket: 'chat' | 'review' | string
+    }>
+    review_focus: {
+        due_count: number
+        difficult_count: number
+        weak_words: Array<{
+            word: string
+            meaning: string
+            error_count: number
+            easiness: number
+            is_due: boolean
+        }>
+    }
+    suggestions: string[]
+}
+
+export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boolean, onOpenTranslation?: () => void }) {
     const { t } = useTranslation()
     const { token } = useAuth()
     const [sessions, setSessions] = useState<ChatSession[]>([])
@@ -97,6 +122,16 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({})
     const [pendingImages, setPendingImages] = useState<ImageAttachment[]>([])
     const [isDragOverComposer, setIsDragOverComposer] = useState(false)
+    const [memoryPanelOpen, setMemoryPanelOpen] = useState(false)
+    const [memoryOverview, setMemoryOverview] = useState<MemoryOverview | null>(null)
+    const [memoryOverviewLoading, setMemoryOverviewLoading] = useState(false)
+    const [memoryOverviewError, setMemoryOverviewError] = useState<string | null>(null)
+    const [memoryOverviewUpdatedAt, setMemoryOverviewUpdatedAt] = useState<number | null>(null)
+
+    const memoryOverviewRequestRef = useRef<Promise<void> | null>(null)
+    const memoryOverviewLastFetchedAtRef = useRef<number>(0)
+    const memoryOverviewDirtyRef = useRef(false)
+    const memoryOverviewRefreshTimerRef = useRef<number | null>(null)
 
     const MAX_IMAGE_ATTACHMENTS = 3
     const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024
@@ -414,6 +449,67 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         setPendingImages(prev => prev.filter(item => item.id !== attachmentId))
     }
 
+    const loadMemoryOverview = async (
+        options?: {
+            force?: boolean
+            silent?: boolean
+        }
+    ) => {
+        if (!evermemEnabled) {
+            setMemoryOverview(null)
+            setMemoryOverviewError(null)
+            setMemoryOverviewUpdatedAt(null)
+            memoryOverviewLastFetchedAtRef.current = 0
+            memoryOverviewDirtyRef.current = false
+            return
+        }
+
+        const force = options?.force === true
+        const silent = options?.silent === true
+        const now = Date.now()
+        const isFresh = now - memoryOverviewLastFetchedAtRef.current < 60_000
+
+        if (!force && memoryOverview && isFresh && !memoryOverviewDirtyRef.current) {
+            return
+        }
+
+        if (memoryOverviewRequestRef.current) {
+            return memoryOverviewRequestRef.current
+        }
+
+        if (!silent) {
+            setMemoryOverviewLoading(true)
+        }
+        setMemoryOverviewError(null)
+
+        const request = (async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}${API_PATHS.AI_MEMORY_OVERVIEW}`, {
+                    headers: getApiHeaders()
+                })
+                if (!response.ok) {
+                    throw new Error(t('chat.memory.panel.loadFailed'))
+                }
+                const payload = await response.json()
+                setMemoryOverview(payload)
+                setMemoryOverviewUpdatedAt(Date.now())
+                memoryOverviewLastFetchedAtRef.current = Date.now()
+                memoryOverviewDirtyRef.current = false
+            } catch (error) {
+                console.error('Failed to load memory overview', error)
+                setMemoryOverviewError(error instanceof Error ? error.message : t('chat.memory.panel.loadFailed'))
+            } finally {
+                if (!silent) {
+                    setMemoryOverviewLoading(false)
+                }
+                memoryOverviewRequestRef.current = null
+            }
+        })()
+
+        memoryOverviewRequestRef.current = request
+        return request
+    }
+
     const getApiHeaders = () => {
         const headers: Record<string, string> = getCommonHeaders()
         if (provider) headers['X-AI-Provider'] = provider
@@ -456,6 +552,8 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
     const activeSession = sessions.find(s => s.id === activeSessionId)
     const messages = activeSession?.messages || []
     const sortedSessions = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
+    const weakWords = memoryOverview?.review_focus?.weak_words || []
+    const canStartWeakWordPractice = weakWords.length > 0
     const getDisplaySessionTitle = (title: string) => {
         if (isDefaultNewChatTitle(title)) return t('chat.session.newChat')
         if (title === LEGACY_MIGRATED_CHAT_TITLE) return t('chat.session.migratedChat')
@@ -591,6 +689,15 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
         setActiveSessionId(null)
         setSidebarOpen(false)
         setTimeout(() => createNewSession(), 0)
+    }
+
+    const startWeakWordPractice = () => {
+        if (!canStartWeakWordPractice) return
+        const words = weakWords.slice(0, 3).map(item => item.word).filter(Boolean)
+        if (words.length === 0) return
+        setInput(t('chat.memory.panel.practicePrompt', { words: words.join(', ') }))
+        setMemoryPanelOpen(false)
+        setTimeout(() => inputRef.current?.focus(), 0)
     }
 
 
@@ -852,6 +959,16 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 } else {
                     setMemoryToast(t('chat.memory.toast.saved'))
                 }
+                memoryOverviewDirtyRef.current = true
+                if (memoryPanelOpen) {
+                    if (memoryOverviewRefreshTimerRef.current !== null) {
+                        window.clearTimeout(memoryOverviewRefreshTimerRef.current)
+                    }
+                    memoryOverviewRefreshTimerRef.current = window.setTimeout(() => {
+                        memoryOverviewRefreshTimerRef.current = null
+                        void loadMemoryOverview({ force: true, silent: true })
+                    }, 900)
+                }
             }
         } catch (error: unknown) {
             console.error('Chat stream failed:', error)
@@ -891,6 +1008,58 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
             provider === 'dashscope' ? t('chat.providers.dashscope') :
                 provider === 'gemini' ? 'Gemini' :
                     provider === 'ollama' ? 'Ollama' : provider
+
+    useEffect(() => {
+        if (!memoryPanelOpen) return
+        const now = Date.now()
+        const shouldForce = memoryOverviewDirtyRef.current
+        const shouldRefreshInBackground =
+            Boolean(memoryOverview) &&
+            (now - memoryOverviewLastFetchedAtRef.current >= 60_000 || memoryOverviewDirtyRef.current)
+
+        if (!memoryOverview) {
+            void loadMemoryOverview()
+            return
+        }
+
+        if (shouldForce || shouldRefreshInBackground) {
+            void loadMemoryOverview({ force: shouldForce, silent: true })
+        }
+    }, [memoryPanelOpen, evermemEnabled, token, memoryOverview])
+
+    useEffect(() => {
+        return () => {
+            if (memoryOverviewRefreshTimerRef.current !== null) {
+                window.clearTimeout(memoryOverviewRefreshTimerRef.current)
+            }
+        }
+    }, [])
+
+    const formatMemoryTimestamp = (timestamp?: string) => {
+        if (!timestamp) return ''
+        try {
+            return new Date(timestamp).toLocaleString([], {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            })
+        } catch {
+            return ''
+        }
+    }
+
+    const formatPanelUpdatedAt = (timestamp: number | null) => {
+        if (!timestamp) return ''
+        try {
+            return new Date(timestamp).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            })
+        } catch {
+            return ''
+        }
+    }
 
     return (
         <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg shadow-slate-300/20 dark:shadow-slate-950/30">
@@ -1037,7 +1206,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                 <span className="hidden sm:inline">{t('chat.header.title')}</span>
                                 {evermemEnabled && (
                                     <span className="px-2 py-0.5 text-[10px] font-bold bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 rounded-full flex items-center gap-1 border border-primary-200/70 dark:border-primary-700/50">
-                                        <Brain size={10} className="animate-pulse" />
+                                        <span className="h-1.5 w-1.5 rounded-full bg-primary-500 dark:bg-primary-300" />
                                         {t('chat.header.longTermMemoryEnabled')}
                                     </span>
                                 )}
@@ -1054,6 +1223,29 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {onOpenTranslation && (
+                            <button
+                                onClick={onOpenTranslation}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-600 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300"
+                                title={t('sidebar.translationTooltip', 'Multilingual AI translation assistant')}
+                            >
+                                <Languages size={16} />
+                                <span className="hidden lg:inline">{t('sidebar.translation', 'Translator')}</span>
+                            </button>
+                        )}
+                        {evermemEnabled && (
+                            <button
+                                onClick={() => setMemoryPanelOpen(prev => !prev)}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors ${memoryPanelOpen
+                                    ? 'border-primary-300 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300'
+                                    }`}
+                                title={t('chat.memory.panel.title')}
+                            >
+                                <span className={`h-2 w-2 rounded-full ${memoryPanelOpen ? 'bg-primary-500 dark:bg-primary-300' : 'bg-slate-400 dark:bg-slate-500'}`} />
+                                <span className="hidden sm:inline">{t('chat.memory.panel.button')}</span>
+                            </button>
+                        )}
                         <button
                             onClick={createNewSession}
                             className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-semibold rounded-xl transition-all shadow-md shadow-primary-500/30 hover:shadow-lg hover:shadow-primary-500/40 hover:scale-[1.02] active:scale-[0.98]"
@@ -1127,11 +1319,190 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                 {memoryToast && (
                     <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 animate-fade-in shadow-xl">
                         <div className="bg-indigo-600/95 backdrop-blur-md text-white text-sm px-4 py-2 rounded-full shadow-indigo-500/20 shadow-lg flex items-center gap-2 whitespace-nowrap border border-indigo-500">
-                            <Brain size={14} className="animate-pulse" />
+                            <span className="h-2 w-2 rounded-full bg-white/90" />
                             {memoryToast}
                         </div>
                     </div>
                 )}
+
+                <div className={`absolute inset-y-0 right-0 z-30 w-full max-w-sm border-l border-slate-200/80 dark:border-slate-700/60 bg-white/96 dark:bg-slate-900/96 backdrop-blur-xl shadow-[-8px_0_24px_rgba(15,23,42,0.08)] dark:shadow-[-8px_0_24px_rgba(0,0,0,0.35)] transition-transform duration-300 ease-out ${memoryPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                    <div className="flex h-full flex-col">
+                        <div className="flex items-start justify-between gap-3 border-b border-slate-200/80 dark:border-slate-700/60 px-4 py-4">
+                            <div>
+                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                    {t('chat.memory.panel.title')}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    {t('chat.memory.panel.subtitle')}
+                                </p>
+                                {memoryOverviewUpdatedAt && (
+                                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                        {t('chat.memory.panel.updatedAt', { time: formatPanelUpdatedAt(memoryOverviewUpdatedAt) })}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => void loadMemoryOverview({ force: true })}
+                                    className="rounded-lg px-2.5 py-2 text-[11px] font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                                    title={t('chat.memory.panel.refresh')}
+                                >
+                                    {t('chat.memory.panel.refresh')}
+                                </button>
+                                <button
+                                    onClick={() => setMemoryPanelOpen(false)}
+                                    className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                                    title={t('chat.memory.panel.close')}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 custom-scrollbar">
+                            {memoryOverviewLoading && (
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
+                                    {t('chat.memory.panel.loading')}
+                                </div>
+                            )}
+
+                            {!memoryOverviewLoading && memoryOverviewError && (
+                                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                                    {memoryOverviewError}
+                                </div>
+                            )}
+
+                            {!memoryOverviewLoading && memoryOverview?.requires_auth && (
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-5 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+                                    {t('chat.memory.panel.requiresAuth')}
+                                </div>
+                            )}
+
+                            {!memoryOverviewLoading && !memoryOverview?.requires_auth && (
+                                <>
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                                    {t('chat.memory.panel.reviewFocusTitle')}
+                                                </p>
+                                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                    {t('chat.memory.panel.reviewFocusDesc')}
+                                                </p>
+                                            </div>
+                                            <div className="flex gap-2 text-xs font-semibold">
+                                                <span className="rounded-full bg-white px-3 py-1 text-slate-600 dark:bg-slate-900 dark:text-slate-200">
+                                                    {t('chat.memory.panel.dueCount', { count: memoryOverview?.review_focus?.due_count || 0 })}
+                                                </span>
+                                                <span className="rounded-full bg-red-100 px-3 py-1 text-red-600 dark:bg-red-900/30 dark:text-red-300">
+                                                    {t('chat.memory.panel.difficultCount', { count: memoryOverview?.review_focus?.difficult_count || 0 })}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {weakWords.length > 0 ? (
+                                            <div className="mt-4 space-y-2">
+                                                {weakWords.slice(0, 4).map(item => (
+                                                    <div key={item.word} className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                                                    {item.word}
+                                                                </p>
+                                                                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                                                                    {item.meaning || t('chat.memory.panel.noMeaning')}
+                                                                </p>
+                                                            </div>
+                                                            <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${item.is_due ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                                                                {item.error_count}x
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                                                {t('chat.memory.panel.noWeakWords')}
+                                            </p>
+                                        )}
+
+                                        <button
+                                            type="button"
+                                            onClick={startWeakWordPractice}
+                                            disabled={!canStartWeakWordPractice}
+                                            className="mt-4 w-full rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {t('chat.memory.panel.practiceAction')}
+                                        </button>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                            {t('chat.memory.panel.profileTitle')}
+                                        </p>
+                                        <div className="mt-3 space-y-2">
+                                            {(memoryOverview?.profile_facts || []).length > 0 ? (
+                                                memoryOverview?.profile_facts.map((fact, index) => (
+                                                    <div key={`${fact}-${index}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+                                                        {fact}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                    {t('chat.memory.panel.noProfile')}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                            {t('chat.memory.panel.recentTitle')}
+                                        </p>
+                                        <div className="mt-3 space-y-2">
+                                            {(memoryOverview?.recent_memories || []).length > 0 ? (
+                                                memoryOverview?.recent_memories.map((item, index) => (
+                                                    <div key={`${item.content}-${index}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.bucket === 'review' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                                                                {item.bucket === 'review' ? t('chat.memory.panel.reviewBucket') : t('chat.memory.panel.chatBucket')}
+                                                            </span>
+                                                            <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                                                {formatMemoryTimestamp(item.timestamp)}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">
+                                                            {item.content}
+                                                        </p>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                    {t('chat.memory.panel.noRecent')}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {(memoryOverview?.suggestions || []).length > 0 && (
+                                        <div className="rounded-2xl border border-primary-200 bg-primary-50 p-4 dark:border-primary-800/60 dark:bg-primary-900/20">
+                                            <p className="text-sm font-semibold text-primary-700 dark:text-primary-300">
+                                                {t('chat.memory.panel.nextTitle')}
+                                            </p>
+                                            <div className="mt-3 space-y-2">
+                                                {memoryOverview?.suggestions.map((item, index) => (
+                                                    <div key={`${item}-${index}`} className="rounded-xl bg-white/80 px-3 py-2 text-sm text-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
+                                                        {item}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
 
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar scroll-smooth bg-slate-50/60 dark:bg-slate-900/30">
@@ -1145,16 +1516,6 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                             </div>
                             <p className="text-lg font-bold text-slate-900 dark:text-white mb-1 tracking-tight">{t('chat.empty.title')}</p>
                             <p className="text-sm text-slate-500 dark:text-slate-400">{t('chat.empty.subtitle')}</p>
-                            {evermemEnabled && (
-                                <div className="mt-6 px-6 py-5 bg-white dark:bg-slate-850/70 rounded-2xl border border-slate-200 dark:border-slate-800/80 text-center max-w-sm shadow-sm shadow-slate-300/15 dark:shadow-slate-950/30">
-                                    <p className="text-sm text-primary-600 dark:text-primary-400 flex items-center justify-center gap-1.5 font-bold mb-1">
-                                        <Brain size={16} /> {t('chat.empty.memoryTitle')}
-                                    </p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-6">
-                                        {t('chat.empty.memoryDesc')}
-                                    </p>
-                                </div>
-                            )}
                         </div>
                     )}
 
@@ -1245,7 +1606,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                             <div className="flex gap-1.5 items-center h-6">
                                                 {evermemEnabled ? (
                                                     <span className="text-[13px] font-medium text-indigo-500 dark:text-indigo-400 flex items-center gap-1.5">
-                                                        <Brain size={14} className="animate-pulse" />
+                                                        <span className="h-2 w-2 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-pulse" />
                                                         {t('chat.loading.thinking')}
                                                     </span>
                                                 ) : (
@@ -1264,7 +1625,7 @@ export default function AIChat({ isActive }: { isActive?: boolean }) {
                                 {/* Memory indicators */}
                                 {msg.role === 'user' && msg.memorySaved && (
                                     <span className="text-[11px] text-indigo-500 dark:text-indigo-400 flex items-center gap-1 self-end mr-1 font-medium">
-                                        <Brain size={10} /> {t('chat.memory.savedIndicator')}
+                                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400" /> {t('chat.memory.savedIndicator')}
                                     </span>
                                 )}
                                 {msg.role === 'assistant' && (msg.memoriesUsed || 0) > 0 && (

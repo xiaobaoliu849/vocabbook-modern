@@ -23,6 +23,10 @@ export default function WordDetailModal({ word, onClose, onWordUpdated }: WordDe
  
    useEffect(() => {
      const handleClickOutside = (event: MouseEvent) => {
+       const target = event.target as Element | null
+       if (target?.closest('[data-selection-overlay="true"]')) {
+         return
+       }
        if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
          onClose()
        }

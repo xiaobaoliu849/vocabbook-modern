@@ -52,13 +52,21 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
     const totalPages = Math.ceil(totalItems / itemsPerPage) || 1
 
     useEffect(() => {
-        if (isActive !== false) {
-            fetchWords()
-            fetchTags()
-        }
+        if (isActive === false) return
+
+        const controller = new AbortController()
+        void fetchWords(controller.signal)
+
+        return () => controller.abort()
     }, [debouncedKeyword, filterTag, isActive, currentPage, itemsPerPage, lastUpdate])
 
-    const fetchWords = async () => {
+    useEffect(() => {
+        if (isActive !== false) {
+            void fetchTags()
+        }
+    }, [isActive, lastUpdate])
+
+    const fetchWords = async (signal?: AbortSignal) => {
         setLoading(true)
         try {
             const params = new URLSearchParams()
@@ -68,13 +76,18 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             params.append('page_size', itemsPerPage.toString())
             params.append('_t', Date.now().toString())
 
-            const data = await api.get(`${API_PATHS.WORDS}?${params}`)
+            const data = await api.get(`${API_PATHS.WORDS}?${params}`, { signal })
             setWords(data.words || [])
             setTotalItems(data.total || 0)
         } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                return
+            }
             console.error('Failed to fetch words:', error)
         } finally {
-            setLoading(false)
+            if (!signal?.aborted) {
+                setLoading(false)
+            }
         }
     }
 
@@ -215,17 +228,19 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             } else if (e.key === 'ArrowLeft') {
                 // Previous page
                 e.preventDefault()
+                if (e.repeat || loading) return
                 setCurrentPage(prev => Math.max(1, prev - 1))
             } else if (e.key === 'ArrowRight') {
                 // Next page
                 e.preventDefault()
+                if (e.repeat || loading) return
                 setCurrentPage(prev => Math.min(totalPages, prev + 1))
             }
         }
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isActive, words, selectedIndex, scrollToSelected, totalPages])
+    }, [isActive, words, selectedIndex, scrollToSelected, totalPages, loading])
 
     // Reset selection and page when filters change
     useEffect(() => {
@@ -297,6 +312,8 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                 }}
                                 className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 
                            transition-colors animate-slide-up cursor-pointer group
+                           ${index === 0 ? 'rounded-t-3xl' : ''}
+                           ${index === words.length - 1 ? 'rounded-b-3xl' : ''}
                            ${selectedIndex === index ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-inset ring-primary-500' : ''}`}
                                 style={{ animationDelay: `${index * 0.02}s` }}
                             >

@@ -12,9 +12,10 @@ type TabId = 'account' | 'general' | 'dict' | 'ai' | 'about';
 interface SettingsLayoutProps {
     initialTab?: string
     onTabChange?: (tab: string) => void
+    onOpenAdmin?: () => void
 }
 
-export default function SettingsLayout({ initialTab, onTabChange }: SettingsLayoutProps) {
+export default function SettingsLayout({ initialTab, onTabChange, onOpenAdmin }: SettingsLayoutProps) {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<TabId>('account')
 
@@ -51,7 +52,7 @@ export default function SettingsLayout({ initialTab, onTabChange }: SettingsLayo
             {/* Content Area - 独立滚动 */}
             <div className="flex-1 min-w-0 overflow-y-auto pr-2">
                 <div className="animate-fade-in">
-                    {activeTab === 'account' && <AccountSection />}
+                    {activeTab === 'account' && <AccountSection onOpenAdmin={onOpenAdmin} />}
                     {activeTab === 'general' && <GeneralSection />}
                     {activeTab === 'dict' && <DictionarySection />}
                     {activeTab === 'ai' && <AISection />}

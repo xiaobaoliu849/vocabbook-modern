@@ -100,7 +100,7 @@ def test_recall_questions_fall_back_to_recent_memories():
 
     captured = {}
 
-    async def fake_call_llm(messages, temperature=0.7):
+    async def fake_call_llm(messages, temperature=0.7, enable_thinking=None):
         captured["messages"] = messages
         return "ok"
 
@@ -113,7 +113,7 @@ def test_recall_questions_fall_back_to_recent_memories():
         )
     )
 
-    assert result["memory_saved"] is True
+    assert result["memory_saved"] is False
     assert result["memories_retrieved"] >= 1
     assert service.evermem_service.search_calls[0]["min_score"] == 0.15
     assert service.evermem_service.search_calls[0]["group_ids"] == ["session-1"]
@@ -124,11 +124,7 @@ def test_recall_questions_fall_back_to_recent_memories():
         {"user_id": "cloud_demo", "group_ids": None, "memory_type": "event_log", "page_size": 100},
     ]
     assert any("suancai" in call["query"].lower() or "march 15" in call["query"].lower() for call in service.evermem_service.search_calls)
-    assert service.evermem_service.add_calls[0]["group_id"] == "session-1"
-    assert service.evermem_service.add_calls[0]["role"] == "user"
-    assert service.evermem_service.add_calls[1]["group_id"] == "session-1"
-    assert service.evermem_service.add_calls[1]["role"] == "assistant"
-    assert service.evermem_service.add_calls[1]["flush"] is True
+    assert service.evermem_service.add_calls == []
 
     system_prompt = captured["messages"][0]["content"]
     assert "User likes discussing hobbies" not in system_prompt
@@ -146,7 +142,7 @@ def test_generic_follow_up_recall_uses_recent_session_event_logs():
 
     captured = {}
 
-    async def fake_call_llm(messages, temperature=0.7):
+    async def fake_call_llm(messages, temperature=0.7, enable_thinking=None):
         captured["messages"] = messages
         return "ok"
 
@@ -196,7 +192,7 @@ def test_identity_recall_keeps_profile_memories():
 
     captured = {}
 
-    async def fake_call_llm(messages, temperature=0.7):
+    async def fake_call_llm(messages, temperature=0.7, enable_thinking=None):
         captured["messages"] = messages
         return "ok"
 
@@ -253,7 +249,7 @@ def test_review_recall_uses_review_event_logs():
 
     captured = {}
 
-    async def fake_call_llm(messages, temperature=0.7):
+    async def fake_call_llm(messages, temperature=0.7, enable_thinking=None):
         captured["messages"] = messages
         return "ok"
 
@@ -305,3 +301,12 @@ def test_personal_fact_recall_detects_favorite_and_time_questions():
     assert service._is_memory_recall_request("What is my favorite fruit?")
     assert service._is_memory_recall_request("When do I often study English?")
     assert not service._is_memory_recall_request("What is a mango?")
+
+
+def test_memory_retrieval_gate_is_conservative_for_non_recall_chat():
+    service = AIService(provider="openai", api_key="test-key", evermem_enabled=False)
+
+    assert not service._should_retrieve_memory("Tell me a joke.")
+    assert not service._should_retrieve_memory("Okay, thanks!")
+    assert service._should_retrieve_memory("Can you suggest a study plan for me this week?")
+    assert service._should_retrieve_memory("I often forget the word maintain. Can you help me practice it?")

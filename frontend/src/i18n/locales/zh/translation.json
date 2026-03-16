@@ -18,6 +18,8 @@
     "translationTooltip": "多语言 AI 翻译助手",
     "chat": "AI 语伴",
     "chatTooltip": "拥有长期记忆的对话练习",
+    "admin": "管理后台",
+    "adminTooltip": "管理云端用户、会员和订单",
     "settings": "设置",
     "settingsTooltip": "应用设置",
     "loginRegister": "登录 / 注册",
@@ -53,6 +55,49 @@
     "addToVocabBook": "添加到生词本",
     "generateExample": "AI 生成例句",
     "searchConfirm": "搜索 / 确认"
+  },
+  "admin": {
+    "title": "云端管理",
+    "subtitle": "查看注册用户、会员状态和订单数据",
+    "token": {
+      "placeholder": "输入管理员令牌",
+      "connect": "连接",
+      "refresh": "刷新",
+      "clear": "清除"
+    },
+    "summary": {
+      "totalUsers": "总用户数",
+      "premiumUsers": "专业版用户",
+      "totalOrders": "总订单数",
+      "paidOrders": "已支付订单"
+    },
+    "users": {
+      "title": "用户列表",
+      "subtitle": "最近注册的账户及其当前会员状态",
+      "email": "邮箱",
+      "tier": "会员",
+      "expiry": "到期时间",
+      "createdAt": "注册时间",
+      "actions": "操作",
+      "empty": "暂时还没有用户。",
+      "locked": "先输入管理员令牌以加载用户数据。",
+      "premium": "专业版",
+      "free": "免费版",
+      "updating": "更新中...",
+      "upgrade30": "升级 30 天",
+      "setFree": "设为免费"
+    },
+    "orders": {
+      "title": "订单列表",
+      "subtitle": "云端服务返回的最近支付记录",
+      "empty": "暂时还没有订单。",
+      "locked": "先输入管理员令牌以加载订单数据。"
+    },
+    "errors": {
+      "missingToken": "请先输入管理员令牌。",
+      "loadFailed": "加载管理数据失败。",
+      "updateFailed": "更新用户会员状态失败。"
+    }
   },
   "settings": {
     "title": "设置",
@@ -262,6 +307,32 @@
     "memory": {
       "savedIndicator": "已纳入长记忆",
       "retrievedIndicator": "提取 {{count}} 条核心记忆",
+      "panel": {
+        "button": "记忆",
+        "title": "学习记忆",
+        "subtitle": "查看 AI 记住了什么，以及下一步怎么继续帮你。",
+        "close": "关闭记忆面板",
+        "refresh": "刷新",
+        "loading": "正在加载学习记忆...",
+        "loadFailed": "记忆概览加载失败，请稍后重试。",
+        "updatedAt": "更新于 {{time}}",
+        "requiresAuth": "登录后才能查看跨会话长期记忆。",
+        "reviewFocusTitle": "当前复习重点",
+        "reviewFocusDesc": "这些词会优先影响后续对话练习和个性化提示。",
+        "dueCount": "待复习 {{count}}",
+        "difficultCount": "困难词 {{count}}",
+        "noMeaning": "暂无释义",
+        "noWeakWords": "目前没有明显的薄弱词，继续保持。",
+        "practiceAction": "用这些薄弱词继续练习",
+        "practicePrompt": "请用这些我最近比较薄弱的单词和我练一段英语对话：{{words}}",
+        "profileTitle": "AI 记住的学习偏好",
+        "noProfile": "还没有稳定的长期偏好记忆，多聊几次后会更明显。",
+        "recentTitle": "最近记住的内容",
+        "noRecent": "最近还没有可展示的记忆记录。",
+        "reviewBucket": "复习",
+        "chatBucket": "对话",
+        "nextTitle": "下一步建议"
+      },
       "toast": {
         "recalled": "回忆了 {{count}} 条相关记忆",
         "saved": "已记住本次对话",
@@ -314,13 +385,18 @@
       "choice": "选择",
       "dictation": "听写"
     },
+    "labels": {
+      "controls": "快捷控制"
+    },
     "progress": "{{current}} / {{total}} · 已复习 {{reviewed}} 个",
     "shortcuts": {
       "flip": "按 空格 翻转",
       "check": "输入后按 回车 检查",
       "rate": "数字键 1-5 评分",
       "flipCard": "按 空格键翻转卡片",
-      "typeAndCheck": "输入拼写并回车检查"
+      "typeAndCheck": "输入拼写并回车检查",
+      "chooseOption": "点击或按数字键 1-4 选择答案",
+      "listenAndType": "先听发音，再输入拼写"
     },
     "spelling": {
       "placeholder": "输入单词拼写...",
@@ -613,12 +689,16 @@
   "quickLookup": {
     "wordTitle": "快速查词",
     "translateTitle": "快速翻译",
+    "explainTitle": "AI 解释",
     "loadingWord": "正在查词...",
     "loadingTranslation": "正在翻译...",
+    "loadingExplanation": "正在生成解释...",
     "example": "例句",
     "sourceText": "原文",
     "translation": "翻译",
+    "explanation": "解释",
     "copyTranslation": "复制译文",
+    "copyExplanation": "复制解释",
     "saving": "保存中...",
     "savedToBook": "已保存到生词本",
     "alreadyInBook": "已在生词本中",
@@ -626,8 +706,14 @@
     "savedToHistory": "已保存到翻译历史",
     "details": "详情",
     "close": "关闭",
+    "actions": {
+      "lookup": "查询",
+      "explain": "解释",
+      "translate": "翻译"
+    },
     "errors": {
-      "translateFailed": "翻译失败，请检查 AI 设置"
+      "translateFailed": "翻译失败，请检查 AI 设置",
+      "explainFailed": "解释失败，请检查 AI 设置"
     }
   },
   "subscription": {

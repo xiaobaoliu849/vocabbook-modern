@@ -63,9 +63,9 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
     }
 
     return (
-        <div className="w-full h-full flex flex-col items-center justify-center p-8">
+        <div className="w-full h-full min-h-0 flex flex-col p-6 md:p-8">
             {/* Audio Section */}
-            <div className="text-center mb-8">
+            <div className="flex-none text-center pb-6">
                 <div className="mb-4">
                     <span className="text-6xl">🎧</span>
                 </div>
@@ -81,72 +81,74 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
             </div>
 
             {/* Input Section */}
-            <div className="w-full max-w-md">
-                <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => {
-                        setInput(e.target.value)
-                        if (status !== 'idle') setStatus('idle')
-                    }}
-                    onKeyDown={handleKeyDown}
-                    placeholder={t('review.dictation.placeholder')}
-                    autoFocus
-                    disabled={showAnswer}
-                    className={`
-            w-full px-6 py-4 text-2xl text-center rounded-2xl border-2 outline-none transition-all
-            ${status === 'correct'
-                            ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-                            : status === 'incorrect'
-                                ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-primary-500'
-                        }
-            ${showAnswer ? 'opacity-50' : ''}
-          `}
-                />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="mx-auto flex w-full max-w-md flex-col">
+                    <input
+                        type="text"
+                        value={input}
+                        onChange={(e) => {
+                            setInput(e.target.value)
+                            if (status !== 'idle') setStatus('idle')
+                        }}
+                        onKeyDown={handleKeyDown}
+                        placeholder={t('review.dictation.placeholder')}
+                        autoFocus
+                        disabled={showAnswer}
+                        className={`
+                            w-full rounded-2xl border-2 px-6 py-4 text-center text-2xl outline-none transition-all
+                            ${status === 'correct'
+                                ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                                : status === 'incorrect'
+                                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-primary-500'
+                            }
+                            ${showAnswer ? 'opacity-50' : ''}
+                        `}
+                    />
 
-                {/* Feedback */}
-                <div className="h-16 flex items-center justify-center mt-4">
-                    {status === 'correct' && (
-                        <div className="text-green-500 text-xl font-bold animate-bounce">
-                            {t('review.dictation.correct')}
-                        </div>
-                    )}
-                    {status === 'incorrect' && !showAnswer && (
-                        <div className="text-red-500 animate-shake">
-                            {t('review.dictation.incorrect', { remaining: Math.max(0, 3 - attempts) })}
-                        </div>
-                    )}
-                    {showAnswer && (
-                        <div className="text-center">
-                            <p className="text-slate-500 mb-1">{t('review.dictation.answer')}</p>
-                            <p className="text-3xl font-bold text-primary-600 dark:text-primary-400">
-                                {word.word}
-                            </p>
-                        </div>
-                    )}
-                </div>
+                    {/* Feedback */}
+                    <div className="mt-4 flex h-16 items-center justify-center">
+                        {status === 'correct' && (
+                            <div className="text-xl font-bold text-green-500 animate-bounce">
+                                {t('review.dictation.correct')}
+                            </div>
+                        )}
+                        {status === 'incorrect' && !showAnswer && (
+                            <div className="text-red-500 animate-shake">
+                                {t('review.dictation.incorrect', { remaining: Math.max(0, 3 - attempts) })}
+                            </div>
+                        )}
+                        {showAnswer && (
+                            <div className="text-center">
+                                <p className="mb-1 text-slate-500">{t('review.dictation.answer')}</p>
+                                <p className="text-3xl font-bold text-primary-600 dark:text-primary-400">
+                                    {word.word}
+                                </p>
+                            </div>
+                        )}
+                    </div>
 
-                {/* Actions */}
-                <div className="flex justify-center gap-4 mt-4">
-                    {!showAnswer && status !== 'correct' && (
-                        <button
-                            onClick={handleGiveUp}
-                            className="px-4 py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline decoration-dotted underline-offset-4"
-                        >
-                            {t('review.dictation.showAnswer')}
-                        </button>
+                    {/* Actions */}
+                    <div className="mt-4 flex justify-center gap-4">
+                        {!showAnswer && status !== 'correct' && (
+                            <button
+                                onClick={handleGiveUp}
+                                className="px-4 py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline decoration-dotted underline-offset-4"
+                            >
+                                {t('review.dictation.showAnswer')}
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Phonetic hint after first wrong attempt */}
+                    {attempts >= 1 && !showAnswer && word.phonetic && (
+                        <div className="mt-6 text-center text-slate-400">
+                            <span className="text-sm">{t('review.dictation.phoneticHint')}</span>
+                            <span className="ml-2 font-mono text-lg">{word.phonetic}</span>
+                        </div>
                     )}
                 </div>
             </div>
-
-            {/* Phonetic hint after first wrong attempt */}
-            {attempts >= 1 && !showAnswer && word.phonetic && (
-                <div className="mt-6 text-slate-400">
-                    <span className="text-sm">{t('review.dictation.phoneticHint')}</span>
-                    <span className="font-mono text-lg ml-2">{word.phonetic}</span>
-                </div>
-            )}
         </div>
     )
 }

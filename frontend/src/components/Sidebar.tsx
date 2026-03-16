@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight, Upload, Languages, User as UserIcon, LogOut, Crown, BarChart2, Bot } from 'lucide-react'
+import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight, User as UserIcon, LogOut, Crown, BarChart2, Bot } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useGlobalState } from '../context/GlobalStateContext'
@@ -224,7 +224,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
     )
 }
 
-type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat'
+type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat' | 'admin'
 
 interface SidebarProps {
     currentPage: Page
@@ -236,15 +236,19 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
     const { t } = useTranslation()
     const [isCollapsed, setIsCollapsed] = useState(false)
     const { dueCount } = useGlobalState()
+    const isPageActive = (page: Page) => {
+        if (page === 'add') return currentPage === 'add' || currentPage === 'import'
+        if (page === 'chat') return currentPage === 'chat' || currentPage === 'translation'
+        if (page === 'settings') return currentPage === 'settings' || currentPage === 'admin'
+        return currentPage === page
+    }
 
     const navItems = [
         { id: 'add' as Page, icon: <Home size={22} />, label: t('sidebar.add', 'Vocabulary Hub'), tooltip: t('sidebar.addTooltip', 'Search and add new words'), badge: 0 },
-        { id: 'import' as Page, icon: <Upload size={22} />, label: t('sidebar.import', 'Batch Import'), tooltip: t('sidebar.importTooltip', 'Import TXT / CSV in bulk'), badge: 0 },
         { id: 'list' as Page, icon: <BookOpen size={22} />, label: t('sidebar.list', 'Word List'), tooltip: t('sidebar.listTooltip', 'Manage saved words'), badge: 0 },
         { id: 'review' as Page, icon: <Brain size={22} />, label: t('sidebar.review', 'Smart Review'), tooltip: t('sidebar.reviewTooltip', 'Review with the SM-2 algorithm'), badge: dueCount },
-        { id: 'stats' as Page, icon: <BarChart2 size={22} />, label: t('sidebar.stats', 'Statistics'), tooltip: t('sidebar.statsTooltip', 'View learning progress and heatmap'), badge: 0 },
-        { id: 'translation' as Page, icon: <Languages size={22} />, label: t('sidebar.translation', 'Translator'), tooltip: t('sidebar.translationTooltip', 'Multilingual AI translation assistant'), badge: 0 },
         { id: 'chat' as Page, icon: <Bot size={22} />, label: t('sidebar.chat', 'AI Partner'), tooltip: t('sidebar.chatTooltip', 'Conversation practice with long-term memory'), badge: 0 },
+        { id: 'stats' as Page, icon: <BarChart2 size={22} />, label: t('sidebar.stats', 'Statistics'), tooltip: t('sidebar.statsTooltip', 'View learning progress and heatmap'), badge: 0 },
     ]
 
     return (
@@ -276,7 +280,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
                     <button
                         key={item.id}
                         onClick={() => setCurrentPage(item.id)}
-                        className={`nav-item w-full overflow-hidden group ${currentPage === item.id ? 'active' : ''}`}
+                        className={`nav-item w-full overflow-hidden group ${isPageActive(item.id) ? 'active' : ''}`}
                         title={isCollapsed ? item.tooltip : ''}
                     >
                         <span className="shrink-0 relative">
@@ -300,7 +304,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
                                 {item.badge > 99 ? '99+' : item.badge}
                             </span>
                         )}
-                        {currentPage === item.id && (
+                        {isPageActive(item.id) && (
                             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-500 rounded-r-full" />
                         )}
                     </button>
@@ -319,14 +323,14 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
                 <button
                     onClick={() => setCurrentPage('settings')}
                     className={`group flex items-center gap-3 w-full p-2.5 rounded-xl transition-all duration-200 overflow-hidden
-                        ${currentPage === 'settings'
+                        ${isPageActive('settings')
                             ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-bold shadow-sm border border-primary-100 dark:border-primary-800/50'
                             : 'hover:bg-white dark:hover:bg-slate-800 hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                         }`}
                     title={isCollapsed ? t('sidebar.settingsTooltip', 'App Settings') : ''}
                 >
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0
-                        ${currentPage === 'settings'
+                        ${isPageActive('settings')
                             ? 'bg-primary-100 dark:bg-primary-800/50 text-primary-600 dark:text-primary-400'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:scale-110 group-hover:bg-primary-50 dark:group-hover:bg-primary-900/20 group-hover:text-primary-600 dark:group-hover:text-primary-400'
                         }`}

@@ -69,14 +69,14 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
     }, [handleSelect, showResult])
 
     return (
-        <div className="w-full h-full flex flex-col items-center justify-center p-8">
+        <div className="w-full h-full min-h-0 flex flex-col p-6 md:p-8">
             {/* Word Display */}
-            <div className="text-center mb-8">
-                <h3 className="text-5xl font-bold text-slate-800 dark:text-white mb-4">
+            <div className="flex-none text-center pb-6">
+                <h3 className="text-4xl font-bold text-slate-800 dark:text-white mb-3 md:text-5xl">
                     {word.word}
                 </h3>
                 {word.phonetic && (
-                    <p className="text-2xl text-slate-500 mb-4 font-mono">{word.phonetic}</p>
+                    <p className="text-xl text-slate-500 mb-4 font-mono md:text-2xl">{word.phonetic}</p>
                 )}
                 <AudioButton
                     word={word.word}
@@ -86,41 +86,43 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
             </div>
 
             {/* Options Grid */}
-            <div className="grid grid-cols-2 gap-4 w-full max-w-2xl">
-                {options.map((option, index) => {
-                    let bgClass = 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
+            <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
+                <div className="mx-auto grid w-full max-w-2xl grid-cols-2 content-start gap-4">
+                    {options.map((option, index) => {
+                        let bgClass = 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
 
-                    if (showResult) {
-                        if (option.isCorrect) {
-                            bgClass = 'bg-green-100 dark:bg-green-900/40 border-green-500 text-green-800 dark:text-green-300'
-                        } else if (index === selectedIndex) {
-                            bgClass = 'bg-red-100 dark:bg-red-900/40 border-red-500 text-red-800 dark:text-red-300'
-                        } else {
-                            bgClass = 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-50'
+                        if (showResult) {
+                            if (option.isCorrect) {
+                                bgClass = 'bg-green-100 dark:bg-green-900/40 border-green-500 text-green-800 dark:text-green-300'
+                            } else if (index === selectedIndex) {
+                                bgClass = 'bg-red-100 dark:bg-red-900/40 border-red-500 text-red-800 dark:text-red-300'
+                            } else {
+                                bgClass = 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-50'
+                            }
                         }
-                    }
 
-                    return (
-                        <button
-                            key={index}
-                            onClick={() => handleSelect(index)}
-                            disabled={showResult}
-                            className={`
-                p-4 rounded-xl border-2 text-left transition-all
-                ${bgClass}
-                ${!showResult ? 'cursor-pointer transform hover:scale-[1.02]' : 'cursor-default'}
-              `}
-                        >
-                            <span className="text-xs font-bold text-slate-400 mr-2">{index + 1}</span>
-                            <span className="text-base leading-relaxed">{option.text}</span>
-                        </button>
-                    )
-                })}
+                        return (
+                            <button
+                                key={index}
+                                onClick={() => handleSelect(index)}
+                                disabled={showResult}
+                                className={`
+                                    flex min-h-[132px] items-start rounded-xl border-2 p-4 text-left transition-all
+                                    ${bgClass}
+                                    ${!showResult ? 'cursor-pointer transform hover:scale-[1.02]' : 'cursor-default'}
+                                `}
+                            >
+                                <span className="text-xs font-bold text-slate-400 mr-2 pt-0.5">{index + 1}</span>
+                                <span className="text-base leading-relaxed">{option.text}</span>
+                            </button>
+                        )
+                    })}
+                </div>
             </div>
 
             {/* Result Feedback */}
             {showResult && (
-                <div className={`mt-6 text-xl font-bold animate-bounce ${options[selectedIndex!]?.isCorrect
+                <div className={`flex-none pt-4 text-center text-xl font-bold animate-bounce ${options[selectedIndex!]?.isCorrect
                     ? 'text-green-500'
                     : 'text-red-500'
                     }`}>

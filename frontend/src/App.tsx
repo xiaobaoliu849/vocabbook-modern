@@ -11,10 +11,12 @@ import ImportWords from './pages/ImportWords'
 import TranslationPage from './pages/TranslationPage'
 import StatisticsPage from './pages/StatisticsPage'
 import AIChat from './pages/AIChat'
+import AdminPanel from './pages/AdminPanel'
 import DictionaryPopup from './components/DictionaryPopup'
+import SelectionActionBar from './components/SelectionActionBar'
 import './App.css'
 
-type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat'
+type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat' | 'admin'
 
 function AppContent() {
   const { t } = useTranslation()
@@ -65,23 +67,15 @@ function AppContent() {
             break
           case '4':
             e.preventDefault()
-            setCurrentPage('settings')
+            setCurrentPage('chat')
             break
           case '5':
             e.preventDefault()
-            setCurrentPage('import')
+            setCurrentPage('stats')
             break
           case '6':
             e.preventDefault()
-            setCurrentPage('translation')
-            break
-          case '7':
-            e.preventDefault()
-            setCurrentPage('stats')
-            break
-          case '8':
-            e.preventDefault()
-            setCurrentPage('chat')
+            setCurrentPage('settings')
             break
         }
       }
@@ -107,20 +101,32 @@ function AppContent() {
       <main className="flex-1 overflow-auto">
         <div className="p-6 lg:p-8 max-w-7xl mx-auto">
           {/* 保持所有页面常驻挂载，用 CSS 控制显示/隐藏，避免热力图等组件重新挂载导致闪现 */}
-          <div className={currentPage === 'add' ? '' : 'hidden'}><AddWord /></div>
+          <div className={currentPage === 'add' ? '' : 'hidden'}>
+            <AddWord onOpenImport={() => setCurrentPage('import')} />
+          </div>
           <div className={currentPage === 'list' ? '' : 'hidden'}><WordList isActive={currentPage === 'list'} /></div>
           <div className={currentPage === 'review' ? '' : 'hidden'}><Review isActive={currentPage === 'review'} /></div>
-          <div className={currentPage === 'translation' ? '' : 'hidden'}><TranslationPage /></div>
+          <div className={currentPage === 'translation' ? '' : 'hidden'}>
+            <TranslationPage onBack={() => setCurrentPage('chat')} />
+          </div>
           <div className={currentPage === 'stats' ? '' : 'hidden'}><StatisticsPage /></div>
-          <div className={currentPage === 'chat' ? '' : 'hidden'}><AIChat isActive={currentPage === 'chat'} /></div>
+          <div className={currentPage === 'chat' ? '' : 'hidden'}>
+            <AIChat isActive={currentPage === 'chat'} onOpenTranslation={() => setCurrentPage('translation')} />
+          </div>
+          <div className={currentPage === 'admin' ? '' : 'hidden'}><AdminPanel /></div>
           <div className={currentPage === 'import' ? '' : 'hidden'}><ImportWords /></div>
           <div className={currentPage === 'settings' ? '' : 'hidden'}>
-            <Settings initialTab={settingsTab} onTabChange={(tab) => setSettingsTab(tab)} />
+            <Settings
+              initialTab={settingsTab}
+              onTabChange={(tab) => setSettingsTab(tab)}
+              onOpenAdmin={() => setCurrentPage('admin')}
+            />
           </div>
         </div>
       </main>
 
       {/* Global Inline Popup */}
+      <SelectionActionBar />
       <DictionaryPopup />
 
       {/* Keyboard Shortcuts Help Panel */}
@@ -153,11 +159,9 @@ function AppContent() {
                   <ShortcutItem keys={['Ctrl', '1']} desc={t('sidebar.add', 'Vocabulary Hub')} />
                   <ShortcutItem keys={['Ctrl', '2']} desc={t('sidebar.list', 'Word List')} />
                   <ShortcutItem keys={['Ctrl', '3']} desc={t('sidebar.review', 'Smart Review')} />
-                  <ShortcutItem keys={['Ctrl', '4']} desc={t('sidebar.settings', 'Settings')} />
-                  <ShortcutItem keys={['Ctrl', '5']} desc={t('sidebar.import', 'Batch Import')} />
-                  <ShortcutItem keys={['Ctrl', '6']} desc={t('sidebar.translation', 'Translator')} />
-                  <ShortcutItem keys={['Ctrl', '7']} desc={t('sidebar.stats', 'Statistics')} />
-                  <ShortcutItem keys={['Ctrl', '8']} desc={t('sidebar.chat', 'AI Partner')} />
+                  <ShortcutItem keys={['Ctrl', '4']} desc={t('sidebar.chat', 'AI Partner')} />
+                  <ShortcutItem keys={['Ctrl', '5']} desc={t('sidebar.stats', 'Statistics')} />
+                  <ShortcutItem keys={['Ctrl', '6']} desc={t('sidebar.settings', 'Settings')} />
                   <ShortcutItem keys={['?']} desc={t('shortcuts.toggleHelp', 'Show / Hide Help')} />
                   <ShortcutItem keys={['Esc']} desc={t('shortcuts.closeModal', 'Close Dialog')} />
                 </div>

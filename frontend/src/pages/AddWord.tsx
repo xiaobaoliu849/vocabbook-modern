@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import AudioButton from '../components/AudioButton'
-import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2 } from 'lucide-react'
+import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2, Upload } from 'lucide-react'
 import { api, ApiError, API_PATHS } from '../utils/api'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useTranslation } from 'react-i18next'
 
-export default function AddWord() {
+export default function AddWord({ onOpenImport }: { onOpenImport?: () => void }) {
     const { t } = useTranslation()
     const [searchWord, setSearchWord] = useState('')
     const [isSearching, setIsSearching] = useState(false)
@@ -198,13 +198,25 @@ export default function AddWord() {
     return (
         <div className="animate-fade-in space-y-6">
             {/* Header */}
-            <div>
-                <h2 className="text-3xl font-bold text-slate-800 dark:text-white">
-                    {t('addWord.title')}
-                </h2>
-                <p className="text-slate-500 dark:text-slate-400 mt-1">
-                    {t('addWord.subtitle')}
-                </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h2 className="text-3xl font-bold text-slate-800 dark:text-white">
+                        {t('addWord.title')}
+                    </h2>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">
+                        {t('addWord.subtitle')}
+                    </p>
+                </div>
+                {onOpenImport && (
+                    <button
+                        onClick={onOpenImport}
+                        className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300"
+                        title={t('sidebar.importTooltip', 'Import TXT / CSV in bulk')}
+                    >
+                        <Upload size={16} />
+                        {t('sidebar.import', 'Batch Import')}
+                    </button>
+                )}
             </div>
 
             {/* Search Box */}

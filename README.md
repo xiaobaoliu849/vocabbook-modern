@@ -196,6 +196,23 @@ npm install
 
 Current development mode is configured to use the deployed cloud API by default.
 
+### Verification
+
+Use the project root virtual environment for backend tests:
+
+```bash
+./.venv/bin/python -m pytest backend/tests/test_ai_memory_recall.py -q
+```
+
+Do not assume `backend/.venv` exists for this repository. The working test environment is `./.venv`.
+
+For frontend verification:
+
+```bash
+cd frontend
+npm run build
+```
+
 ## Demo Focus
 
 If you are recording a demo video, the most valuable flow is:

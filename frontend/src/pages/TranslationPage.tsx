@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Languages, ArrowRightLeft, Copy, Check, Trash2, Clock, Loader2, PanelRight, Eraser } from 'lucide-react'
+import { Languages, ArrowRightLeft, Copy, Check, Trash2, Clock, Loader2, PanelRight, Eraser, ArrowLeft } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +22,7 @@ interface AISettings {
 
 const LANGUAGES = ['Auto', 'English', 'Chinese', 'Japanese', 'Korean', 'French', 'Spanish', 'German', 'Russian'] as const
 
-export default function TranslationPage() {
+export default function TranslationPage({ onBack }: { onBack?: () => void }) {
     const { t } = useTranslation()
     const [sourceText, setSourceText] = useState('')
     const [targetText, setTargetText] = useState('')
@@ -246,20 +246,34 @@ export default function TranslationPage() {
             {/* Left: Translation Area */}
             <div className={`flex-1 flex flex-col gap-4 transition-all duration-300 ${showHistory ? 'mr-0 md:mr-80' : ''} h-full`}>
                 <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
-                        <Languages className="text-primary-500" />
-                        {t('translation.title')}
-                    </h2>
-                    <button
-                        onClick={() => setShowHistory(!showHistory)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
+                            <Languages className="text-primary-500" />
+                            {t('translation.title')}
+                        </h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {onBack && (
+                            <button
+                                onClick={onBack}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                                title={t('sidebar.chat', 'AI Partner')}
+                            >
+                                <ArrowLeft size={16} />
+                                <span className="hidden sm:inline">{t('sidebar.chat', 'AI Partner')}</span>
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setShowHistory(!showHistory)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
                                   ${showHistory 
                                     ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' 
                                     : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'}`}
-                    >
-                        <Clock size={16} />
-                        <span>{showHistory ? t('translation.hideHistory') : t('translation.history')}</span>
-                    </button>
+                        >
+                            <Clock size={16} />
+                            <span>{showHistory ? t('translation.hideHistory') : t('translation.history')}</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col flex-1">

@@ -224,6 +224,47 @@ class AIService:
         "difficult",
         "review",
     }
+    _MEMORY_GUIDANCE_PATTERNS = (
+        "help me",
+        "suggest",
+        "recommend",
+        "plan",
+        "goal",
+        "next step",
+        "improve",
+        "practice",
+        "review",
+        "weak",
+        "forget",
+        "habit",
+        "schedule",
+        "preference",
+        "based on",
+        "according to",
+        "帮我",
+        "建议",
+        "推荐",
+        "计划",
+        "目标",
+        "下一步",
+        "提高",
+        "练习",
+        "复习",
+        "薄弱",
+        "容易忘",
+        "习惯",
+        "偏好",
+    )
+    _PERSONAL_CONTEXT_PATTERNS = (
+        " my ",
+        " i ",
+        " i'm ",
+        " i am ",
+        " me ",
+        " for me ",
+        "我的",
+        "我",
+    )
     
     def __init__(self, provider: str = None, api_key: str = None, model: str = None, api_base: str = None,
                  evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None,
@@ -387,7 +428,7 @@ class AIService:
                 "headers": headers
             }
     
-    async def _call_llm(self, messages: List[Dict], temperature: float = 0.7) -> str:
+    async def _call_llm(self, messages: List[Dict], temperature: float = 0.7, enable_thinking: Optional[bool] = None) -> str:
         """调用 LLM API"""
         config = self._get_client_config()
         
@@ -400,7 +441,11 @@ class AIService:
                         "temperature": temperature
                     }
                     if self.provider == "ollama":
-                        payload["think"] = True
+                        payload["think"] = True if enable_thinking is None else bool(enable_thinking)
+                    elif self.provider == "dashscope" and enable_thinking is not None:
+                        payload["extra_body"] = {
+                            "enable_thinking": bool(enable_thinking)
+                        }
                     response = await client.post(
                         f"{config['base_url']}/chat/completions",
                         headers=config['headers'],
@@ -432,7 +477,7 @@ class AIService:
                 
         return ""
 
-    async def _call_llm_stream(self, messages: List[Dict], temperature: float = 0.7):
+    async def _call_llm_stream(self, messages: List[Dict], temperature: float = 0.7, enable_thinking: Optional[bool] = None):
         """流式调用 LLM API"""
         config = self._get_client_config()
         
@@ -446,7 +491,11 @@ class AIService:
                         "stream": True  # Enable streaming
                     }
                     if self.provider == "ollama":
-                        payload["think"] = True
+                        payload["think"] = True if enable_thinking is None else bool(enable_thinking)
+                    elif self.provider == "dashscope" and enable_thinking is not None:
+                        payload["extra_body"] = {
+                            "enable_thinking": bool(enable_thinking)
+                        }
                     async with client.stream(
                         "POST",
                         f"{config['base_url']}/chat/completions",
@@ -773,6 +822,65 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return True
         return False
 
+    def _should_store_user_memory(self, user_msg: str) -> bool:
+        """
+        Store only messages that are likely to contribute useful long-term context.
+        This intentionally excludes trivial acknowledgements and explicit recall
+        questions, which tend to create noisy event logs.
+        """
+        normalized = re.sub(r"\s+", " ", str(user_msg or "").strip())
+        if not normalized:
+            return False
+        if self._should_skip_memory(normalized):
+            return False
+        if self._is_memory_recall_request(normalized):
+            return False
+
+        ascii_tokens = re.findall(r"[a-zA-Z0-9']+", normalized)
+        chinese_chars = re.findall(r"[\u4e00-\u9fff]", normalized)
+        has_enough_length = len(normalized) >= 8
+        has_multiple_tokens = len(ascii_tokens) >= 3 or len(chinese_chars) >= 4
+        return has_enough_length or has_multiple_tokens
+
+    def _should_store_assistant_memory(self, assistant_text: str, user_msg: Optional[str] = None) -> bool:
+        """
+        Avoid storing low-signal assistant turns when the paired user turn was
+        not important enough to keep.
+        """
+        content = str(assistant_text or "").strip()
+        if not content or content == "Sorry, I encountered an error. Please try again.":
+            return False
+        if user_msg is not None and not self._should_store_user_memory(user_msg):
+            return False
+
+        normalized = re.sub(r"\s+", " ", content)
+        if len(normalized) < 24 and "\n" not in normalized:
+            return False
+        return True
+
+    def _should_retrieve_memory(self, user_msg: str) -> bool:
+        """
+        Retrieve long-term memory only when it is likely to help.
+        Recall questions always qualify; ordinary chat needs a stronger signal.
+        """
+        normalized = re.sub(r"\s+", " ", str(user_msg or "").strip())
+        if not normalized:
+            return False
+        if self._should_skip_memory(normalized):
+            return False
+        if self._is_memory_recall_request(normalized):
+            return True
+        if not self._should_store_user_memory(normalized):
+            return False
+
+        lowered = f" {normalized.lower()} "
+        has_guidance_signal = any(pattern in lowered or pattern in normalized for pattern in self._MEMORY_GUIDANCE_PATTERNS)
+        has_personal_context = any(pattern in lowered for pattern in self._PERSONAL_CONTEXT_PATTERNS[:6]) or any(
+            pattern in normalized for pattern in self._PERSONAL_CONTEXT_PATTERNS[6:]
+        )
+        asks_question = "?" in normalized or "？" in normalized
+        return has_guidance_signal and (has_personal_context or asks_question)
+
     def _is_memory_recall_request(self, user_msg: str) -> bool:
         """Detect prompts that explicitly ask the assistant to recall prior facts."""
         msg = user_msg.strip().lower()
@@ -1018,7 +1126,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
         return fallback_candidates
 
-    async def _finalize_memory_turn(self, assistant_text: str, session_id: Optional[str]) -> bool:
+    async def _finalize_memory_turn(self, assistant_text: str, session_id: Optional[str], user_msg: Optional[str] = None) -> bool:
         """
         Finalize a turn so EverMem extracts pending messages into retrievable memories.
         We still store the assistant turn because the official API uses the completed
@@ -1027,9 +1135,10 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         if not self.evermem_service:
             return False
 
-        content = str(assistant_text or "").strip()
-        if not content or content == "Sorry, I encountered an error.":
+        if not self._should_store_assistant_memory(assistant_text, user_msg=user_msg):
             return False
+
+        content = str(assistant_text or "").strip()
 
         try:
             result = await self.evermem_service.add_memory(
@@ -1053,7 +1162,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         For explicit recall questions, combine episodic search with event-log
         retrieval so factual recall stays grounded in specific user messages.
         """
-        if not self.evermem_service or not user_msg or self._should_skip_memory(user_msg):
+        if not self.evermem_service or not user_msg or not self._should_retrieve_memory(user_msg):
             return []
 
         recall_request = self._is_memory_recall_request(user_msg)
@@ -1227,6 +1336,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         context_word: str = "",
         session_id: str = None,
         learning_context: str = "",
+        enable_thinking: Optional[bool] = None,
     ) -> Dict:
         """
         AI 对话练习 (optimized with EverMemOS official pattern)
@@ -1263,19 +1373,22 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             if last_user_msg:
                 # Step 1: Persist the user message before retrieval so recall can
                 # reliably see the latest confirmed facts instead of a pending task.
-                save_result = await self.evermem_service.add_memory(
-                    content=last_user_msg,
-                    user_id=self.evermem_user_id,
-                    sender=self.evermem_user_id,
-                    sender_name="User",
-                    group_id=session_id,
-                    group_name=session_id,
-                    role="user",
-                )
-                memory_saved = save_result is not None
+                if self._should_store_user_memory(last_user_msg):
+                    save_result = await self.evermem_service.add_memory(
+                        content=last_user_msg,
+                        user_id=self.evermem_user_id,
+                        sender=self.evermem_user_id,
+                        sender_name="User",
+                        group_id=session_id,
+                        group_name=session_id,
+                        role="user",
+                    )
+                    memory_saved = save_result is not None
+                else:
+                    print(f"[EverMem] Skipped saving low-signal user message: '{last_user_msg}'")
 
                 # Step 2: Retrieve context (skip only for trivial messages)
-                if not self._should_skip_memory(last_user_msg):
+                if self._should_retrieve_memory(last_user_msg):
                     memories = await self._retrieve_relevant_memories(last_user_msg, session_id=session_id)
                     if memories:
                         memories_retrieved = len(memories)
@@ -1302,7 +1415,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                             f"{self._summarize_memories_for_log(memories)}"
                         )
                 else:
-                    print(f"[EverMem] Skipped retrieval for trivial message: '{last_user_msg}'")
+                    print(f"[EverMem] Skipped retrieval for low-value message: '{last_user_msg}'")
 
         if context_word:
             system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
@@ -1319,9 +1432,9 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             response = await self._call_llm([
                 {"role": "system", "content": system_prompt},
                 *messages
-            ])
+            ], enable_thinking=enable_thinking)
 
-            finalized = await self._finalize_memory_turn(response, session_id=session_id)
+            finalized = await self._finalize_memory_turn(response, session_id=session_id, user_msg=last_user_msg)
             if finalized:
                 print(f"[EverMem] Finalized memory turn for session {session_id or 'ALL'}")
 
@@ -1345,6 +1458,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         context_word: str = "",
         session_id: str = None,
         learning_context: str = "",
+        enable_thinking: Optional[bool] = None,
     ):
         """
         AI 对话练习 (流式输出)
@@ -1371,19 +1485,22 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             if last_user_msg:
                 # Step 1: Persist the user message before retrieval so recall can
                 # reliably see the latest confirmed facts instead of a pending task.
-                save_result = await self.evermem_service.add_memory(
-                    content=last_user_msg,
-                    user_id=self.evermem_user_id,
-                    sender=self.evermem_user_id,
-                    sender_name="User",
-                    group_id=session_id,
-                    group_name=session_id,
-                    role="user",
-                )
-                memory_saved = save_result is not None
+                if self._should_store_user_memory(last_user_msg):
+                    save_result = await self.evermem_service.add_memory(
+                        content=last_user_msg,
+                        user_id=self.evermem_user_id,
+                        sender=self.evermem_user_id,
+                        sender_name="User",
+                        group_id=session_id,
+                        group_name=session_id,
+                        role="user",
+                    )
+                    memory_saved = save_result is not None
+                else:
+                    print(f"[EverMem Stream] Skipped saving low-signal user message: '{last_user_msg}'")
 
                 # Step 2: Retrieve context
-                if not self._should_skip_memory(last_user_msg):
+                if self._should_retrieve_memory(last_user_msg):
                     memories = await self._retrieve_relevant_memories(last_user_msg, session_id=session_id)
                     if memories:
                         memories_retrieved = len(memories)
@@ -1410,7 +1527,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                             f"{self._summarize_memories_for_log(memories)}"
                         )
                 else:
-                    print(f"[EverMem Stream] Skipped retrieval for trivial message: '{last_user_msg}'")
+                    print(f"[EverMem Stream] Skipped retrieval for low-value message: '{last_user_msg}'")
 
         if context_word:
             system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
@@ -1426,7 +1543,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         try:
             # Step 3: Stream response
             payload_messages = [{"role": "system", "content": system_prompt}] + messages
-            async for event in self._call_llm_stream(payload_messages):
+            async for event in self._call_llm_stream(payload_messages, enable_thinking=enable_thinking):
                 if not isinstance(event, dict):
                     continue
                 event_type = event.get("type")
@@ -1441,7 +1558,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 full_response += event_content
                 yield f"data: {json.dumps({'type': 'token', 'content': event_content})}\n\n"
 
-            finalized = await self._finalize_memory_turn(full_response, session_id=session_id)
+            finalized = await self._finalize_memory_turn(full_response, session_id=session_id, user_msg=last_user_msg)
             if finalized:
                 print(f"[EverMem Stream] Finalized memory turn for session {session_id or 'ALL'}")
 
@@ -1505,6 +1622,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             cleaned = re.sub(r"^\s*(翻译结果|translation)\s*[:：]\s*", "", cleaned, flags=re.IGNORECASE)
             return cleaned.strip()
 
+        no_think_suffix = "\n/no_think" if self.provider == "dashscope" and "qwen" in (self.model or "").lower() else ""
+
         prompt = (
             f"请将下面的原文从{source_lang}翻译成{target_lang}。\n"
             "只返回译文，不要解释，不要重复题目。\n\n"
@@ -1512,7 +1631,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             "不要输出 Markdown 代码围栏。\n\n"
             "SOURCE_TEXT_START\n"
             f"{text}\n"
-            "SOURCE_TEXT_END"
+            f"SOURCE_TEXT_END{no_think_suffix}"
         )
         
         try:
@@ -1520,7 +1639,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 {"role": "system", "content": "你是一位专业的翻译助手。"},
                 {"role": "user", "content": prompt}
             ]
-            content = await self._call_llm(messages, temperature=0.2)
+            content = await self._call_llm(messages, temperature=0.2, enable_thinking=False)
             cleaned = _clean_translation(content)
 
             # 某些模型会把提示词原样吐出，检测到后重试一次
@@ -1534,8 +1653,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 )
                 retry_content = await self._call_llm([
                     {"role": "system", "content": "你是翻译引擎，只输出译文。"},
-                    {"role": "user", "content": retry_prompt}
-                ], temperature=0.0)
+                    {"role": "user", "content": f"{retry_prompt}{no_think_suffix}"}
+                ], temperature=0.0, enable_thinking=False)
                 retry_cleaned = _clean_translation(retry_content)
                 if retry_cleaned:
                     cleaned = retry_cleaned

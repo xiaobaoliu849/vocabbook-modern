@@ -158,6 +158,75 @@ def _build_learning_focus_context(limit: int = 5) -> str:
     )
 
 
+def _get_learning_focus_overview(limit: int = 5) -> dict[str, Any]:
+    from main import get_db
+
+    try:
+        summary = get_db().get_learning_focus_summary(limit=limit)
+    except Exception:
+        return {
+            "due_count": 0,
+            "difficult_count": 0,
+            "weak_words": [],
+        }
+
+    weak_words: list[dict[str, Any]] = []
+    for item in summary.get("weak_words", [])[:limit]:
+        word = str(item.get("word", "")).strip()
+        if not word:
+            continue
+        weak_words.append({
+            "word": word,
+            "meaning": str(item.get("meaning", "")).strip(),
+            "error_count": int(item.get("error_count", 0) or 0),
+            "easiness": float(item.get("easiness", 2.5) or 2.5),
+            "is_due": bool(item.get("is_due")),
+        })
+
+    return {
+        "due_count": int(summary.get("due_count", 0) or 0),
+        "difficult_count": int(summary.get("difficult_count", 0) or 0),
+        "weak_words": weak_words,
+    }
+
+
+def _normalize_memory_line(content: Any) -> str:
+    text = str(content or "").strip()
+    text = re.sub(r"^\[[^\]]+\]\s*", "", text).strip()
+    return re.sub(r"\s+", " ", text)
+
+
+def _looks_like_memory_noise(content: str) -> bool:
+    normalized = _normalize_memory_line(content).lower()
+    if not normalized:
+        return True
+    return any(pattern in normalized for pattern in (
+        "sorry, i encountered an error",
+        "thinking...",
+        "用户正在询问你记得什么",
+    ))
+
+
+def _memory_bucket_label(group_id: Optional[str]) -> str:
+    if isinstance(group_id, str) and group_id.endswith("::review"):
+        return "review"
+    return "chat"
+
+
+def _build_memory_suggestions(focus: dict[str, Any], profile_facts: list[str]) -> list[str]:
+    suggestions: list[str] = []
+    weak_words = focus.get("weak_words", [])
+    if weak_words:
+        words = [str(item.get("word", "")).strip() for item in weak_words[:3] if str(item.get("word", "")).strip()]
+        if words:
+            suggestions.append(f"Practice these weak words next: {', '.join(words)}.")
+    if focus.get("due_count", 0):
+        suggestions.append(f"You still have {focus['due_count']} due review words waiting.")
+    if profile_facts:
+        suggestions.append("Use your saved learning preferences to make the next practice more personal.")
+    return suggestions[:3]
+
+
 async def _check_ai_limit(
     action: str,
     authorization: Optional[str],
@@ -272,6 +341,7 @@ async def chat(
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
     x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
     x_ai_base: Optional[str] = Header(None, alias="X-AI-Base"),
+    x_ai_disable_thinking: Optional[str] = Header(None, alias="X-AI-Disable-Thinking"),
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"), # header defaults to string in some frameworks/proxies
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
@@ -312,6 +382,7 @@ async def chat(
             context_word=request.context_word,
             session_id=request.session_id,
             learning_context=_build_learning_focus_context() if _is_learning_context_enabled() else "",
+            enable_thinking=False if _is_enabled(x_ai_disable_thinking) else None,
         )
         return {
             "response": result["text"],
@@ -330,6 +401,7 @@ async def chat_stream(
     x_ai_key: Optional[str] = Header(None, alias="X-AI-Key"),
     x_ai_model: Optional[str] = Header(None, alias="X-AI-Model"),
     x_ai_base: Optional[str] = Header(None, alias="X-AI-Base"),
+    x_ai_disable_thinking: Optional[str] = Header(None, alias="X-AI-Disable-Thinking"),
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
@@ -371,6 +443,7 @@ async def chat_stream(
                 context_word=request.context_word,
                 session_id=request.session_id,
                 learning_context=_build_learning_focus_context() if _is_learning_context_enabled() else "",
+                enable_thinking=False if _is_enabled(x_ai_disable_thinking) else None,
             ),
             media_type="text/event-stream"
         )
@@ -410,6 +483,105 @@ async def get_ai_config():
             "pronunciation": ai.provider == "openai"  # Whisper only available with OpenAI
         }
     }
+
+
+@router.get("/memory-overview")
+async def get_memory_overview(
+    x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
+    authorization: Optional[str] = Header(None),
+):
+    """Return a compact memory overview for the AI Partner drawer."""
+    from services.evermem_config import save_config, get_service
+
+    evermem_requested = _is_enabled(x_evermem_enabled)
+    authed = _can_use_evermem(authorization)
+    evermem_enabled = evermem_requested and authed
+    owner_key = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
+
+    if evermem_enabled and x_evermem_key:
+        save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
+    elif not evermem_enabled:
+        save_config(enabled=False, url=x_evermem_url, key=None)
+
+    learning_focus = _get_learning_focus_overview(limit=5)
+    response: dict[str, Any] = {
+        "enabled": evermem_enabled,
+        "requested": evermem_requested,
+        "requires_auth": evermem_requested and not authed,
+        "available": False,
+        "profile_facts": [],
+        "recent_memories": [],
+        "review_focus": learning_focus,
+        "suggestions": [],
+    }
+
+    service = get_service()
+    if not evermem_enabled or not service:
+        response["suggestions"] = _build_memory_suggestions(learning_focus, [])
+        return response
+
+    response["available"] = True
+
+    try:
+        profile_memories = await service.get_memories(
+            user_id=owner_key,
+            group_ids=None,
+            memory_type="profile",
+            page_size=20,
+        )
+    except Exception:
+        profile_memories = []
+
+    profile_facts: list[str] = []
+    seen_profile_facts: set[str] = set()
+    for memory in profile_memories:
+        content = _normalize_memory_line(memory.get("content", ""))
+        if not content or content in seen_profile_facts:
+            continue
+        seen_profile_facts.add(content)
+        profile_facts.append(content)
+        if len(profile_facts) >= 4:
+            break
+
+    try:
+        event_logs = await service.get_memories(
+            user_id=owner_key,
+            group_ids=None,
+            memory_type="event_log",
+            page_size=40,
+        )
+    except Exception:
+        event_logs = []
+
+    recent_memories: list[dict[str, Any]] = []
+    seen_recent: set[str] = set()
+    for memory in event_logs:
+        role = str(memory.get("role", "")).lower()
+        sender_name = str(memory.get("sender_name", "")).lower()
+        if role == "assistant" or "assistant" in sender_name:
+            continue
+
+        raw_content = memory.get("raw_content") or memory.get("content", "")
+        content = _normalize_memory_line(raw_content)
+        if _looks_like_memory_noise(content) or content in seen_recent:
+            continue
+
+        seen_recent.add(content)
+        recent_memories.append({
+            "content": content,
+            "timestamp": memory.get("timestamp"),
+            "bucket": _memory_bucket_label(memory.get("group_id")),
+        })
+        if len(recent_memories) >= 6:
+            break
+
+    response["profile_facts"] = profile_facts
+    response["recent_memories"] = recent_memories
+    response["suggestions"] = _build_memory_suggestions(learning_focus, profile_facts)
+    return response
 
 
 @router.post("/test-connection")
@@ -497,22 +669,67 @@ async def translate(
 ):
     """AI 翻译并保存记录"""
     from services.ai_service import AIService
+    from services.dict_service import DictService
     from main import get_db
     
     ai = AIService(provider=x_ai_provider, api_key=x_ai_key, model=x_ai_model, api_base=x_ai_base)
     db = get_db()
+
+    text = request.text.strip()
+
+    cached_translation = db.find_translation(
+        source_text=text,
+        source_lang=request.source_lang,
+        target_lang=request.target_lang
+    )
+    if cached_translation and str(cached_translation.get("target_text", "")).strip():
+        return {
+            "id": cached_translation.get("id"),
+            "translation": cached_translation.get("target_text", ""),
+            "reasoning": "",
+            "original": text,
+            "engine": "history-cache",
+            "cached": True,
+        }
+
+    def _is_fast_translate_candidate(content: str) -> bool:
+        if not content or len(content) > 280:
+            return False
+        code_markers = (
+            "<", ">", "{", "}", "className=", "function ", "const ",
+            "import ", "export ", "```", "</", "/>"
+        )
+        return not any(marker in content for marker in code_markers)
     
     try:
+        if request.target_lang.lower() == "chinese" and _is_fast_translate_candidate(text):
+            fast_translation = DictService.translate_text(text)
+            if fast_translation:
+                record_id = db.add_translation(
+                    source_text=text,
+                    target_text=fast_translation,
+                    source_lang=request.source_lang,
+                    target_lang=request.target_lang
+                )
+                return {
+                    "id": record_id,
+                    "translation": fast_translation,
+                    "reasoning": "",
+                    "original": text,
+                    "engine": "dict-fast-path",
+                    "cached": False,
+                }
+
         # Call AI
         translation, reasoning = await ai.translate(
-            text=request.text,
+            text=text,
             source_lang=request.source_lang,
             target_lang=request.target_lang
         )
         
         # Save to DB
         record_id = db.add_translation(
-            source_text=request.text,
+            source_text=text,
             target_text=translation,
             source_lang=request.source_lang,
             target_lang=request.target_lang
@@ -522,7 +739,9 @@ async def translate(
             "id": record_id,
             "translation": translation,
             "reasoning": reasoning,
-            "original": request.text
+            "original": text,
+            "engine": "ai",
+            "cached": False,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")

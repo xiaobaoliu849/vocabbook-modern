@@ -204,6 +204,7 @@ export const API_PATHS = {
     // AI
     AI_CHAT: '/api/ai/chat',
     AI_CHAT_STREAM: '/api/ai/chat/stream',
+    AI_MEMORY_OVERVIEW: '/api/ai/memory-overview',
     AI_CHAT_SESSIONS: '/api/ai/chat-sessions',
     AI_CHAT_SESSION_DELETE: (id: string) => `/api/ai/chat-sessions/${encodeURIComponent(id)}`,
     AI_GENERATE_SENTENCES: '/api/ai/generate-sentences',

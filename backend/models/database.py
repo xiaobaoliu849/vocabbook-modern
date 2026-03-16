@@ -794,6 +794,20 @@ class DatabaseManager:
             print(f"Add translation error: {e}")
             return None
 
+    def find_translation(self, source_text, source_lang, target_lang):
+        """Find the latest exact-match translation to avoid duplicate work."""
+        conn = self.get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM translations
+            WHERE source_text = ? AND source_lang = ? AND target_lang = ?
+            ORDER BY datetime(created_at) DESC, id DESC
+            LIMIT 1
+        ''', (source_text, source_lang, target_lang))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
     def get_translations(self, limit=20, offset=0):
         """Get translation history."""
         conn = self.get_connection()
