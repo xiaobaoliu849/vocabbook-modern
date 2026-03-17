@@ -1045,7 +1045,18 @@ class DatabaseManager:
 
     # --- 搜索与分页 (性能优化) ---
 
-    def search_words(self, keyword="", tag_filter="", mastered_filter=None, status_filter=None, sort_by="next_review_time", sort_order="ASC", limit=50, offset=0):
+    def search_words(
+        self,
+        keyword="",
+        tag_filter="",
+        mastered_filter=None,
+        status_filter=None,
+        sort_by="next_review_time",
+        sort_order="ASC",
+        limit=50,
+        offset=0,
+        count_total=True,
+    ):
         """
         在数据库层进行搜索和过滤，避免内存中遍历全部单词。
 
@@ -1060,7 +1071,7 @@ class DatabaseManager:
             offset: 偏移量（用于分页）
 
         Returns:
-            (list[dict], int): (单词列表, 总匹配数量)
+            (list[dict], Optional[int]): (单词列表, 总匹配数量)
         """
         conn = self.get_connection()
         conn.row_factory = sqlite3.Row
@@ -1107,10 +1118,11 @@ class DatabaseManager:
         if sort_order.upper() not in ("ASC", "DESC"):
             sort_order = "ASC"
 
-        # 查询总数
-        count_sql = f"SELECT COUNT(*) FROM words WHERE {where_clause}"
-        cursor.execute(count_sql, params)
-        total_count = cursor.fetchone()[0]
+        total_count = None
+        if count_total:
+            count_sql = f"SELECT COUNT(*) FROM words WHERE {where_clause}"
+            cursor.execute(count_sql, params)
+            total_count = cursor.fetchone()[0]
 
         # 查询数据
         query_sql = f"""

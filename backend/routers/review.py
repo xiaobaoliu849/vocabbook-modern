@@ -97,17 +97,18 @@ def _prime_evermem_runtime(
     from services.evermem_config import resolve_runtime_service
 
     evermem_requested = _is_enabled(x_evermem_enabled)
-    evermem_enabled = evermem_requested and _can_use_evermem(authorization)
+    authed = _can_use_evermem(authorization)
+    evermem_enabled = evermem_requested and authed
     service = resolve_runtime_service(
         enabled=evermem_enabled,
         url=x_evermem_url,
         key=x_evermem_key,
     )
-    if not service:
+    if evermem_requested and not service:
         print(
             "[EverMem Review] Runtime unavailable "
             f"requested={evermem_requested} enabled={evermem_enabled} "
-            f"has_auth={_can_use_evermem(authorization)} has_key={bool((x_evermem_key or '').strip())}"
+            f"has_auth={authed} has_key={bool((x_evermem_key or '').strip())}"
         )
     return service, evermem_enabled
 
@@ -154,7 +155,10 @@ def _format_learning_focus_summary(db, limit: int = 5) -> str:
 
 
 @router.get("/due")
-async def get_due_words(limit: int = Query(20, ge=1, le=100)):
+async def get_due_words(
+    limit: int = Query(20, ge=1, le=100),
+    include_total: bool = False,
+):
     """获取待复习的单词"""
     db = get_db()
 
@@ -164,14 +168,17 @@ async def get_due_words(limit: int = Query(20, ge=1, le=100)):
         sort_by="next_review_time",
         sort_order="ASC",
         limit=limit,
-        offset=0
+        offset=0,
+        count_total=include_total,
     )
-    
-    return {
+
+    response = {
         "words": _clean_review_words(words),
         "count": len(words),
-        "total_due": total
     }
+    if include_total:
+        response["total_due"] = total
+    return response
 
 
 @router.get("/due-count")

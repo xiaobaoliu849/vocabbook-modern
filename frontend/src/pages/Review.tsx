@@ -30,6 +30,15 @@ interface ReviewSubmitResponse {
     remaining_due_count?: number
 }
 
+function shuffleWords<T>(words: T[]): T[] {
+    const shuffled = [...words]
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1))
+        ;[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]]
+    }
+    return shuffled
+}
+
 export default function Review({ isActive }: { isActive?: boolean }) {
     const { t } = useTranslation()
     // Mode state
@@ -54,6 +63,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const spellingScrollRef = useRef<HTMLDivElement>(null)
     const answerScrollRef = useRef<HTMLDivElement>(null)
     const currentLoadModeRef = useRef<'normal' | 'practice' | 'difficult'>('normal')
+    const loadAbortControllerRef = useRef<AbortController | null>(null)
     const wasActiveRef = useRef(false)
 
     const { refreshDueCount } = useGlobalState()
@@ -65,18 +75,13 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         setShowSpellingHint(false)
     }, [])
 
-    useEffect(() => {
-        const nowActive = Boolean(isActive)
-        const becameActive = nowActive && !wasActiveRef.current
-        wasActiveRef.current = nowActive
-
-        if (becameActive) {
-            void fetchDueWords(currentLoadModeRef.current)
-        }
-    }, [isActive])
-
-    const fetchDueWords = async (mode: 'normal' | 'practice' | 'difficult' = 'normal') => {
+    const fetchDueWords = useCallback(async (mode: 'normal' | 'practice' | 'difficult' = 'normal') => {
         currentLoadModeRef.current = mode
+        loadAbortControllerRef.current?.abort()
+
+        const controller = new AbortController()
+        loadAbortControllerRef.current = controller
+
         setLoading(true)
         setPracticeMode(mode === 'practice')
         setDifficultMode(mode === 'difficult')
@@ -89,22 +94,47 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 path = `${API_PATHS.REVIEW_DIFFICULT}?limit=50`
             }
 
-            const data = await api.get(path)
-            const words = data.words || []
-            if (mode === 'practice' && words.length > 0) {
-                words.sort(() => Math.random() - 0.5)
-            }
-            setDueWords(words)
+            const data = await api.get(path, { signal: controller.signal })
+            if (controller.signal.aborted) return
+
+            const words = Array.isArray(data.words) ? data.words : []
+            const nextWords = mode === 'practice' && words.length > 0
+                ? shuffleWords(words)
+                : words
+
+            setDueWords(nextWords)
             setCurrentIndex(0)
             resetInteractionState()
             setSessionStats({ reviewed: 0, startTime: Date.now() })
             setSessionRatings([])
         } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+                return
+            }
             console.error('Failed to fetch words:', error)
         } finally {
-            setLoading(false)
+            if (loadAbortControllerRef.current === controller) {
+                loadAbortControllerRef.current = null
+                setLoading(false)
+            }
         }
-    }
+    }, [resetInteractionState])
+
+    useEffect(() => {
+        const nowActive = Boolean(isActive)
+        const becameActive = nowActive && !wasActiveRef.current
+        wasActiveRef.current = nowActive
+
+        if (becameActive) {
+            void fetchDueWords(currentLoadModeRef.current)
+        }
+    }, [fetchDueWords, isActive])
+
+    useEffect(() => {
+        return () => {
+            loadAbortControllerRef.current?.abort()
+        }
+    }, [])
 
     const switchReviewMode = useCallback((mode: ReviewMode) => {
         setReviewMode(mode)
@@ -149,7 +179,19 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         },
     ]
 
-    const handleRating = async (quality: number) => {
+    const logSession = useCallback(async (reviewCount: number = sessionStats.reviewed) => {
+        const duration = Math.floor((Date.now() - sessionStats.startTime) / 1000)
+        try {
+            await api.post(API_PATHS.REVIEW_SESSION, {
+                duration,
+                review_count: reviewCount
+            })
+        } catch (error) {
+            console.error('Failed to log session:', error)
+        }
+    }, [sessionStats.reviewed, sessionStats.startTime])
+
+    const handleRating = useCallback(async (quality: number) => {
         if (!currentWord) return
 
         try {
@@ -170,14 +212,10 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             setSessionStats(prev => ({ ...prev, reviewed: nextReviewedCount }))
 
             setCurrentIndex(prev => prev + 1)
-            setIsFlipped(false)
-
-            setSpellingInput('')
-            setSpellingStatus('idle')
-            setShowSpellingHint(false)
+            resetInteractionState()
 
             if (currentIndex >= dueWords.length - 1) {
-                logSession(nextReviewedCount)
+                void logSession(nextReviewedCount)
             }
 
             // Refresh global due count
@@ -185,19 +223,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         } catch (error) {
             console.error('Failed to submit review:', error)
         }
-    }
-
-    const logSession = async (reviewCount: number = sessionStats.reviewed) => {
-        const duration = Math.floor((Date.now() - sessionStats.startTime) / 1000)
-        try {
-            await api.post(API_PATHS.REVIEW_SESSION, {
-                duration,
-                review_count: reviewCount
-            })
-        } catch (error) {
-            console.error('Failed to log session:', error)
-        }
-    }
+    }, [currentIndex, currentWord, dueWords.length, logSession, refreshDueCount, resetInteractionState, sessionStats.reviewed])
 
     const playAudio = useCallback(() => {
         if (currentWord) {
@@ -394,14 +420,14 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             setCurrentIndex(0)
             setSessionStats({ reviewed: 0, startTime: Date.now() })
             setSessionRatings([])
-            fetchDueWords(difficultMode ? 'difficult' : practiceMode ? 'practice' : 'normal')
+            void fetchDueWords(difficultMode ? 'difficult' : practiceMode ? 'practice' : 'normal')
         }
 
         const handleBackToNormal = () => {
             setCurrentIndex(0)
             setSessionStats({ reviewed: 0, startTime: Date.now() })
             setSessionRatings([])
-            fetchDueWords('normal')
+            void fetchDueWords('normal')
         }
 
         const handleReviewWeak = (words: ReviewWord[]) => {

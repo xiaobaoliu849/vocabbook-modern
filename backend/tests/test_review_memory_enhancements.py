@@ -17,6 +17,7 @@ from routers.review import (
     _resolve_evermem_user_id,
     _can_use_evermem as _review_can_use_evermem,
     _prime_evermem_runtime,
+    get_due_words,
     get_due_count,
     submit_review,
 )
@@ -312,6 +313,27 @@ def test_review_runtime_disables_evermem_when_header_off(monkeypatch):
     assert calls == [(False, "https://api.evermind.ai", "secret-key")]
 
 
+def test_review_runtime_stays_quiet_when_evermem_not_requested(monkeypatch):
+    messages = []
+
+    def fake_resolve_runtime_service(enabled: bool, url: str = None, key: str = None):
+        return None
+
+    monkeypatch.setattr("services.evermem_config.resolve_runtime_service", fake_resolve_runtime_service)
+    monkeypatch.setattr("builtins.print", lambda *args, **kwargs: messages.append(args))
+
+    service, enabled = _prime_evermem_runtime(
+        authorization="Bearer jwt-token",
+        x_evermem_enabled="false",
+        x_evermem_url="https://api.evermind.ai",
+        x_evermem_key=None,
+    )
+
+    assert enabled is False
+    assert service is None
+    assert messages == []
+
+
 def test_ai_runtime_can_bootstrap_evermem_without_header_key(monkeypatch):
     class DummyService:
         pass
@@ -350,3 +372,42 @@ def test_due_count_route_uses_lightweight_summary(monkeypatch):
     finally:
         db.close_connection()
         temp_dir.cleanup()
+
+
+def test_due_words_route_skips_total_count_by_default(monkeypatch):
+    captured = {}
+
+    class DummyDb:
+        def search_words(self, **kwargs):
+            captured.update(kwargs)
+            return ([{"word": "alpha", "meaning": "test", "example": ""}], None)
+
+    monkeypatch.setattr("routers.review.get_db", lambda: DummyDb())
+
+    result = asyncio.run(get_due_words())
+
+    assert captured["count_total"] is False
+    assert result == {
+        "words": [{"word": "alpha", "meaning": "test", "example": ""}],
+        "count": 1,
+    }
+
+
+def test_due_words_route_can_include_total_count(monkeypatch):
+    captured = {}
+
+    class DummyDb:
+        def search_words(self, **kwargs):
+            captured.update(kwargs)
+            return ([{"word": "alpha", "meaning": "test", "example": ""}], 7)
+
+    monkeypatch.setattr("routers.review.get_db", lambda: DummyDb())
+
+    result = asyncio.run(get_due_words(include_total=True))
+
+    assert captured["count_total"] is True
+    assert result == {
+        "words": [{"word": "alpha", "meaning": "test", "example": ""}],
+        "count": 1,
+        "total_due": 7,
+    }
