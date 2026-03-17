@@ -73,9 +73,25 @@ The project provides a convenience script for Windows to start all services:
 
 | Component | Directory | Command | Description |
 | :--- | :--- | :--- | :--- |
-| **Backend** | `backend/` | `python -m uvicorn main:app --reload` | Starts FastAPI dev server on port 8000. |
+| **Backend** | `backend/` | `../.venv/bin/python -m uvicorn main:app --reload` | Starts FastAPI dev server on port 8000 using the project virtual environment. |
 | **Frontend** | `frontend/` | `npm run dev` | Starts Vite dev server. |
 | **Electron** | `electron/` | `npm start` | Launches the desktop window (requires `NODE_ENV=development`). |
+
+### Python Test Environment
+
+Backend verification in this repository uses the project root virtual environment, not `backend/.venv`.
+
+Use:
+
+```bash
+./test_backend.sh backend/tests/test_ai_memory_recall.py -q
+```
+
+Important:
+- Do not assume `pytest` is available on the global PATH.
+- If `pytest: command not found` appears, use `./.venv/bin/python -m pytest`.
+- Do not assume `backend/.venv` exists in this repository.
+- On Windows, use `test_backend.bat ...` or `.venv\Scripts\python -m pytest`.
 
 ## Directory Structure
 

@@ -56,6 +56,31 @@ def _can_use_evermem(authorization: Optional[str]) -> bool:
     return _extract_bearer_token(authorization) is not None
 
 
+def _prime_evermem_runtime(
+    authorization: Optional[str],
+    x_evermem_enabled: Optional[str],
+    x_evermem_url: Optional[str],
+    x_evermem_key: Optional[str],
+):
+    from services.evermem_config import resolve_runtime_service
+
+    evermem_requested = _is_enabled(x_evermem_enabled)
+    authed = _can_use_evermem(authorization)
+    evermem_enabled = evermem_requested and authed
+    service = resolve_runtime_service(
+        enabled=evermem_enabled,
+        url=x_evermem_url,
+        key=x_evermem_key,
+    )
+    if evermem_requested and not service:
+        print(
+            "[EverMem AI] Runtime unavailable "
+            f"requested={evermem_requested} enabled={evermem_enabled} "
+            f"has_auth={authed} has_key={bool((x_evermem_key or '').strip())}"
+        )
+    return service, evermem_requested, evermem_enabled, authed
+
+
 def _normalize_scope_value(value: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
     return normalized or "guest"
@@ -352,9 +377,12 @@ async def chat(
     from services.ai_service import AIService
     await _check_ai_limit("ai_chat", authorization, provider=x_ai_provider, api_base=x_ai_base)
     
-    # EverMem requires explicit enable flag and authenticated request.
-    evermem_requested = _is_enabled(x_evermem_enabled)
-    evermem_enabled = evermem_requested and _can_use_evermem(authorization)
+    evermem_service, _evermem_requested, evermem_enabled, _authed = _prime_evermem_runtime(
+        authorization=authorization,
+        x_evermem_enabled=x_evermem_enabled,
+        x_evermem_url=x_evermem_url,
+        x_evermem_key=x_evermem_key,
+    )
     evermem_user_id = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
 
     ai = AIService(
@@ -363,9 +391,8 @@ async def chat(
         model=x_ai_model,
         api_base=x_ai_base,
         evermem_enabled=evermem_enabled,
-        evermem_url=x_evermem_url,
-        evermem_key=x_evermem_key,
-        evermem_user_id=evermem_user_id
+        evermem_user_id=evermem_user_id,
+        evermem_service=evermem_service,
     )
     try:
         result = await ai.chat(
@@ -405,8 +432,12 @@ async def chat_stream(
 
     await _check_ai_limit("ai_chat", authorization, provider=x_ai_provider, api_base=x_ai_base)
 
-    evermem_requested = _is_enabled(x_evermem_enabled)
-    evermem_enabled = evermem_requested and _can_use_evermem(authorization)
+    evermem_service, _evermem_requested, evermem_enabled, _authed = _prime_evermem_runtime(
+        authorization=authorization,
+        x_evermem_enabled=x_evermem_enabled,
+        x_evermem_url=x_evermem_url,
+        x_evermem_key=x_evermem_key,
+    )
     evermem_user_id = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
 
     ai = AIService(
@@ -415,9 +446,8 @@ async def chat_stream(
         model=x_ai_model,
         api_base=x_ai_base,
         evermem_enabled=evermem_enabled,
-        evermem_url=x_evermem_url,
-        evermem_key=x_evermem_key,
-        evermem_user_id=evermem_user_id
+        evermem_user_id=evermem_user_id,
+        evermem_service=evermem_service,
     )
     try:
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
@@ -478,11 +508,12 @@ async def get_memory_overview(
     authorization: Optional[str] = Header(None),
 ):
     """Return a compact memory overview for the AI Partner drawer."""
-    from services.evermem_config import resolve_runtime_service
-
-    evermem_requested = _is_enabled(x_evermem_enabled)
-    authed = _can_use_evermem(authorization)
-    evermem_enabled = evermem_requested and authed
+    service, evermem_requested, evermem_enabled, authed = _prime_evermem_runtime(
+        authorization=authorization,
+        x_evermem_enabled=x_evermem_enabled,
+        x_evermem_url=x_evermem_url,
+        x_evermem_key=x_evermem_key,
+    )
     owner_key = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
 
     learning_focus = _get_learning_focus_overview(limit=5)
@@ -497,11 +528,6 @@ async def get_memory_overview(
         "suggestions": [],
     }
 
-    service = resolve_runtime_service(
-        enabled=evermem_enabled,
-        url=x_evermem_url,
-        key=x_evermem_key,
-    )
     if not evermem_enabled or not service:
         response["suggestions"] = _build_memory_suggestions(learning_focus, [])
         return response

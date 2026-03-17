@@ -2,7 +2,6 @@ import subprocess
 import time
 import sys
 import os
-import shutil
 
 # Configuration
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -11,6 +10,8 @@ CLOUD_DIR = os.path.join(PROJECT_ROOT, 'cloud_server')
 FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
 ELECTRON_DIR = os.path.join(PROJECT_ROOT, 'electron')
 DEFAULT_CLOUD_API_URL = 'https://api.historyai.fun'
+PYTHON_BIN = sys.executable
+NEW_CONSOLE = getattr(subprocess, 'CREATE_NEW_CONSOLE', 0)
 
 def main():
     print(f'Starting VocabBook Modern from {PROJECT_ROOT}...')
@@ -21,22 +22,22 @@ def main():
 
     # 1. Start Backend
     print('Starting Backend...')
-    backend_cmd = ['python', '-m', 'uvicorn', 'main:app', '--reload', '--host', '127.0.0.1', '--port', '8000']
-    backend_process = subprocess.Popen(backend_cmd, cwd=BACKEND_DIR, env=shared_env, creationflags=subprocess.CREATE_NEW_CONSOLE)
+    backend_cmd = [PYTHON_BIN, '-m', 'uvicorn', 'main:app', '--reload', '--host', '127.0.0.1', '--port', '8000']
+    backend_process = subprocess.Popen(backend_cmd, cwd=BACKEND_DIR, env=shared_env, creationflags=NEW_CONSOLE)
 
     # 2. Start Cloud Server
     cloud_process = None
     if start_local_cloud:
         print('Starting Cloud Server...')
-        cloud_cmd = ['python', 'main.py']
-        cloud_process = subprocess.Popen(cloud_cmd, cwd=CLOUD_DIR, env=shared_env, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        cloud_cmd = [PYTHON_BIN, 'main.py']
+        cloud_process = subprocess.Popen(cloud_cmd, cwd=CLOUD_DIR, env=shared_env, creationflags=NEW_CONSOLE)
     else:
         print(f'Skipping local cloud server. Using remote cloud API: {shared_env["VITE_CLOUD_API_URL"]}')
 
     # 3. Start Frontend
     print('Starting Frontend...')
     frontend_cmd = ['npm', 'run', 'dev']
-    frontend_process = subprocess.Popen(frontend_cmd, cwd=FRONTEND_DIR, shell=True, env=shared_env, creationflags=subprocess.CREATE_NEW_CONSOLE)
+    frontend_process = subprocess.Popen(frontend_cmd, cwd=FRONTEND_DIR, shell=True, env=shared_env, creationflags=NEW_CONSOLE)
 
     # Wait for services
     print('Waiting for services to initialize...')

@@ -1,24 +1,15 @@
 @echo off
 setlocal
+
 set "ROOT=%~dp0"
 set "VENV_PYTHON=%ROOT%.venv\Scripts\python.exe"
-
-echo Starting VocabBook Modern (DEV MODE - Unified Runner)...
-echo.
 
 if not exist "%VENV_PYTHON%" (
     echo [ERROR] Missing project virtual environment: %VENV_PYTHON%
     echo Run install.bat first, or create .venv and install backend\requirements-dev.txt.
-    pause
     exit /b 1
 )
 
-REM Run the Python script to manage all processes
-"%VENV_PYTHON%" "%ROOT%scripts\dev_runner.py"
-if errorlevel 1 (
-    exit /b %errorlevel%
-)
-
-echo.
-echo Exiting...
-pause
+cd /d "%ROOT%"
+"%VENV_PYTHON%" -m pytest %*
+exit /b %errorlevel%

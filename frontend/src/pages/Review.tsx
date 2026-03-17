@@ -18,6 +18,18 @@ interface ReviewWord {
     interval: number
 }
 
+interface ReviewSubmitResponse {
+    message: string
+    word: string
+    quality: number
+    next_review: string
+    interval_days: number
+    next_review_in_hours: number
+    easiness: number
+    error_count_incremented: boolean
+    remaining_due_count?: number
+}
+
 export default function Review({ isActive }: { isActive?: boolean }) {
     const { t } = useTranslation()
     // Mode state
@@ -149,7 +161,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 timestamp: Date.now()
             }])
 
-            await api.post(API_PATHS.REVIEW_SUBMIT, {
+            const result = await api.post<ReviewSubmitResponse>(API_PATHS.REVIEW_SUBMIT, {
                 word: currentWord.word,
                 quality,
                 time_spent: 0
@@ -169,7 +181,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             }
 
             // Refresh global due count
-            refreshDueCount()
+            void refreshDueCount(result.remaining_due_count)
         } catch (error) {
             console.error('Failed to submit review:', error)
         }

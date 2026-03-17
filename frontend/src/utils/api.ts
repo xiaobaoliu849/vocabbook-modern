@@ -187,6 +187,7 @@ export const API_PATHS = {
 
     // Review
     REVIEW_DUE: '/api/review/due',
+    REVIEW_DUE_COUNT: '/api/review/due-count',
     REVIEW_DIFFICULT: '/api/review/difficult',
     REVIEW_SUBMIT: '/api/review/submit',
     REVIEW_SESSION: '/api/review/session',

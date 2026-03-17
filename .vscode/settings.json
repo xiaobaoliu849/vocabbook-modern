@@ -1,0 +1,13 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/backend"
+  ],
+  "python.analysis.exclude": [
+    "${workspaceFolder}/cloud_server",
+    "${workspaceFolder}/frontend/node_modules",
+    "${workspaceFolder}/electron/node_modules"
+  ],
+  "python.terminal.activateEnvironment": true
+}

@@ -642,6 +642,18 @@ class DatabaseManager:
         rows = cursor.fetchall()
         return {row[0]: row[1] for row in rows}
 
+    def get_due_review_count(self) -> int:
+        """Return how many words are currently due for review."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        now_ts = time.time()
+        cursor.execute(
+            'SELECT COUNT(*) FROM words WHERE next_review_time > 0 AND next_review_time <= ?',
+            (now_ts,),
+        )
+        row = cursor.fetchone()
+        return int(row[0] or 0) if row else 0
+
     def get_word_review_history(self, word_id):
         """Get review history for a specific word"""
         conn = self.get_connection()

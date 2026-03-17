@@ -1,13 +1,26 @@
 {
+  "venvPath": ".",
+  "venv": ".venv",
   "include": [
-    "backend",
-    "cloud_server"
+    "backend"
   ],
   "exclude": [
     "**/__pycache__",
+    ".venv",
     "backend/build",
     "backend/dist",
     "backend/venv-build",
-    "electron/dist"
+    "cloud_server",
+    "electron/dist",
+    "electron/node_modules",
+    "frontend/node_modules"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": [
+        "backend"
+      ]
+    }
   ]
 }

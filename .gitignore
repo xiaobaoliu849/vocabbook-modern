@@ -15,6 +15,9 @@ electron/dist/
 
 # IDE
 .vscode/
+!.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 
 # OS

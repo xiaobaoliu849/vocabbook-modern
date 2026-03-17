@@ -7,11 +7,18 @@ from tempfile import TemporaryDirectory
 import pytest
 
 from models.database import DatabaseManager
-from routers.ai import _resolve_chat_owner_key, _can_use_evermem as _ai_can_use_evermem
+from routers.ai import (
+    _resolve_chat_owner_key,
+    _can_use_evermem as _ai_can_use_evermem,
+    _prime_evermem_runtime as _prime_ai_evermem_runtime,
+)
 from routers.review import (
+    ReviewSubmit,
     _resolve_evermem_user_id,
     _can_use_evermem as _review_can_use_evermem,
     _prime_evermem_runtime,
+    get_due_count,
+    submit_review,
 )
 from services.review_service import ReviewService
 
@@ -154,6 +161,49 @@ def test_learning_focus_summary_prioritizes_weak_words():
         temp_dir.cleanup()
 
 
+def test_due_review_count_only_counts_due_words():
+    temp_dir, db = _build_temp_db()
+    try:
+        assert db.add_word({"word": "alpha", "meaning": "test"})
+        assert db.add_word({"word": "beta", "meaning": "test"})
+        db.execute("UPDATE words SET next_review_time = ? WHERE word = ?", (time.time() - 60, "alpha"))
+        db.execute("UPDATE words SET next_review_time = ? WHERE word = ?", (time.time() + 3600, "beta"))
+
+        assert db.get_due_review_count() == 1
+    finally:
+        db.close_connection()
+        temp_dir.cleanup()
+
+
+def test_submit_review_returns_remaining_due_count(monkeypatch):
+    temp_dir, db = _build_temp_db()
+    try:
+        assert db.add_word({"word": "alpha", "meaning": "test"})
+        assert db.add_word({"word": "beta", "meaning": "test"})
+        now_ts = time.time()
+        db.execute("UPDATE words SET next_review_time = ?, review_count = 1 WHERE word = ?", (now_ts - 120, "alpha"))
+        db.execute("UPDATE words SET next_review_time = ?, review_count = 1 WHERE word = ?", (now_ts - 120, "beta"))
+
+        monkeypatch.setattr("routers.review.get_db", lambda: db)
+
+        result = asyncio.run(
+            submit_review(
+                ReviewSubmit(word="alpha", quality=4, time_spent=0),
+                authorization=None,
+                x_client_id=None,
+                x_evermem_enabled="false",
+                x_evermem_url=None,
+                x_evermem_key=None,
+            )
+        )
+
+        assert result["word"] == "alpha"
+        assert result["remaining_due_count"] == 1
+    finally:
+        db.close_connection()
+        temp_dir.cleanup()
+
+
 def test_guest_client_id_isolation_keys():
     owner_a = asyncio.run(_resolve_chat_owner_key(None, "device-A"))
     owner_b = asyncio.run(_resolve_chat_owner_key(None, "device-B"))
@@ -260,3 +310,43 @@ def test_review_runtime_disables_evermem_when_header_off(monkeypatch):
     assert enabled is False
     assert service is None
     assert calls == [(False, "https://api.evermind.ai", "secret-key")]
+
+
+def test_ai_runtime_can_bootstrap_evermem_without_header_key(monkeypatch):
+    class DummyService:
+        pass
+
+    calls = []
+
+    def fake_resolve_runtime_service(enabled: bool, url: str = None, key: str = None):
+        calls.append((enabled, url, key))
+        return DummyService()
+
+    monkeypatch.setattr("services.evermem_config.resolve_runtime_service", fake_resolve_runtime_service)
+
+    service, requested, enabled, authed = _prime_ai_evermem_runtime(
+        authorization="Bearer jwt-token",
+        x_evermem_enabled="true",
+        x_evermem_url="https://api.evermind.ai",
+        x_evermem_key=None,
+    )
+
+    assert requested is True
+    assert enabled is True
+    assert authed is True
+    assert isinstance(service, DummyService)
+    assert calls == [(True, "https://api.evermind.ai", None)]
+
+
+def test_due_count_route_uses_lightweight_summary(monkeypatch):
+    temp_dir, db = _build_temp_db()
+    try:
+        assert db.add_word({"word": "alpha", "meaning": "test"})
+        db.execute("UPDATE words SET next_review_time = ? WHERE word = ?", (time.time() - 120, "alpha"))
+        monkeypatch.setattr("routers.review.get_db", lambda: db)
+
+        result = asyncio.run(get_due_count())
+        assert result == {"due_count": 1}
+    finally:
+        db.close_connection()
+        temp_dir.cleanup()

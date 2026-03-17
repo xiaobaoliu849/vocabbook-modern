@@ -268,7 +268,7 @@ class AIService:
     
     def __init__(self, provider: str = None, api_key: str = None, model: str = None, api_base: str = None,
                  evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None,
-                 evermem_user_id: str = "guest"):
+                 evermem_user_id: str = "guest", evermem_service: Optional[EverMemService] = None):
         """
         初始化 AI 服务
         
@@ -304,8 +304,8 @@ class AIService:
         # EverMemOS setup
         self.evermem_enabled = evermem_enabled
         self.evermem_user_id = evermem_user_id or "guest"
-        self.evermem_service = None
-        if self.evermem_enabled and evermem_key:
+        self.evermem_service = evermem_service
+        if not self.evermem_service and self.evermem_enabled and evermem_key:
             self.evermem_service = EverMemService(api_url=evermem_url or "https://api.evermind.ai", api_key=evermem_key)
 
     @staticmethod

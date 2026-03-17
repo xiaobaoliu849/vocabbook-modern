@@ -178,15 +178,17 @@ vocabbook-modern/
 ### Install Dependencies
 
 ```bash
-cd backend
-pip install -r requirements.txt
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r backend/requirements-dev.txt
 
-cd ../frontend
+cd frontend
 npm install
 
 cd ../electron
 npm install
 ```
+
+On Windows, use `.venv\Scripts\python -m pip install -r backend\requirements-dev.txt`.
 
 ### Start Development Mode
 
@@ -198,13 +200,25 @@ Current development mode is configured to use the deployed cloud API by default.
 
 ### Verification
 
-Use the project root virtual environment for backend tests:
+Use the project root virtual environment for backend tests. The shortest repo-local entrypoints are:
 
 ```bash
-./.venv/bin/python -m pytest backend/tests/test_ai_memory_recall.py -q
+./test_backend.sh backend/tests/test_ai_memory_recall.py -q
 ```
 
 Do not assume `backend/.venv` exists for this repository. The working test environment is `./.venv`.
+
+On Windows, use:
+
+```bat
+test_backend.bat backend/tests/test_ai_memory_recall.py -q
+```
+
+If the shell reports `pytest: command not found`, that does not mean pytest is missing from the repo environment. It usually means the global PATH does not include the project virtual environment, so run tests through:
+
+```bash
+./.venv/bin/python -m pytest
+```
 
 For frontend verification:
 

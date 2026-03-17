@@ -3,7 +3,7 @@ import { api, API_PATHS } from '../utils/api';
 
 interface GlobalStateContextType {
     dueCount: number;
-    refreshDueCount: () => Promise<void>;
+    refreshDueCount: (nextCount?: number) => Promise<void>;
     notifyWordAdded: () => void;
     notifyWordDeleted: () => void;
     notifyWordUpdated: () => void;
@@ -18,8 +18,8 @@ export function GlobalStateProvider({ children }: { children: ReactNode }) {
 
     const fetchDueCount = useCallback(async () => {
         try {
-            const result = await api.get<any>(API_PATHS.REVIEW_DUE + '?limit=1');
-            setDueCount(result.total_due ?? result.count ?? 0);
+            const result = await api.get<any>(API_PATHS.REVIEW_DUE_COUNT);
+            setDueCount(result.due_count ?? 0);
         } catch (error) {
             console.error('Failed to fetch due count:', error);
         }
@@ -31,7 +31,11 @@ export function GlobalStateProvider({ children }: { children: ReactNode }) {
         return () => clearInterval(interval);
     }, [fetchDueCount]);
 
-    const refreshDueCount = useCallback(async () => {
+    const refreshDueCount = useCallback(async (nextCount?: number) => {
+        if (typeof nextCount === 'number') {
+            setDueCount(nextCount)
+            return
+        }
         await fetchDueCount();
     }, [fetchDueCount]);
 

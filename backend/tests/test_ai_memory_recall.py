@@ -135,6 +135,38 @@ def test_recall_questions_fall_back_to_recent_memories():
     assert "请优先总结精确的历史事实" in system_prompt
 
 
+def test_chat_can_use_injected_evermem_service_without_direct_key():
+    injected_service = DummyEverMemService()
+    service = AIService(
+        provider="openai",
+        api_key="test-key",
+        evermem_enabled=True,
+        evermem_user_id="cloud_demo",
+        evermem_service=injected_service,
+    )
+
+    captured = {}
+
+    async def fake_call_llm(messages, temperature=0.7, enable_thinking=None):
+        captured["messages"] = messages
+        return "ok"
+
+    service._call_llm = fake_call_llm
+
+    result = asyncio.run(
+        service.chat(
+            messages=[{"role": "user", "content": "What did I tell you before about March 15?"}],
+            session_id="session-1",
+        )
+    )
+
+    assert service.evermem_service is injected_service
+    assert result["memories_retrieved"] >= 1
+    assert injected_service.search_calls
+    assert injected_service.get_calls
+    assert "suancai and sausages" in captured["messages"][0]["content"]
+
+
 def test_generic_follow_up_recall_uses_recent_session_event_logs():
     service = AIService(provider="openai", api_key="test-key", evermem_enabled=False)
     service.evermem_user_id = "cloud_demo"

@@ -157,8 +157,7 @@ def _format_learning_focus_summary(db, limit: int = 5) -> str:
 async def get_due_words(limit: int = Query(20, ge=1, le=100)):
     """获取待复习的单词"""
     db = get_db()
-    now = datetime.now().timestamp()
-    
+
     # Get words that are due for review
     words, total = db.search_words(
         status_filter="due",
@@ -173,6 +172,13 @@ async def get_due_words(limit: int = Query(20, ge=1, le=100)):
         "count": len(words),
         "total_due": total
     }
+
+
+@router.get("/due-count")
+async def get_due_count():
+    """获取当前待复习数量（轻量接口）"""
+    db = get_db()
+    return {"due_count": db.get_due_review_count()}
 
 
 @router.get("/new")
@@ -265,6 +271,7 @@ async def submit_review(
         rating=review.quality
     )
     updated_word_data = db.get_word(review.word) or word_data
+    remaining_due_count = db.get_due_review_count()
 
     # Store learning record to EverMemOS (fire-and-forget)
     try:
@@ -328,7 +335,8 @@ async def submit_review(
         "interval_days": interval,
         "next_review_in_hours": next_review_in_hours,
         "easiness": round(easiness, 2),
-        "error_count_incremented": review.quality <= 2
+        "error_count_incremented": review.quality <= 2,
+        "remaining_due_count": remaining_due_count,
     }
 
 
