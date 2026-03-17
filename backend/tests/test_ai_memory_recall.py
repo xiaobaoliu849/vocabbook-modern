@@ -310,3 +310,28 @@ def test_memory_retrieval_gate_is_conservative_for_non_recall_chat():
     assert not service._should_retrieve_memory("Okay, thanks!")
     assert service._should_retrieve_memory("Can you suggest a study plan for me this week?")
     assert service._should_retrieve_memory("I often forget the word maintain. Can you help me practice it?")
+
+
+def test_memory_saved_requires_turn_finalization():
+    service = AIService(provider="openai", api_key="test-key", evermem_enabled=False)
+    service.evermem_user_id = "cloud_demo"
+    service.evermem_service = DummyEverMemService()
+
+    async def fake_call_llm(messages, temperature=0.7, enable_thinking=None):
+        return "Thanks, I will remember that."
+
+    async def fake_finalize_memory_turn(assistant_text: str, session_id: str = None, user_msg: str = None):
+        return False
+
+    service._call_llm = fake_call_llm
+    service._finalize_memory_turn = fake_finalize_memory_turn
+
+    result = asyncio.run(
+        service.chat(
+            messages=[{"role": "user", "content": "My favorite fruit is mango."}],
+            session_id="session-finalize",
+        )
+    )
+
+    assert result["memory_saved"] is False
+    assert len(service.evermem_service.add_calls) == 1

@@ -94,17 +94,15 @@ def _prime_evermem_runtime(
     x_evermem_key: Optional[str],
 ):
     from routers.ai import _is_enabled
-    from services.evermem_config import save_config, get_service
+    from services.evermem_config import resolve_runtime_service
 
     evermem_requested = _is_enabled(x_evermem_enabled)
     evermem_enabled = evermem_requested and _can_use_evermem(authorization)
-
-    if evermem_enabled and isinstance(x_evermem_key, str) and x_evermem_key.strip():
-        save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
-    elif not evermem_enabled:
-        save_config(enabled=False, url=x_evermem_url, key=None)
-
-    service = get_service()
+    service = resolve_runtime_service(
+        enabled=evermem_enabled,
+        url=x_evermem_url,
+        key=x_evermem_key,
+    )
     if not service:
         print(
             "[EverMem Review] Runtime unavailable "

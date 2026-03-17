@@ -357,15 +357,6 @@ async def chat(
     evermem_enabled = evermem_requested and _can_use_evermem(authorization)
     evermem_user_id = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
 
-    # Persist evermem config so other routers (e.g. review) can access it.
-    # Security: if request is unauthenticated, always force-disable runtime evermem.
-    if evermem_enabled and x_evermem_key:
-        from services.evermem_config import save_config
-        save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
-    elif not evermem_enabled:
-        from services.evermem_config import save_config
-        save_config(enabled=False, url=x_evermem_url, key=None)
-
     ai = AIService(
         provider=x_ai_provider,
         api_key=x_ai_key,
@@ -417,13 +408,6 @@ async def chat_stream(
     evermem_requested = _is_enabled(x_evermem_enabled)
     evermem_enabled = evermem_requested and _can_use_evermem(authorization)
     evermem_user_id = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
-
-    if evermem_enabled and x_evermem_key:
-        from services.evermem_config import save_config
-        save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
-    elif not evermem_enabled:
-        from services.evermem_config import save_config
-        save_config(enabled=False, url=x_evermem_url, key=None)
 
     ai = AIService(
         provider=x_ai_provider,
@@ -494,17 +478,12 @@ async def get_memory_overview(
     authorization: Optional[str] = Header(None),
 ):
     """Return a compact memory overview for the AI Partner drawer."""
-    from services.evermem_config import save_config, get_service
+    from services.evermem_config import resolve_runtime_service
 
     evermem_requested = _is_enabled(x_evermem_enabled)
     authed = _can_use_evermem(authorization)
     evermem_enabled = evermem_requested and authed
     owner_key = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
-
-    if evermem_enabled and x_evermem_key:
-        save_config(enabled=True, url=x_evermem_url, key=x_evermem_key)
-    elif not evermem_enabled:
-        save_config(enabled=False, url=x_evermem_url, key=None)
 
     learning_focus = _get_learning_focus_overview(limit=5)
     response: dict[str, Any] = {
@@ -518,7 +497,11 @@ async def get_memory_overview(
         "suggestions": [],
     }
 
-    service = get_service()
+    service = resolve_runtime_service(
+        enabled=evermem_enabled,
+        url=x_evermem_url,
+        key=x_evermem_key,
+    )
     if not evermem_enabled or not service:
         response["suggestions"] = _build_memory_suggestions(learning_focus, [])
         return response

@@ -41,6 +41,8 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const [showSpellingHint, setShowSpellingHint] = useState(false)
     const spellingScrollRef = useRef<HTMLDivElement>(null)
     const answerScrollRef = useRef<HTMLDivElement>(null)
+    const currentLoadModeRef = useRef<'normal' | 'practice' | 'difficult'>('normal')
+    const wasActiveRef = useRef(false)
 
     const { refreshDueCount } = useGlobalState()
 
@@ -52,10 +54,17 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     }, [])
 
     useEffect(() => {
-        fetchDueWords()
-    }, [])
+        const nowActive = Boolean(isActive)
+        const becameActive = nowActive && !wasActiveRef.current
+        wasActiveRef.current = nowActive
+
+        if (becameActive) {
+            void fetchDueWords(currentLoadModeRef.current)
+        }
+    }, [isActive])
 
     const fetchDueWords = async (mode: 'normal' | 'practice' | 'difficult' = 'normal') => {
+        currentLoadModeRef.current = mode
         setLoading(true)
         setPracticeMode(mode === 'practice')
         setDifficultMode(mode === 'difficult')

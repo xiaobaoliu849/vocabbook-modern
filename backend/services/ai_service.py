@@ -1358,6 +1358,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         
         memories_retrieved = 0
         memory_saved = False
+        user_memory_saved = False
         last_user_msg = None
         
         # EverMemOS integration (official pattern: store → retrieve → generate → store)
@@ -1383,7 +1384,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         group_name=session_id,
                         role="user",
                     )
-                    memory_saved = save_result is not None
+                    user_memory_saved = save_result is not None
                 else:
                     print(f"[EverMem] Skipped saving low-signal user message: '{last_user_msg}'")
 
@@ -1437,6 +1438,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             finalized = await self._finalize_memory_turn(response, session_id=session_id, user_msg=last_user_msg)
             if finalized:
                 print(f"[EverMem] Finalized memory turn for session {session_id or 'ALL'}")
+            memory_saved = user_memory_saved and finalized
 
             return {
                 "text": response,
@@ -1471,6 +1473,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         
         memories_retrieved = 0
         memory_saved = False
+        user_memory_saved = False
         last_user_msg = None
         
         if self.evermem_service:
@@ -1495,7 +1498,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         group_name=session_id,
                         role="user",
                     )
-                    memory_saved = save_result is not None
+                    user_memory_saved = save_result is not None
                 else:
                     print(f"[EverMem Stream] Skipped saving low-signal user message: '{last_user_msg}'")
 
@@ -1561,6 +1564,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             finalized = await self._finalize_memory_turn(full_response, session_id=session_id, user_msg=last_user_msg)
             if finalized:
                 print(f"[EverMem Stream] Finalized memory turn for session {session_id or 'ALL'}")
+            memory_saved = user_memory_saved and finalized
 
             # Yield final metadata
             yield f"data: {json.dumps({'type': 'done', 'memories_retrieved': memories_retrieved, 'memory_saved': memory_saved})}\n\n"

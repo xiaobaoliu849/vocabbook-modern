@@ -75,6 +75,29 @@ def test_error_count_can_decay_and_never_go_negative():
         temp_dir.cleanup()
 
 
+def test_sm2_review_history_records_precise_review_timestamp():
+    temp_dir, db = _build_temp_db()
+    try:
+        assert db.add_word({"word": "delta", "meaning": "test"})
+        db.update_sm2_status("delta", easiness=2.4, interval=1, repetitions=1, next_time=time.time() + 3600, rating=3)
+
+        rows = db.execute(
+            "SELECT review_date, reviewed_at, rating FROM review_history WHERE word_id = (SELECT id FROM words WHERE word = ?)",
+            ("delta",),
+            fetch=True,
+            commit=False,
+        )
+        assert len(rows) == 1
+        review_date, reviewed_at, rating = rows[0]
+        assert review_date
+        assert isinstance(reviewed_at, (int, float))
+        assert reviewed_at > 0
+        assert rating == 3
+    finally:
+        db.close_connection()
+        temp_dir.cleanup()
+
+
 def test_low_quality_uses_hour_level_retry_windows():
     now_ts = time.time()
 
@@ -195,19 +218,16 @@ def test_evermem_key_not_persisted_to_disk(monkeypatch, tmp_path):
 
 
 def test_review_runtime_can_bootstrap_evermem_from_headers(monkeypatch):
-    calls = []
-
     class DummyService:
         pass
 
-    def fake_save_config(enabled: bool, url: str = None, key: str = None):
-        calls.append((enabled, url, key))
+    calls = []
 
-    def fake_get_service():
+    def fake_resolve_runtime_service(enabled: bool, url: str = None, key: str = None):
+        calls.append((enabled, url, key))
         return DummyService()
 
-    monkeypatch.setattr("services.evermem_config.save_config", fake_save_config)
-    monkeypatch.setattr("services.evermem_config.get_service", fake_get_service)
+    monkeypatch.setattr("services.evermem_config.resolve_runtime_service", fake_resolve_runtime_service)
 
     service, enabled = _prime_evermem_runtime(
         authorization="Bearer jwt-token",
@@ -224,11 +244,11 @@ def test_review_runtime_can_bootstrap_evermem_from_headers(monkeypatch):
 def test_review_runtime_disables_evermem_when_header_off(monkeypatch):
     calls = []
 
-    def fake_save_config(enabled: bool, url: str = None, key: str = None):
+    def fake_resolve_runtime_service(enabled: bool, url: str = None, key: str = None):
         calls.append((enabled, url, key))
+        return None
 
-    monkeypatch.setattr("services.evermem_config.save_config", fake_save_config)
-    monkeypatch.setattr("services.evermem_config.get_service", lambda: None)
+    monkeypatch.setattr("services.evermem_config.resolve_runtime_service", fake_resolve_runtime_service)
 
     service, enabled = _prime_evermem_runtime(
         authorization="Bearer jwt-token",
@@ -239,4 +259,4 @@ def test_review_runtime_disables_evermem_when_header_off(monkeypatch):
 
     assert enabled is False
     assert service is None
-    assert calls == [(False, "https://api.evermind.ai", None)]
+    assert calls == [(False, "https://api.evermind.ai", "secret-key")]

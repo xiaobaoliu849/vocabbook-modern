@@ -121,3 +121,36 @@ def get_service() -> Optional[EverMemService]:
     except Exception as e:
         logger.warning(f"Failed to initialize evermem service: {e}")
         return None
+
+
+def resolve_runtime_service(
+    enabled: bool,
+    url: Optional[str] = None,
+    key: Optional[str] = None,
+) -> Optional[EverMemService]:
+    """
+    Build a request-scoped EverMem service without mutating shared process state.
+
+    Request handlers should prefer this over save_config()/get_service() so one
+    user's headers cannot disable or replace another request's runtime service.
+    """
+    if not enabled:
+        return None
+
+    persisted_enabled, persisted_url, legacy_key = _load_persisted_config()
+    resolved_url = _normalize_url(url or (persisted_url if persisted_enabled else None))
+    runtime_key = ""
+    if isinstance(key, str) and key.strip():
+        runtime_key = key.strip()
+    else:
+        runtime_key = os.environ.get("EVERMEM_API_KEY", "").strip() or legacy_key
+
+    if not runtime_key:
+        logger.info("EverMem enabled for request but no runtime key is available.")
+        return None
+
+    try:
+        return EverMemService(api_url=resolved_url, api_key=runtime_key)
+    except Exception as e:
+        logger.warning(f"Failed to build request-scoped evermem service: {e}")
+        return None

@@ -137,7 +137,8 @@ class DatabaseManager:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 word_id INTEGER,
                 review_date TEXT,  -- YYYY-MM-DD
-                rating INTEGER,    -- 0=Forgot, 1=Remembered (Simple) / 1-4 (SM-2)
+                reviewed_at REAL,  -- Unix timestamp for precise review ordering
+                rating INTEGER,    -- 0=Forgot, 1=Remembered (Simple) / 1-5 (SM-2)
                 FOREIGN KEY(word_id) REFERENCES words(id)
             )
         ''')
@@ -168,6 +169,9 @@ class DatabaseManager:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_next_review_time ON words(next_review_time)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_mastered ON words(mastered)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_stage ON words(stage)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_word_id ON review_history(word_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_review_date ON review_history(review_date)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_reviewed_at ON review_history(reviewed_at)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_word_families_root ON word_families(root)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_word_families_word ON word_families(word)')
 
@@ -259,6 +263,22 @@ class DatabaseManager:
             if 'note' not in columns:
                 print("Adding 'note' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN note TEXT")
+
+            cursor.execute("PRAGMA table_info(review_history)")
+            review_history_columns = [info[1] for info in cursor.fetchall()]
+            if 'reviewed_at' not in review_history_columns:
+                print("Adding 'reviewed_at' column to review_history table...")
+                cursor.execute("ALTER TABLE review_history ADD COLUMN reviewed_at REAL")
+                cursor.execute(
+                    """
+                    UPDATE review_history
+                    SET reviewed_at = CAST(strftime('%s', review_date || ' 00:00:00') AS REAL)
+                    WHERE reviewed_at IS NULL AND review_date IS NOT NULL AND review_date != ''
+                    """
+                )
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_word_id ON review_history(word_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_review_date ON review_history(review_date)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_reviewed_at ON review_history(reviewed_at)')
 
             # Ensure chat_sessions has owner_key for per-user isolation
             cursor.execute("PRAGMA table_info(chat_sessions)")
@@ -544,6 +564,7 @@ class DatabaseManager:
         
         # Log history (For Step 3 Heatmap)
         today = datetime.now().strftime('%Y-%m-%d')
+        reviewed_at = time.time()
         # Get word ID first
         cursor.execute('SELECT id FROM words WHERE word = ?', (word,))
         res = cursor.fetchone()
@@ -552,7 +573,10 @@ class DatabaseManager:
             # Simple rating for now: 1 if stage increased (remembered), 0 if reset (forgot)
             # This is an approximation since we don't pass the explicit "ok/fail" bool here but derive from stage
             # Actually, let's just log it.
-            cursor.execute('INSERT INTO review_history (word_id, review_date, rating) VALUES (?, ?, ?)', (wid, today, 1))
+            cursor.execute(
+                'INSERT INTO review_history (word_id, review_date, reviewed_at, rating) VALUES (?, ?, ?, ?)',
+                (wid, today, reviewed_at, 1),
+            )
 
         conn.commit()
 
@@ -567,23 +591,38 @@ class DatabaseManager:
         # - rating >= 4: decrease difficulty score (with floor at 0)
         # - rating == 3: keep unchanged
         error_delta = 1 if rating <= 2 else (-1 if rating >= 4 else 0)
+        reviewed_at = time.time()
+        today = datetime.fromtimestamp(reviewed_at).strftime('%Y-%m-%d')
+        conn = self.get_connection()
+        cursor = conn.cursor()
 
-        self.execute('''
-            UPDATE words
-            SET easiness = ?, interval = ?, repetitions = ?, next_review_time = ?,
-                mastered = ?, review_count = review_count + 1,
-                error_count = MAX(0, error_count + ?)
-            WHERE word = ?
-        ''', (easiness, interval, repetitions, next_time, mastered, error_delta, word))
-
-        # Log history
-        today = datetime.now().strftime('%Y-%m-%d')
-        res = self.execute('SELECT id FROM words WHERE word = ?', (word,), fetch=True, commit=False)
-        if res and res[0]:
-            self.execute(
-                'INSERT INTO review_history (word_id, review_date, rating) VALUES (?, ?, ?)',
-                (res[0][0], today, rating)
+        try:
+            cursor.execute(
+                '''
+                UPDATE words
+                SET easiness = ?, interval = ?, repetitions = ?, next_review_time = ?,
+                    mastered = ?, review_count = review_count + 1,
+                    error_count = MAX(0, error_count + ?)
+                WHERE word = ?
+                ''',
+                (easiness, interval, repetitions, next_time, mastered, error_delta, word),
             )
+
+            cursor.execute('SELECT id FROM words WHERE word = ?', (word,))
+            res = cursor.fetchone()
+            if res:
+                cursor.execute(
+                    '''
+                    INSERT INTO review_history (word_id, review_date, reviewed_at, rating)
+                    VALUES (?, ?, ?, ?)
+                    ''',
+                    (res[0], today, reviewed_at, rating),
+                )
+
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def get_review_heatmap_data(self):
         """获取过去一年的复习热力图数据 {date: count}"""
@@ -607,7 +646,15 @@ class DatabaseManager:
         """Get review history for a specific word"""
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT review_date, rating FROM review_history WHERE word_id = ? ORDER BY review_date', (word_id,))
+        cursor.execute(
+            '''
+            SELECT review_date, rating, reviewed_at
+            FROM review_history
+            WHERE word_id = ?
+            ORDER BY COALESCE(reviewed_at, CAST(strftime('%s', review_date || ' 00:00:00') AS REAL)) ASC, id ASC
+            ''',
+            (word_id,),
+        )
         rows = cursor.fetchall()
         return rows
 
