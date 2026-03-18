@@ -181,11 +181,11 @@
       "shortcuts": {
         "desc": "Review, customize, and reset keyboard bindings across the app.",
         "compactDesc": "Only the desktop global shortcut is configurable here. Other in-app shortcuts stay in the help panel.",
-        "captureHint": "Click record, then press the shortcut you want to assign.",
+        "captureHint": "Click Set, then press the shortcut you want to assign.",
         "desktopHint": "The show / hide window shortcut syncs with Electron and may fail if another app already uses it.",
         "desktopOnlyHint": "This shortcut is only available in the Electron desktop app.",
         "current": "Current",
-        "record": "Record",
+        "record": "Set",
         "add": "Add Binding",
         "reset": "Reset",
         "resetAll": "Reset All",

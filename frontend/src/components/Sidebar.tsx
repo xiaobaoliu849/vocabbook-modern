@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight, User as UserIcon, LogOut, Crown, BarChart2, Bot } from 'lucide-react'
+import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight, User as UserIcon, LogOut, Crown, BarChart2, Bot, Languages } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useGlobalState } from '../context/GlobalStateContext'
@@ -9,7 +9,7 @@ import { SubscriptionModal } from './SubscriptionModal'
 
 // User Avatar with Dropdown (rendered via Portal for proper positioning)
 function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateToSettings?: (tab?: string) => void, isCollapsed: boolean }) {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const { user, logout } = useAuth()
     const [showAuth, setShowAuth] = useState(false)
     const [showDropdown, setShowDropdown] = useState(false)
@@ -69,51 +69,44 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
         }
     }, [showDropdown])
 
-    // Not logged in
-    if (!user) {
-        return (
-            <>
-                <button
-                    onClick={() => setShowAuth(true)}
-                    className={`group relative flex items-center gap-3 w-full p-2.5 rounded-xl transition-all duration-200 overflow-hidden
-                        hover:bg-white dark:hover:bg-slate-800 hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700`}
-                    title={t('sidebar.loginRegister', 'Login / Sign Up')}
-                >
-                    <div className="w-9 h-9 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white transition-transform group-hover:scale-110 shadow-sm flex-shrink-0">
-                        <UserIcon size={18} />
-                    </div>
-                    <span className={`text-sm font-bold text-slate-700 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-primary-400 whitespace-nowrap transition-all duration-300 ml-3
-                        ${isCollapsed ? 'opacity-0 w-0 ml-0' : 'opacity-100 w-auto'}`}>
-                        {t('sidebar.loginNow', 'Login Now')}
-                    </span>
-                </button>
-                <LoginModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
-            </>
-        )
+    const currentLanguage = ((i18n.resolvedLanguage || i18n.language || 'en').split('-')[0]) as 'en' | 'zh'
+    const isPremium = user?.tier === 'premium'
+    const buttonLabel = user ? user.email.split('@')[0] : t('sidebar.loginRegister', 'Login / Sign Up')
+    const labelClass = `overflow-hidden whitespace-nowrap text-sm font-bold transition-[max-width,opacity,margin] duration-200 ease-out ${
+        isCollapsed ? 'ml-0 max-w-0 opacity-0' : 'ml-3 max-w-[10rem] opacity-100'
+    }`
+    const handleOpenAuth = () => {
+        setShowDropdown(false)
+        setShowAuth(true)
     }
-
-    const initials = user.email.charAt(0).toUpperCase()
-    const isPremium = user.tier === 'premium'
+    const handleOpenGeneralSettings = () => {
+        setShowDropdown(false)
+        onNavigateToSettings?.('general')
+    }
+    const handleLanguageChange = (nextLanguage: 'en' | 'zh') => {
+        void i18n.changeLanguage(nextLanguage)
+        localStorage.setItem('i18nextLng', nextLanguage)
+        setShowDropdown(false)
+    }
+    const initials = user?.email.charAt(0).toUpperCase() ?? 'U'
 
     return (
         <>
             <button
                 ref={buttonRef}
                 onClick={() => setShowDropdown(!showDropdown)}
-                className={`group flex items-center gap-3 w-full p-2.5 rounded-xl transition-all duration-200 overflow-hidden
-                    hover:bg-white dark:hover:bg-slate-800 hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700`}
-                title={isCollapsed ? user.email : (isPremium ? t('sidebar.premiumMember', 'Premium Member') : t('sidebar.freeAccount', 'Free Account'))}
+                className="group flex h-14 w-full items-center overflow-hidden rounded-xl border border-transparent px-2.5 text-slate-700 transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-slate-100 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800"
+                title={isCollapsed ? (user?.email || t('sidebar.loginRegister', 'Login / Sign Up')) : buttonLabel}
             >
-                {/* Avatar */}
                 <div
-                    className="relative w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform"
+                    className="relative h-9 w-9 shrink-0 rounded-xl text-sm font-bold text-white shadow-sm flex items-center justify-center"
                     style={{
                         background: isPremium
                             ? 'linear-gradient(135deg, #fbbf24, #f97316)'
                             : 'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600))'
                     }}
                 >
-                    {initials}
+                    {user ? initials : <UserIcon size={18} />}
                     {isPremium && (
                         <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-900">
                             <Crown size={9} className="text-amber-900" />
@@ -121,33 +114,29 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                     )}
                 </div>
 
-                {/* User Info - animate opacity/width */}
-                <span className={`text-sm font-bold text-slate-700 dark:text-slate-200 group-hover:text-primary-600 dark:group-hover:text-primary-400 whitespace-nowrap transition-all duration-300 ml-3
-                    ${isCollapsed ? 'opacity-0 w-0 ml-0' : 'opacity-100 w-auto'}`}>
-                    {user.email.split('@')[0]}
+                <span className={`${labelClass} text-slate-700 group-hover:text-primary-600 dark:text-slate-200 dark:group-hover:text-primary-400`}>
+                    {buttonLabel}
                 </span>
             </button>
 
-            {/* Dropdown Menu - Rendered via Portal */}
             {showDropdown && createPortal(
                 <div
                     ref={dropdownRef}
                     className="fixed w-72 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl ring-1 ring-slate-200/50 dark:ring-zinc-800 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 z-[9999]"
                     style={{ bottom: dropdownStyle.bottom, left: dropdownStyle.left }}
                 >
-                    {/* User Info Card */}
-                    <div className={`p-4 ${isPremium ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20' : 'bg-gradient-to-br from-slate-50 to-primary-50/50 dark:from-slate-900 dark:to-zinc-900'}`}>
+                    <div className={`p-4 ${user && isPremium ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20' : 'bg-gradient-to-br from-slate-50 to-primary-50/50 dark:from-slate-900 dark:to-zinc-900'}`}>
                         <div className="flex items-center gap-3">
                             <div
                                 className="relative w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg ring-2 ring-white/50 dark:ring-white/10"
                                 style={{
-                                    background: isPremium
+                                    background: user && isPremium
                                         ? 'linear-gradient(135deg, #fbbf24, #f97316)'
                                         : 'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600))'
                                 }}
                             >
-                                {initials}
-                                {isPremium && (
+                                {user ? initials : <UserIcon size={20} />}
+                                {user && isPremium && (
                                     <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-900">
                                         <Crown size={11} className="text-amber-900" />
                                     </div>
@@ -155,20 +144,27 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="font-bold text-slate-800 dark:text-white truncate">
-                                    {user.email.split('@')[0]}
+                                    {user ? user.email.split('@')[0] : t('sidebar.loginRegister', 'Login / Sign Up')}
                                 </p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate opacity-80">
-                                    {user.email}
-                                </p>
+                                {user && (
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate opacity-80">
+                                        {user.email}
+                                    </p>
+                                )}
                                 <div className="mt-2">
-                                    {isPremium ? (
+                                    {user && isPremium ? (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 dark:from-amber-900/50 dark:to-orange-900/50 dark:text-amber-300 shadow-sm border border-amber-200/50 dark:border-amber-700/50">
                                             <Crown size={10} />
                                             {t('sidebar.premiumMember', 'Premium Member')}
                                         </span>
-                                    ) : (
+                                    ) : user ? (
                                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200/50 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                             {t('sidebar.freeAccount', 'Free Account')}
+                                        </span>
+                                    ) : null}
+                                    {!user && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200/50 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                            {t('settings.subtitle', 'Preferences')}
                                         </span>
                                     )}
                                 </div>
@@ -176,19 +172,68 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                         </div>
                     </div>
 
-                    {/* Menu Items */}
                     <div className="p-2 space-y-1">
+                        {user ? (
+                            <button
+                                onClick={handleAccountSettings}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800/80 hover:text-slate-900 dark:hover:text-white transition-all"
+                            >
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                                    <UserIcon size={18} />
+                                </div>
+                                {t('sidebar.accountSettings', 'Account Settings')}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleOpenAuth}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800/80 hover:text-slate-900 dark:hover:text-white transition-all"
+                            >
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
+                                    <UserIcon size={18} />
+                                </div>
+                                {t('sidebar.loginRegister', 'Login / Sign Up')}
+                            </button>
+                        )}
+
                         <button
-                            onClick={handleAccountSettings}
+                            onClick={handleOpenGeneralSettings}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800/80 hover:text-slate-900 dark:hover:text-white transition-all"
                         >
                             <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
                                 <Settings size={18} />
                             </div>
-                            {t('sidebar.accountSettings', 'Account Settings')}
+                            {t('sidebar.settingsTooltip', 'App Settings')}
                         </button>
 
-                        {!isPremium && (
+                        <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                                <Languages size={14} />
+                                {t('settings.general.language', 'Language')}
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                                {(['zh', 'en'] as const).map((language) => {
+                                    const selected = currentLanguage === language
+                                    return (
+                                        <button
+                                            key={language}
+                                            type="button"
+                                            onClick={() => handleLanguageChange(language)}
+                                            className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                                                selected
+                                                    ? 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-300'
+                                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            {language === 'zh'
+                                                ? t('settings.general.languageOptions.zh', '简体中文')
+                                                : t('settings.general.languageOptions.en', 'English')}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {user && !isPremium && (
                             <button
                                 onClick={handleUpgrade}
                                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all"
@@ -203,22 +248,26 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                             </button>
                         )}
 
-                        <div className="my-2 border-t border-slate-100 dark:border-zinc-800 mx-3" />
-
-                        <button
-                            onClick={handleLogout}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                        >
-                            <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500">
-                                <LogOut size={18} />
-                            </div>
-                            {t('sidebar.logout', 'Log Out')}
-                        </button>
+                        {user && (
+                            <>
+                                <div className="my-2 border-t border-slate-100 dark:border-zinc-800 mx-3" />
+                                <button
+                                    onClick={handleLogout}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500">
+                                        <LogOut size={18} />
+                                    </div>
+                                    {t('sidebar.logout', 'Log Out')}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>,
                 document.body
             )}
 
+            <LoginModal isOpen={showAuth} onClose={() => setShowAuth(false)} />
             <SubscriptionModal isOpen={showPay} onClose={() => setShowPay(false)} />
         </>
     )
@@ -236,6 +285,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
     const { t } = useTranslation()
     const [isCollapsed, setIsCollapsed] = useState(false)
     const { dueCount } = useGlobalState()
+
     const isPageActive = (page: Page) => {
         if (page === 'add') return currentPage === 'add' || currentPage === 'import'
         if (page === 'chat') return currentPage === 'chat' || currentPage === 'translation'
@@ -253,7 +303,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
 
     return (
         <aside
-            className={`glass-sidebar flex flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-60'} shrink-0 relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200 dark:border-slate-800 z-50`}
+            className={`glass-sidebar relative z-50 flex shrink-0 flex-col bg-white/80 backdrop-blur-xl transition-[width] duration-300 dark:bg-slate-900/80 ${isCollapsed ? 'w-20' : 'w-60'}`}
         >
             {/* Header with Logo and Collapse Button */}
             <div className="h-16 flex items-center gap-3 px-4 shrink-0">
@@ -275,7 +325,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 px-3 py-2 space-y-1.5 overflow-y-auto custom-scrollbar">
+            <nav className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
                 {navItems.map((item) => (
                     <button
                         key={item.id}
@@ -312,36 +362,8 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
             </nav>
 
             {/* Footer Section */}
-            <div className="p-3 space-y-3 pb-4">
-                {/* User Profile */}
+            <div className="shrink-0 p-3 pb-4">
                 <UserAvatarDropdown onNavigateToSettings={onNavigateToSettings} isCollapsed={isCollapsed} />
-
-                {/* Separator */}
-                <div className="h-px bg-slate-200 dark:bg-slate-700/50 mx-1" />
-
-                {/* Settings Link */}
-                <button
-                    onClick={() => setCurrentPage('settings')}
-                    className={`group flex items-center gap-3 w-full p-2.5 rounded-xl transition-all duration-200 overflow-hidden
-                        ${isPageActive('settings')
-                            ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-bold shadow-sm border border-primary-100 dark:border-primary-800/50'
-                            : 'hover:bg-white dark:hover:bg-slate-800 hover:shadow-md border border-transparent hover:border-slate-100 dark:hover:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                        }`}
-                    title={isCollapsed ? t('sidebar.settingsTooltip', 'App Settings') : ''}
-                >
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0
-                        ${isPageActive('settings')
-                            ? 'bg-primary-100 dark:bg-primary-800/50 text-primary-600 dark:text-primary-400'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:scale-110 group-hover:bg-primary-50 dark:group-hover:bg-primary-900/20 group-hover:text-primary-600 dark:group-hover:text-primary-400'
-                        }`}
-                    >
-                        <Settings size={20} />
-                    </div>
-                    <span className={`text-sm text-left whitespace-nowrap transition-all duration-300 ml-3
-                        ${isCollapsed ? 'opacity-0 w-0 ml-0' : 'opacity-100 w-auto'}`}>
-                        {t('sidebar.settings', 'Settings')}
-                    </span>
-                </button>
             </div>
         </aside>
     )

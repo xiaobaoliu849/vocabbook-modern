@@ -181,11 +181,11 @@
       "shortcuts": {
         "desc": "查看、修改并重置整套应用快捷键。",
         "compactDesc": "这里只配置桌面端全局快捷键。应用内其它快捷键继续放在帮助面板里。",
-        "captureHint": "点录制后，直接按下你想绑定的新快捷键。",
+        "captureHint": "点设置后，直接按下你想绑定的新快捷键。",
         "desktopHint": "显示 / 隐藏窗口 这个快捷键会同步到 Electron；如果被别的程序占用，设置会失败。",
         "desktopOnlyHint": "这个快捷键只在 Electron 桌面应用里可用。",
         "current": "当前",
-        "record": "录制",
+        "record": "设置",
         "add": "添加绑定",
         "reset": "重置",
         "resetAll": "全部重置",

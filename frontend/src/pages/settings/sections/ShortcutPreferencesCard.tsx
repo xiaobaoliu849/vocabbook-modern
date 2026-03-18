@@ -206,7 +206,7 @@ export default function ShortcutPreferencesCard() {
                                             disabled={isBusy}
                                             className="inline-flex items-center justify-center rounded-xl bg-primary-500 px-3 py-2 text-sm font-medium text-white shadow-sm shadow-primary-500/20 transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
-                                            {t('settings.general.shortcuts.record', 'Record')}
+                                            {t('settings.general.shortcuts.record', 'Set')}
                                         </button>
                                         <button
                                             type="button"
@@ -224,7 +224,7 @@ export default function ShortcutPreferencesCard() {
                     </div>
 
                     <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-                        {t('settings.general.shortcuts.captureHint', 'Click record, then press the shortcut you want to assign.')}
+                        {t('settings.general.shortcuts.captureHint', 'Click Set, then press the shortcut you want to assign.')}
                     </p>
                 </>
             )}
