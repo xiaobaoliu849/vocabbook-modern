@@ -171,7 +171,8 @@ class DatabaseManager:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_stage ON words(stage)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_word_id ON review_history(word_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_review_date ON review_history(review_date)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_reviewed_at ON review_history(reviewed_at)')
+        # Older DBs may have review_history without reviewed_at yet.
+        # check_schema_updates() adds the column first, then creates this index.
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_word_families_root ON word_families(root)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_word_families_word ON word_families(word)')
 

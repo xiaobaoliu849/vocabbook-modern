@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import sqlite3
 import time
 from tempfile import TemporaryDirectory
 
@@ -171,6 +172,41 @@ def test_due_review_count_only_counts_due_words():
         db.execute("UPDATE words SET next_review_time = ? WHERE word = ?", (time.time() + 3600, "beta"))
 
         assert db.get_due_review_count() == 1
+    finally:
+        db.close_connection()
+        temp_dir.cleanup()
+
+
+def test_old_review_history_schema_is_upgraded_with_reviewed_at():
+    temp_dir = TemporaryDirectory()
+    db_path = os.path.join(temp_dir.name, "legacy.db")
+    json_path = os.path.join(temp_dir.name, "missing.json")
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE review_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                word_id INTEGER,
+                review_date TEXT,
+                rating INTEGER
+            )
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    db = DatabaseManager(db_path=db_path, json_path=json_path)
+    try:
+        rows = db.execute("PRAGMA table_info(review_history)", fetch=True, commit=False)
+        columns = [row[1] for row in rows]
+        assert "reviewed_at" in columns
+
+        indexes = db.execute("PRAGMA index_list(review_history)", fetch=True, commit=False)
+        index_names = [row[1] for row in indexes]
+        assert "idx_review_history_reviewed_at" in index_names
     finally:
         db.close_connection()
         temp_dir.cleanup()
