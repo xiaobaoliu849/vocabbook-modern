@@ -188,7 +188,7 @@ cd ../electron
 npm install
 ```
 
-On Windows, use `.venv\Scripts\python -m pip install -r backend\requirements-dev.txt`.
+On Windows, use `install.bat`. It creates `.venv-win` to avoid conflicting with WSL/Linux `.venv` folders in the same repo. If you need the direct command, use `.venv-win\Scripts\python -m pip install -r backend\requirements-dev.txt`.
 
 ### Start Development Mode
 
@@ -213,6 +213,8 @@ On Windows, use:
 ```bat
 test_backend.bat backend/tests/test_ai_memory_recall.py -q
 ```
+
+Windows scripts prefer `.venv-win` and still accept an older Windows `.venv` if you already have one.
 
 If the shell reports `pytest: command not found`, that does not mean pytest is missing from the repo environment. It usually means the global PATH does not include the project virtual environment, so run tests through:
 

@@ -6,7 +6,15 @@ echo ========================================
 echo.
 
 set "ROOT=%~dp0"
-set "VENV_PYTHON=%ROOT%.venv\Scripts\python.exe"
+set "WINDOWS_VENV=%ROOT%.venv-win"
+set "LEGACY_VENV=%ROOT%.venv"
+set "VENV_DIR=%WINDOWS_VENV%"
+set "VENV_PYTHON=%VENV_DIR%\Scripts\python.exe"
+
+if exist "%LEGACY_VENV%\Scripts\python.exe" (
+    set "VENV_DIR=%LEGACY_VENV%"
+    set "VENV_PYTHON=%LEGACY_VENV%\Scripts\python.exe"
+)
 
 REM Check Python
 py --version >nul 2>&1
@@ -24,9 +32,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if exist "%LEGACY_VENV%\bin\python" if not exist "%LEGACY_VENV%\Scripts\python.exe" (
+    echo [INFO] 检测到 WSL/Linux 虚拟环境: %LEGACY_VENV%
+    echo [INFO] Windows 将使用独立环境: %WINDOWS_VENV%
+    echo.
+)
+
 if not exist "%VENV_PYTHON%" (
     echo [1/5] 创建项目虚拟环境...
-    py -m venv "%ROOT%.venv"
+    py -m venv "%VENV_DIR%"
     if errorlevel 1 (
         echo [ERROR] 创建项目虚拟环境失败。
         pause
@@ -74,6 +88,7 @@ if errorlevel 1 (
 echo.
 echo ========================================
 echo   安装完成！
+echo   Python 环境: %VENV_DIR%
 echo   运行 start.bat 或 dev.bat 启动应用
 echo ========================================
 pause

@@ -91,7 +91,7 @@ Important:
 - Do not assume `pytest` is available on the global PATH.
 - If `pytest: command not found` appears, use `./.venv/bin/python -m pytest`.
 - Do not assume `backend/.venv` exists in this repository.
-- On Windows, use `test_backend.bat ...` or `.venv\Scripts\python -m pytest`.
+- On Windows, use `test_backend.bat ...` or `.venv-win\Scripts\python -m pytest`.
 
 ## Directory Structure
 
