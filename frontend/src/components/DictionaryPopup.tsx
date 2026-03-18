@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { api, ApiError, API_PATHS, getClientId } from '../utils/api';
 import AudioButton from './AudioButton';
 import { useGlobalState } from '../context/GlobalStateContext';
+import { useShortcuts } from '../context/ShortcutContext';
 import { X, Search, Heart, Loader2, Plus, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +15,7 @@ interface Position {
 
 export default function DictionaryPopup() {
     const { t } = useTranslation();
+    const { matches } = useShortcuts();
     const [isVisible, setIsVisible] = useState(false);
     const [word, setWord] = useState('');
     const [position, setPosition] = useState<Position>({ top: 0, left: 0 });
@@ -184,7 +186,7 @@ export default function DictionaryPopup() {
 
         // Also close on ESC
         const handleEsc = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setIsVisible(false);
+            if (matches(e, 'common.closeDialog')) setIsVisible(false);
         }
 
         if (isVisible) {
@@ -197,7 +199,7 @@ export default function DictionaryPopup() {
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleEsc);
         };
-    }, [isVisible]);
+    }, [isVisible, matches]);
 
     const handleAddWord = async () => {
         if (!result || result.error) return;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import AudioButton from './AudioButton'
 import { X, BookOpen, MessageSquare, RefreshCw, Sprout, StickyNote } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
+import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { splitExamples, extractEnglish } from '../utils/textUtils'
  
@@ -13,6 +14,7 @@ interface WordDetailProps {
 
 export default function WordDetailModal({ word, onClose, onWordUpdated }: WordDetailProps) {
    const { t } = useTranslation()
+   const { matches } = useShortcuts()
    const modalRef = useRef<HTMLDivElement>(null)
    const audioSrc = word.audio || undefined
    
@@ -37,11 +39,11 @@ export default function WordDetailModal({ word, onClose, onWordUpdated }: WordDe
  
    useEffect(() => {
      const handleEsc = (event: KeyboardEvent) => {
-       if (event.key === 'Escape') onClose()
+       if (matches(event, 'common.closeDialog')) onClose()
      }
      document.addEventListener('keydown', handleEsc)
      return () => document.removeEventListener('keydown', handleEsc)
-   }, [onClose])
+   }, [matches, onClose])
  
    useEffect(() => {
      if (word && word.word) {

@@ -7,6 +7,7 @@ import { ChoiceMode, DictationMode, SessionSummary } from '../components/review'
 import type { ReviewMode, WordRating, SessionSummaryData } from '../components/review'
 import { api, API_PATHS } from '../utils/api'
 import { useGlobalState } from '../context/GlobalStateContext'
+import { useShortcuts } from '../context/ShortcutContext'
 
 interface ReviewWord {
     id: number
@@ -41,6 +42,7 @@ function shuffleWords<T>(words: T[]): T[] {
 
 export default function Review({ isActive }: { isActive?: boolean }) {
     const { t } = useTranslation()
+    const { findMatching, matches } = useShortcuts()
     // Mode state
     const [reviewMode, setReviewMode] = useState<ReviewMode>('flashcard')
 
@@ -277,11 +279,19 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
             const target = e.target as HTMLElement
             const isInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
+            const matchedRatingShortcut = findMatching(e, ['review.rate1', 'review.rate2', 'review.rate3', 'review.rate4', 'review.rate5'])
 
             // Rating keys 1-5 should work even when in input (after card is flipped)
-            if ((reviewMode === 'flashcard' || reviewMode === 'spelling') && isFlipped && ['1', '2', '3', '4', '5'].includes(e.key)) {
+            if ((reviewMode === 'flashcard' || reviewMode === 'spelling') && isFlipped && matchedRatingShortcut) {
                 e.preventDefault()
-                handleRating(parseInt(e.key))
+                const ratingMap: Record<string, number> = {
+                    'review.rate1': 1,
+                    'review.rate2': 2,
+                    'review.rate3': 3,
+                    'review.rate4': 4,
+                    'review.rate5': 5,
+                }
+                handleRating(ratingMap[matchedRatingShortcut])
                 return
             }
 
@@ -291,7 +301,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             }
 
             // Tab to switch modes
-            if (e.key === 'Tab') {
+            if (matches(e, 'review.switchMode')) {
                 e.preventDefault()
                 const modes: ReviewMode[] = ['flashcard', 'spelling', 'choice', 'dictation']
                 const currentIdx = modes.indexOf(reviewMode)
@@ -301,21 +311,21 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             }
 
             // Space/Arrow to flip
-            if (e.code === 'Space' || e.key === 'ArrowRight') {
+            if (matches(e, 'review.flipCard')) {
                 // In spelling mode, space shouldn't flip unless already flipped
                 if (reviewMode === 'flashcard' || isFlipped) {
                     e.preventDefault()
                     setIsFlipped(!isFlipped)
                 }
-            } else if (e.key === 'ArrowLeft' && isFlipped) {
+            } else if (matches(e, 'review.flipBack') && isFlipped) {
                 // Arrow left to flip back
                 e.preventDefault()
                 setIsFlipped(false)
-            } else if (e.key === 'p' || e.key === 'P' || e.key === 'r' || e.key === 'R') {
+            } else if (matches(e, 'review.playAudio')) {
                 // P or R for play/replay audio
                 e.preventDefault()
                 playAudio()
-            } else if ((e.key === 'h' || e.key === 'H') && reviewMode === 'spelling') {
+            } else if (matches(e, 'review.toggleHint') && reviewMode === 'spelling') {
                 // H for hint in spelling mode
                 e.preventDefault()
                 setShowSpellingHint(prev => !prev)
@@ -324,7 +334,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [currentWord, handleRating, isFlipped, playAudio, reviewMode, switchReviewMode])
+    }, [currentWord, findMatching, handleRating, isFlipped, matches, playAudio, reviewMode, switchReviewMode])
 
     const topShortcutText = reviewMode === 'flashcard'
         ? t('review.shortcuts.rate')

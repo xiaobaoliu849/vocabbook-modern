@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, ipcMain } = require('electron')
 const path = require('path')
+const fs = require('fs')
 const { spawn } = require('child_process')
 const { autoUpdater } = require('electron-updater')
 
@@ -11,7 +12,157 @@ let backendProcess = null
 const DEV_MODE = process.env.NODE_ENV === 'development'
 const FRONTEND_URL = DEV_MODE ? 'http://localhost:5173' : `file://${path.join(__dirname, '../frontend/dist/index.html')}`
 const BACKEND_PATH = path.join(__dirname, '../backend')
-const HOTKEY = 'CommandOrControl+Alt+V'
+const DEFAULT_GLOBAL_SHORTCUT = 'Ctrl+Alt+KeyV'
+
+let shortcutSettings = {
+    globalToggleWindow: DEFAULT_GLOBAL_SHORTCUT
+}
+
+function getShortcutSettingsPath() {
+    return path.join(app.getPath('userData'), 'shortcut-settings.json')
+}
+
+function normalizeFrontendShortcutBinding(binding) {
+    if (!binding || typeof binding !== 'string') {
+        return null
+    }
+
+    const tokens = binding
+        .split('+')
+        .map((part) => part.trim())
+        .filter(Boolean)
+
+    if (tokens.length === 0) {
+        return null
+    }
+
+    const modifiers = new Set()
+    let keyToken = null
+
+    for (const token of tokens) {
+        if (token === 'Ctrl' || token === 'Meta' || token === 'Alt' || token === 'Shift') {
+            modifiers.add(token)
+            continue
+        }
+
+        keyToken = token
+    }
+
+    if (!keyToken) {
+        return null
+    }
+
+    const orderedModifiers = ['Ctrl', 'Meta', 'Alt', 'Shift'].filter((token) => modifiers.has(token))
+    return [...orderedModifiers, keyToken].join('+')
+}
+
+function keyTokenToAccelerator(token) {
+    if (/^Key[A-Z]$/.test(token)) return token.slice(3)
+    if (/^Digit[0-9]$/.test(token)) return token.slice(5)
+
+    const acceleratorMap = {
+        Enter: 'Enter',
+        Escape: 'Esc',
+        Tab: 'Tab',
+        Space: 'Space',
+        Delete: 'Delete',
+        Backspace: 'Backspace',
+        ArrowUp: 'Up',
+        ArrowDown: 'Down',
+        ArrowLeft: 'Left',
+        ArrowRight: 'Right',
+        Slash: '/',
+        Backslash: '\\',
+        BracketLeft: '[',
+        BracketRight: ']',
+        Semicolon: ';',
+        Quote: '\'',
+        Comma: ',',
+        Period: '.',
+        Minus: '-',
+        Equal: '=',
+        Backquote: '`',
+    }
+
+    return acceleratorMap[token] || null
+}
+
+function frontendBindingToAccelerator(binding) {
+    const normalized = normalizeFrontendShortcutBinding(binding)
+    if (!normalized) {
+        return null
+    }
+
+    const tokens = normalized.split('+')
+    const modifiers = []
+    let key = null
+
+    for (const token of tokens) {
+        if (token === 'Ctrl') {
+            modifiers.push('CommandOrControl')
+            continue
+        }
+        if (token === 'Meta') {
+            modifiers.push(process.platform === 'darwin' ? 'Command' : 'Super')
+            continue
+        }
+        if (token === 'Alt') {
+            modifiers.push('Alt')
+            continue
+        }
+        if (token === 'Shift') {
+            modifiers.push('Shift')
+            continue
+        }
+
+        key = keyTokenToAccelerator(token)
+    }
+
+    if (!key) {
+        return null
+    }
+
+    return [...modifiers, key].join('+')
+}
+
+function loadShortcutSettings() {
+    try {
+        const settingsPath = getShortcutSettingsPath()
+        if (!fs.existsSync(settingsPath)) {
+            return { ...shortcutSettings }
+        }
+
+        const raw = fs.readFileSync(settingsPath, 'utf8')
+        const parsed = JSON.parse(raw)
+        const globalToggleWindow = normalizeFrontendShortcutBinding(parsed?.globalToggleWindow) || DEFAULT_GLOBAL_SHORTCUT
+
+        return { globalToggleWindow }
+    } catch (error) {
+        console.error('Failed to load shortcut settings:', error)
+        return { ...shortcutSettings }
+    }
+}
+
+function saveShortcutSettings() {
+    try {
+        fs.writeFileSync(getShortcutSettingsPath(), JSON.stringify(shortcutSettings, null, 2))
+    } catch (error) {
+        console.error('Failed to save shortcut settings:', error)
+    }
+}
+
+function toggleMainWindowVisibility() {
+    if (!mainWindow) {
+        return
+    }
+
+    if (mainWindow.isVisible()) {
+        mainWindow.hide()
+    } else {
+        mainWindow.show()
+        mainWindow.focus()
+    }
+}
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -210,19 +361,55 @@ function createApplicationMenu() {
 }
 
 function registerGlobalShortcut() {
-    const ret = globalShortcut.register(HOTKEY, () => {
-        if (mainWindow) {
-            if (mainWindow.isVisible()) {
-                mainWindow.hide()
-            } else {
-                mainWindow.show()
-                mainWindow.focus()
-            }
-        }
-    })
+    globalShortcut.unregisterAll()
+
+    if (!shortcutSettings.globalToggleWindow) {
+        return true
+    }
+
+    const accelerator = frontendBindingToAccelerator(shortcutSettings.globalToggleWindow)
+    if (!accelerator) {
+        console.log('Global shortcut registration skipped: invalid binding')
+        return false
+    }
+
+    const ret = globalShortcut.register(accelerator, toggleMainWindowVisibility)
 
     if (!ret) {
         console.log('Global shortcut registration failed')
+    }
+
+    return ret
+}
+
+function updateGlobalShortcut(binding) {
+    const normalizedBinding = binding ? normalizeFrontendShortcutBinding(binding) : null
+    if (binding && !normalizedBinding) {
+        return {
+            ok: false,
+            binding: shortcutSettings.globalToggleWindow,
+            error: 'Invalid shortcut binding'
+        }
+    }
+
+    const previousBinding = shortcutSettings.globalToggleWindow
+    shortcutSettings.globalToggleWindow = normalizedBinding
+
+    const registered = registerGlobalShortcut()
+    if (!registered && normalizedBinding) {
+        shortcutSettings.globalToggleWindow = previousBinding
+        registerGlobalShortcut()
+        return {
+            ok: false,
+            binding: previousBinding,
+            error: 'Shortcut is unavailable or already in use'
+        }
+    }
+
+    saveShortcutSettings()
+    return {
+        ok: true,
+        binding: shortcutSettings.globalToggleWindow
     }
 }
 
@@ -274,6 +461,7 @@ function stopBackend() {
 
 // App lifecycle
 app.whenReady().then(() => {
+    shortcutSettings = loadShortcutSettings()
     createWindow()
     createTray()
     createApplicationMenu()
@@ -393,6 +581,14 @@ ipcMain.handle('install-update', () => {
 
 ipcMain.handle('get-app-version', () => {
     return app.getVersion()
+})
+
+ipcMain.handle('get-shortcut-settings', () => {
+    return { ...shortcutSettings }
+})
+
+ipcMain.handle('update-global-shortcut', (_event, binding) => {
+    return updateGlobalShortcut(binding)
 })
 
 // Initialize auto updater when app is ready (only in production)

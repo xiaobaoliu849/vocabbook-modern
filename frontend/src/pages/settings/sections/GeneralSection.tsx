@@ -1,13 +1,91 @@
+import type { ReactNode } from 'react'
 import { useTheme } from '../../../context/ThemeContext'
 import { useState, useEffect } from 'react'
-import { Check, Volume2, Globe } from 'lucide-react'
+import { Check, Languages, Monitor, Moon, Sun, Volume2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import ShortcutPreferencesCard from './ShortcutPreferencesCard'
 
+type AppearanceMode = 'light' | 'dark' | 'system'
+type LanguageOption = 'en' | 'zh'
+
+interface ChoiceCardOption<T extends string> {
+    value: T
+    label: string
+    description: string
+    supporting?: string
+    visual: ReactNode
+}
+
+interface ChoiceCardGroupProps<T extends string> {
+    value: T
+    onChange: (value: T) => void
+    options: ChoiceCardOption<T>[]
+    groupLabel: string
+    columnsClassName?: string
+}
+
+function ChoiceCardGroup<T extends string>({
+    value,
+    onChange,
+    options,
+    groupLabel,
+    columnsClassName = 'sm:grid-cols-2',
+}: ChoiceCardGroupProps<T>) {
+    return (
+        <div role="radiogroup" aria-label={groupLabel} className={`grid grid-cols-1 gap-4 ${columnsClassName}`}>
+            {options.map((option) => {
+                const selected = option.value === value
+                return (
+                    <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => onChange(option.value)}
+                        className={`relative group flex items-start gap-4 rounded-2xl border-2 p-5 text-left transition-all duration-300 ${
+                            selected
+                                ? 'border-primary-500 bg-primary-50/60 shadow-lg shadow-primary-500/10 ring-4 ring-primary-500/10 dark:bg-primary-900/15'
+                                : 'border-slate-200 bg-white/70 hover:border-primary-300 hover:bg-white hover:shadow-md dark:border-slate-700 dark:bg-slate-800/40 dark:hover:border-primary-700 dark:hover:bg-slate-800'
+                        }`}
+                    >
+                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border text-lg transition-colors ${
+                            selected
+                                ? 'border-primary-200 bg-white text-primary-600 dark:border-primary-800 dark:bg-slate-800 dark:text-primary-300'
+                                : 'border-slate-200 bg-slate-50 text-slate-500 group-hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                        }`}>
+                            {option.visual}
+                        </div>
+                        <div className="min-w-0">
+                            <div className={`font-semibold transition-colors ${
+                                selected ? 'text-primary-700 dark:text-primary-300' : 'text-slate-800 dark:text-slate-100'
+                            }`}>
+                                {option.label}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                {option.description}
+                            </div>
+                            {option.supporting && (
+                                <div className="mt-3 inline-flex rounded-full border border-slate-200/80 bg-white/80 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-500">
+                                    {option.supporting}
+                                </div>
+                            )}
+                        </div>
+                        {selected && (
+                            <div className="absolute right-4 top-4 rounded-full bg-primary-500 p-1 text-white shadow-sm animate-scale-in">
+                                <Check size={14} strokeWidth={3} />
+                            </div>
+                        )}
+                    </button>
+                )
+            })}
+        </div>
+    )
+}
 
 export default function GeneralSection() {
-    const { isDark, toggleTheme } = useTheme()
+    const { theme, setTheme } = useTheme()
     const { t, i18n } = useTranslation()
-    const currentLanguage = (i18n.resolvedLanguage || i18n.language || 'en').split('-')[0]
+    const currentLanguage = ((i18n.resolvedLanguage || i18n.language || 'en').split('-')[0]) as LanguageOption
 
     const [accent, setAccent] = useState<'us' | 'uk'>(() =>
         (localStorage.getItem('preferred_accent') as 'us' | 'uk') || 'us'
@@ -16,6 +94,47 @@ export default function GeneralSection() {
     useEffect(() => {
         localStorage.setItem('preferred_accent', accent)
     }, [accent])
+
+    const appearanceOptions: ChoiceCardOption<AppearanceMode>[] = [
+        {
+            value: 'light',
+            label: t('settings.general.lightMode', 'Light Mode'),
+            description: t('settings.general.appearanceOptions.lightDesc', 'Bright surfaces and higher contrast for daytime work'),
+            supporting: t('settings.general.appearanceOptions.lightTag', 'Always Light'),
+            visual: <Sun size={20} />,
+        },
+        {
+            value: 'dark',
+            label: t('settings.general.darkMode', 'Dark Mode'),
+            description: t('settings.general.appearanceOptions.darkDesc', 'Muted tones that reduce glare in low-light environments'),
+            supporting: t('settings.general.appearanceOptions.darkTag', 'Always Dark'),
+            visual: <Moon size={20} />,
+        },
+        {
+            value: 'system',
+            label: t('settings.general.systemMode', 'System'),
+            description: t('settings.general.appearanceOptions.systemDesc', 'Follow your device appearance automatically'),
+            supporting: t('settings.general.appearanceOptions.systemTag', 'Automatic'),
+            visual: <Monitor size={20} />,
+        },
+    ]
+
+    const languageOptions: ChoiceCardOption<LanguageOption>[] = [
+        {
+            value: 'zh',
+            label: t('settings.general.languageOptions.zh', '简体中文'),
+            description: t('settings.general.languageOptionDescriptions.zh', 'Use Chinese for navigation, settings, and learning flows'),
+            supporting: 'ZH',
+            visual: <span className="text-sm font-bold">中</span>,
+        },
+        {
+            value: 'en',
+            label: t('settings.general.languageOptions.en', 'English'),
+            description: t('settings.general.languageOptionDescriptions.en', 'Use English across the interface and supporting copy'),
+            supporting: 'EN',
+            visual: <span className="text-sm font-bold">EN</span>,
+        },
+    ]
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -32,55 +151,35 @@ export default function GeneralSection() {
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                     🎨 {t('settings.general.appearance', 'Appearance')}
                 </h3>
-
-                <div className="flex items-center justify-between">
-                    <div>
-                        <div className="font-medium text-slate-700 dark:text-slate-300">{t('settings.general.darkMode', 'Dark Mode')}</div>
-                        <div className="text-sm text-slate-500">{t('settings.general.darkModeDesc', 'Switch between light and dark themes')}</div>
-                    </div>
-                    <button
-                        onClick={toggleTheme}
-                        className={`relative w-14 h-8 rounded-full transition-colors ${isDark ? 'bg-primary-600' : 'bg-slate-300'
-                            }`}
-                    >
-                        <div
-                            className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-transform ${isDark ? 'translate-x-7' : 'translate-x-1'
-                                }`}
-                        />
-                    </button>
-                </div>
+                <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+                    {t('settings.general.appearanceDesc', 'Choose whether the interface stays light, dark, or follows your system')}
+                </p>
+                <ChoiceCardGroup
+                    value={theme}
+                    onChange={setTheme}
+                    options={appearanceOptions}
+                    groupLabel={t('settings.general.appearance', 'Appearance')}
+                    columnsClassName="xl:grid-cols-3"
+                />
             </div>
 
             <div className="glass-card p-6">
                 <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                    <Globe className="text-primary-500" size={20} />
-                    {t('settings.general.language', '语言 (Language)')}
+                    <Languages className="text-primary-500" size={20} />
+                    {t('settings.general.language', 'Language')}
                 </h3>
-
-                <div className="flex items-center justify-between">
-                    <div>
-                        <div className="font-medium text-slate-700 dark:text-slate-300">{t('settings.general.displayLanguage', '显示语言')}</div>
-                        <div className="text-sm text-slate-500">{t('settings.general.languageDesc', '更改应用程序的界面语言')}</div>
-                    </div>
-                    
-                    <div className="relative">
-                        <select
-                            value={currentLanguage}
-                            onChange={(e) => {
-                                const nextLanguage = e.target.value
-                                i18n.changeLanguage(nextLanguage)
-                                localStorage.setItem('i18nextLng', nextLanguage)
-                            }}
-                            className="appearance-none bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 py-2 pl-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all font-medium"
-                        >
-                            <option value="en">{t('settings.general.languageOptions.en', 'English')}</option>
-                            <option value="zh">{t('settings.general.languageOptions.zh', 'Chinese (Simplified)')}</option>
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
-                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-                        </div>
-                    </div>
-                </div>
+                <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+                    {t('settings.general.languageDesc', 'Change the interface language of the application')}
+                </p>
+                <ChoiceCardGroup
+                    value={currentLanguage}
+                    onChange={(nextLanguage) => {
+                        void i18n.changeLanguage(nextLanguage)
+                        localStorage.setItem('i18nextLng', nextLanguage)
+                    }}
+                    options={languageOptions}
+                    groupLabel={t('settings.general.displayLanguage', 'Display Language')}
+                />
             </div>
 
             <div className="glass-card p-6">
@@ -150,73 +249,7 @@ export default function GeneralSection() {
                 </div>
             </div>
 
-            <div className="glass-card p-6">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                    {t('shortcuts.title', '⌨️ Keyboard Shortcuts')}
-                </h3>
-
-                <div className="space-y-4">
-                    <div>
-                        <h4 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">
-                            {t('shortcuts.global', 'Global')}
-                        </h4>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-700/50">
-                            <span className="text-slate-700 dark:text-slate-300">{t('shortcuts.showHideWindow', 'Show / Hide Window')}</span>
-                            <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-mono text-slate-500 dark:text-slate-400">
-                                Ctrl + Alt + V
-                            </kbd>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">
-                            {t('shortcuts.reviewMode', 'Review Mode')}
-                        </h4>
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-700/50">
-                                <span className="text-slate-700 dark:text-slate-300">{t('shortcuts.flipCardDetailed', 'Reveal Answer / Flip Card')}</span>
-                                <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-mono text-slate-500 dark:text-slate-400">
-                                    Space
-                                </kbd>
-                            </div>
-                            <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-700/50">
-                                <span className="text-slate-700 dark:text-slate-300">{t('shortcuts.rateMemory', 'Rate Memory Strength')}</span>
-                                <div className="flex gap-1">
-                                    <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-mono text-slate-500 dark:text-slate-400">1</kbd>
-                                    <span className="text-slate-400 text-xs flex items-center">-</span>
-                                    <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-mono text-slate-500 dark:text-slate-400">5</kbd>
-                                </div>
-                            </div>
-                            <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-700/50">
-                                <span className="text-slate-700 dark:text-slate-300">{t('shortcuts.playPronunciation', 'Play Pronunciation')}</span>
-                                <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-mono text-slate-500 dark:text-slate-400">
-                                    P
-                                </kbd>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider">
-                            {t('shortcuts.common', 'Common')}
-                        </h4>
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-700/50">
-                                <span className="text-slate-700 dark:text-slate-300">{t('shortcuts.searchConfirm', 'Search / Confirm')}</span>
-                                <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-mono text-slate-500 dark:text-slate-400">
-                                    Enter
-                                </kbd>
-                            </div>
-                            <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-700/50">
-                                <span className="text-slate-700 dark:text-slate-300">{t('shortcuts.closeModal', 'Close Dialog')}</span>
-                                <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-mono text-slate-500 dark:text-slate-400">
-                                    Esc
-                                </kbd>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <ShortcutPreferencesCard />
         </div>
     )
 }

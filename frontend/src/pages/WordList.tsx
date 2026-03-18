@@ -5,6 +5,7 @@ import { Trash2, CheckCircle, BookOpen, Loader2, Search, ChevronLeft, ChevronRig
 import { useDebounce } from '../utils/performance'
 import { api, API_PATHS } from '../utils/api'
 import { useGlobalState } from '../context/GlobalStateContext'
+import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 
 interface Word {
@@ -26,8 +27,10 @@ const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 
 export default function WordList({ isActive }: { isActive?: boolean }) {
     const { t } = useTranslation()
+    const { matches } = useShortcuts()
     const [words, setWords] = useState<Word[]>([])
     const [loading, setLoading] = useState(true)
+    const [isFetching, setIsFetching] = useState(false)
     const [searchKeyword, setSearchKeyword] = useState('')
     const [filterTag, setFilterTag] = useState('')
     const [allTags, setAllTags] = useState<string[]>([])
@@ -67,7 +70,10 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
     }, [isActive, lastUpdate])
 
     const fetchWords = async (signal?: AbortSignal) => {
-        setLoading(true)
+        setIsFetching(true)
+        if (words.length === 0) {
+            setLoading(true)
+        }
         try {
             const params = new URLSearchParams()
             if (debouncedKeyword) params.append('keyword', debouncedKeyword)
@@ -87,6 +93,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
         } finally {
             if (!signal?.aborted) {
                 setLoading(false)
+                setIsFetching(false)
             }
         }
     }
@@ -157,14 +164,14 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
 
             // Focus search with / (when not in input)
-            if (e.key === '/' && !isInput) {
+            if (matches(e, 'list.focusSearch') && !isInput) {
                 e.preventDefault()
                 searchInputRef.current?.focus()
                 return
             }
 
             // Escape blurs search input
-            if (e.key === 'Escape' && isInput) {
+            if (matches(e, 'common.closeDialog') && isInput) {
                 (target as HTMLInputElement).blur()
                 return
             }
@@ -173,25 +180,25 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             if (isInput) return
 
             // Arrow navigation
-            if (e.key === 'ArrowDown') {
+            if (matches(e, 'list.selectNext')) {
                 e.preventDefault()
                 setSelectedIndex(prev => {
                     const newIndex = prev < words.length - 1 ? prev + 1 : prev
                     scrollToSelected(newIndex)
                     return newIndex
                 })
-            } else if (e.key === 'ArrowUp') {
+            } else if (matches(e, 'list.selectPrevious')) {
                 e.preventDefault()
                 setSelectedIndex(prev => {
                     const newIndex = prev > 0 ? prev - 1 : 0
                     scrollToSelected(newIndex)
                     return newIndex
                 })
-            } else if (e.key === 'Enter' && selectedIndex >= 0 && selectedIndex < words.length) {
+            } else if (matches(e, 'list.viewDetails') && selectedIndex >= 0 && selectedIndex < words.length) {
                 // Open detail modal
                 e.preventDefault()
                 setSelectedWord(words[selectedIndex])
-            } else if (e.key === 'Delete' && selectedIndex >= 0 && selectedIndex < words.length) {
+            } else if (matches(e, 'list.deleteWord') && selectedIndex >= 0 && selectedIndex < words.length) {
                 // Delete selected word
                 e.preventDefault()
                 const word = words[selectedIndex]
@@ -204,7 +211,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         })
                         .catch(err => console.error('Failed to delete word:', err))
                 }
-            } else if ((e.key === 'm' || e.key === 'M') && selectedIndex >= 0 && selectedIndex < words.length) {
+            } else if (matches(e, 'list.markMastered') && selectedIndex >= 0 && selectedIndex < words.length) {
                 // Mark as mastered
                 e.preventDefault()
                 const word = words[selectedIndex]
@@ -216,7 +223,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         })
                         .catch(err => console.error('Failed to mark mastered:', err))
                 }
-            } else if (e.key === 'p' || e.key === 'P') {
+            } else if (matches(e, 'list.playAudio')) {
                 // Play audio for selected word
                 if (selectedIndex >= 0 && selectedIndex < words.length) {
                     e.preventDefault()
@@ -225,28 +232,33 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                     const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${word.word}&type=${accent}`)
                     audio.play().catch(err => console.warn('Audio play failed:', err))
                 }
-            } else if (e.key === 'ArrowLeft') {
+            } else if (matches(e, 'list.previousPage')) {
                 // Previous page
                 e.preventDefault()
-                if (e.repeat || loading) return
+                if (e.repeat || isFetching) return
                 setCurrentPage(prev => Math.max(1, prev - 1))
-            } else if (e.key === 'ArrowRight') {
+            } else if (matches(e, 'list.nextPage')) {
                 // Next page
                 e.preventDefault()
-                if (e.repeat || loading) return
+                if (e.repeat || isFetching) return
                 setCurrentPage(prev => Math.min(totalPages, prev + 1))
             }
         }
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isActive, words, selectedIndex, scrollToSelected, totalPages, loading])
+    }, [isActive, isFetching, matches, scrollToSelected, selectedIndex, totalPages, words])
 
     // Reset selection and page when filters change
     useEffect(() => {
         setSelectedIndex(-1)
         setCurrentPage(1)
     }, [searchKeyword, filterTag])
+
+    useEffect(() => {
+        if (!listRef.current) return
+        listRef.current.scrollTo({ top: 0, behavior: 'auto' })
+    }, [currentPage, itemsPerPage])
 
     return (
         <div className="animate-fade-in space-y-6">
@@ -289,8 +301,8 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             </div>
 
             {/* Word List */}
-            <div className="glass-card overflow-hidden">
-                {loading ? (
+            <div className="glass-card relative overflow-hidden">
+                {loading && words.length === 0 ? (
                     <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
                         <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
                         <div className="animate-pulse">{t('wordList.loading')}</div>
@@ -311,11 +323,10 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                     setSelectedWord(word)
                                 }}
                                 className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 
-                           transition-colors animate-slide-up cursor-pointer group
+                           transition-colors cursor-pointer group
                            ${index === 0 ? 'rounded-t-3xl' : ''}
                            ${index === words.length - 1 ? 'rounded-b-3xl' : ''}
                            ${selectedIndex === index ? 'bg-primary-50 dark:bg-primary-900/20 ring-2 ring-inset ring-primary-500' : ''}`}
-                                style={{ animationDelay: `${index * 0.02}s` }}
                             >
                                 <div className="flex items-start justify-between w-full">
                                     <div className="flex-1">
@@ -368,6 +379,15 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         ))}
                     </div>
                 )}
+
+                {isFetching && words.length > 0 && (
+                    <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-3">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-500" />
+                            {t('wordList.loading')}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Detail Modal */}
@@ -389,6 +409,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                 setItemsPerPage(Number(e.target.value))
                                 setCurrentPage(1)
                             }}
+                            disabled={isFetching}
                             className="input-field w-auto py-1.5 px-2 text-sm"
                         >
                             {PAGE_SIZE_OPTIONS.map(size => (
@@ -400,7 +421,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                     <div className="flex items-center gap-1">
                         <button
                             onClick={() => setCurrentPage(1)}
-                            disabled={currentPage === 1}
+                            disabled={currentPage === 1 || isFetching}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title={t('wordList.pagination.first')}
@@ -409,7 +430,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         </button>
                         <button
                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                            disabled={currentPage === 1}
+                            disabled={currentPage === 1 || isFetching}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title={t('wordList.pagination.previous')}
@@ -423,7 +444,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                 const pages: (number | string)[] = []
                                 const showPages = 5
                                 let start = Math.max(1, currentPage - Math.floor(showPages / 2))
-                                let end = Math.min(totalPages, start + showPages - 1)
+                                const end = Math.min(totalPages, start + showPages - 1)
                                 start = Math.max(1, end - showPages + 1)
 
                                 if (start > 1) {
@@ -443,10 +464,12 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                         <button
                                             key={idx}
                                             onClick={() => setCurrentPage(page)}
+                                            disabled={isFetching}
                                             className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors
                                                 ${currentPage === page
                                                     ? 'bg-primary-500 text-white'
-                                                    : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                                                    : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}
+                                                ${isFetching ? ' disabled:cursor-not-allowed disabled:opacity-50' : ''}`}
                                         >
                                             {page}
                                         </button>
@@ -459,7 +482,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
                         <button
                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                            disabled={currentPage === totalPages}
+                            disabled={currentPage === totalPages || isFetching}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title={t('wordList.pagination.next')}
@@ -468,7 +491,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         </button>
                         <button
                             onClick={() => setCurrentPage(totalPages)}
-                            disabled={currentPage === totalPages}
+                            disabled={currentPage === totalPages || isFetching}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title={t('wordList.pagination.last')}

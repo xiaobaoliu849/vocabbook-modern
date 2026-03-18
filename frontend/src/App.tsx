@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ThemeProvider } from './context/ThemeContext'
+import { ShortcutProvider, useShortcuts } from './context/ShortcutContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
 import AddWord from './pages/AddWord'
@@ -14,76 +15,58 @@ import AIChat from './pages/AIChat'
 import AdminPanel from './pages/AdminPanel'
 import DictionaryPopup from './components/DictionaryPopup'
 import SelectionActionBar from './components/SelectionActionBar'
+import { formatShortcutBinding, shortcutDefinitionMap, shortcutGroups, type ShortcutId } from './utils/shortcuts'
 import './App.css'
 
 type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat' | 'admin'
 
 function AppContent() {
   const { t } = useTranslation()
+  const { getBindings, isElectron, matches, platform } = useShortcuts()
   const [currentPage, setCurrentPage] = useState<Page>('add')
   const [showHelp, setShowHelp] = useState(false)
   const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined)
 
   // Global keyboard shortcuts
   useEffect(() => {
+    const navigationShortcuts: Array<{ id: ShortcutId; page: Page }> = [
+      { id: 'app.navigateAdd', page: 'add' },
+      { id: 'app.navigateList', page: 'list' },
+      { id: 'app.navigateReview', page: 'review' },
+      { id: 'app.navigateChat', page: 'chat' },
+      { id: 'app.navigateStats', page: 'stats' },
+      { id: 'app.navigateSettings', page: 'settings' },
+    ]
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger shortcuts when typing in input fields
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        // Allow Escape to close help panel even in input
-        if (e.key === 'Escape' && showHelp) {
-          setShowHelp(false)
-        }
+      if (matches(e, 'common.closeDialog') && showHelp) {
+        e.preventDefault()
+        setShowHelp(false)
         return
       }
 
-      // Show help panel with ? only (not / which is used for search in WordList)
-      if (e.key === '?') {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+
+      if (matches(e, 'app.toggleHelp')) {
         e.preventDefault()
         setShowHelp(prev => !prev)
         return
       }
 
-      // Close help with Escape
-      if (e.key === 'Escape' && showHelp) {
-        setShowHelp(false)
-        return
-      }
-
-      // Ctrl+Number for page navigation
-      if (e.ctrlKey && !e.altKey && !e.shiftKey) {
-        switch (e.key) {
-          case '1':
-            e.preventDefault()
-            setCurrentPage('add')
-            break
-          case '2':
-            e.preventDefault()
-            setCurrentPage('list')
-            break
-          case '3':
-            e.preventDefault()
-            setCurrentPage('review')
-            break
-          case '4':
-            e.preventDefault()
-            setCurrentPage('chat')
-            break
-          case '5':
-            e.preventDefault()
-            setCurrentPage('stats')
-            break
-          case '6':
-            e.preventDefault()
-            setCurrentPage('settings')
-            break
-        }
+      const matchedNavigation = navigationShortcuts.find(({ id }) => matches(e, id))
+      if (matchedNavigation) {
+        e.preventDefault()
+        setCurrentPage(matchedNavigation.page)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showHelp])
+  }, [matches, showHelp])
 
   // Navigate to settings with optional tab
   const handleNavigateToSettings = (tab?: string) => {
@@ -152,54 +135,40 @@ function AppContent() {
             </div>
 
             <div className="p-6 space-y-6">
-              {/* Global Shortcuts */}
-              <div>
-                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t('shortcuts.globalNavigation', 'Global Navigation')}</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <ShortcutItem keys={['Ctrl', '1']} desc={t('sidebar.add', 'Vocabulary Hub')} />
-                  <ShortcutItem keys={['Ctrl', '2']} desc={t('sidebar.list', 'Word List')} />
-                  <ShortcutItem keys={['Ctrl', '3']} desc={t('sidebar.review', 'Smart Review')} />
-                  <ShortcutItem keys={['Ctrl', '4']} desc={t('sidebar.chat', 'AI Partner')} />
-                  <ShortcutItem keys={['Ctrl', '5']} desc={t('sidebar.stats', 'Statistics')} />
-                  <ShortcutItem keys={['Ctrl', '6']} desc={t('sidebar.settings', 'Settings')} />
-                  <ShortcutItem keys={['?']} desc={t('shortcuts.toggleHelp', 'Show / Hide Help')} />
-                  <ShortcutItem keys={['Esc']} desc={t('shortcuts.closeModal', 'Close Dialog')} />
-                </div>
-              </div>
+              {shortcutGroups.map((group) => {
+                const visibleShortcutIds = group.shortcutIds.filter((shortcutId) => {
+                  const definition = shortcutDefinitionMap[shortcutId]
+                  if (definition.desktopOnly && !isElectron) {
+                    return false
+                  }
+                  return true
+                })
 
-              {/* Review Page */}
-              <div>
-                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t('sidebar.review', 'Smart Review')}</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <ShortcutItem keys={['Space']} desc={t('shortcuts.flipCard', 'Flip Card')} />
-                  <ShortcutItem keys={['1-5']} desc={t('shortcuts.reviewScore', 'Rate Memory (1 forgotten - 5 perfect)')} />
-                  <ShortcutItem keys={['P']} desc={t('shortcuts.playPronunciation', 'Play Pronunciation')} />
-                  <ShortcutItem keys={['Tab']} desc={t('shortcuts.switchReviewMode', 'Switch Review / Spelling Mode')} />
-                  <ShortcutItem keys={['H']} desc={t('shortcuts.showSpellingHint', 'Show Spelling Hint')} />
-                </div>
-              </div>
+                if (visibleShortcutIds.length === 0) {
+                  return null
+                }
 
-              {/* Word List */}
-              <div>
-                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t('sidebar.list', 'Word List')}</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <ShortcutItem keys={['↑', '↓']} desc={t('shortcuts.selectWord', 'Select Word')} />
-                  <ShortcutItem keys={['Enter']} desc={t('shortcuts.viewDetails', 'View Details')} />
-                  <ShortcutItem keys={['Delete']} desc={t('shortcuts.deleteWord', 'Delete Word')} />
-                  <ShortcutItem keys={['M']} desc={t('shortcuts.markMastered', 'Mark as Mastered')} />
-                  <ShortcutItem keys={['/']} desc={t('shortcuts.quickSearch', 'Quick Search')} />
-                </div>
-              </div>
-
-              {/* Add Word */}
-              <div>
-                <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t('sidebar.add', 'Vocabulary Hub')}</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <ShortcutItem keys={['Ctrl', 'Enter']} desc={t('shortcuts.addToVocabBook', 'Add to VocabBook')} />
-                  <ShortcutItem keys={['Ctrl', 'G']} desc={t('shortcuts.generateExample', 'Generate Example with AI')} />
-                  <ShortcutItem keys={['Ctrl', 'P']} desc={t('shortcuts.playPronunciation', 'Play Pronunciation')} />
-                </div>
-              </div>
+                return (
+                  <div key={group.id}>
+                    <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                      {t(group.titleKey, group.fallbackTitle)}
+                    </h4>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      {visibleShortcutIds.map((shortcutId) => {
+                        const definition = shortcutDefinitionMap[shortcutId]
+                        return (
+                          <ShortcutItem
+                            key={shortcutId}
+                            bindings={getBindings(shortcutId)}
+                            desc={t(definition.labelKey, definition.fallbackLabel)}
+                            platform={platform}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -209,18 +178,22 @@ function AppContent() {
 }
 
 // Shortcut display component
-function ShortcutItem({ keys, desc }: { keys: string[], desc: string }) {
+function ShortcutItem({ bindings, desc, platform }: { bindings: string[]; desc: string; platform: string }) {
   return (
     <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50">
       <span className="text-sm text-slate-600 dark:text-slate-300">{desc}</span>
-      <div className="flex gap-1">
-        {keys.map((key, i) => (
-          <kbd
-            key={i}
-            className="px-2 py-1 text-xs font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-600 shadow-sm"
-          >
-            {key}
-          </kbd>
+      <div className="flex flex-wrap justify-end gap-2">
+        {bindings.map((binding) => (
+          <div key={binding} className="flex gap-1">
+            {formatShortcutBinding(binding, platform).map((key) => (
+              <kbd
+                key={`${binding}-${key}`}
+                className="px-2 py-1 text-xs font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-600 shadow-sm"
+              >
+                {key}
+              </kbd>
+            ))}
+          </div>
         ))}
       </div>
     </div>
@@ -230,9 +203,11 @@ function ShortcutItem({ keys, desc }: { keys: string[], desc: string }) {
 function App() {
   return (
     <ThemeProvider>
-      <ErrorBoundary>
-        <AppContent />
-      </ErrorBoundary>
+      <ShortcutProvider>
+        <ErrorBoundary>
+          <AppContent />
+        </ErrorBoundary>
+      </ShortcutProvider>
     </ThemeProvider>
   )
 }

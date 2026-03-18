@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Languages, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useShortcuts } from '../context/ShortcutContext'
 import QuickLookupPopup from './QuickLookupPopup'
 
 type QuickAction = 'word' | 'translate' | 'explain'
@@ -38,6 +39,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 
 export default function SelectionActionBar() {
     const { t } = useTranslation()
+    const { matches } = useShortcuts()
     const [actionBar, setActionBar] = useState<ActionBarState | null>(null)
     const [popup, setPopup] = useState<PopupState | null>(null)
     const toolbarRef = useRef<HTMLDivElement>(null)
@@ -114,7 +116,7 @@ export default function SelectionActionBar() {
         }
 
         const handleKeyUp = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
+            if (matches(event, 'common.closeDialog')) {
                 hideActionBar()
                 setPopup(null)
                 return
@@ -136,7 +138,7 @@ export default function SelectionActionBar() {
             window.removeEventListener('scroll', handleScrollOrResize, true)
             window.removeEventListener('resize', handleScrollOrResize)
         }
-    }, [buildActionBarState, hideActionBar, syncFromSelection])
+    }, [buildActionBarState, hideActionBar, matches, syncFromSelection])
 
     useEffect(() => {
         if (!actionBar) return

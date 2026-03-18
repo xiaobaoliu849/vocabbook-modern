@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     downloadUpdate: () => ipcRenderer.invoke('download-update'),
     installUpdate: () => ipcRenderer.invoke('install-update'),
     getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+    getShortcutSettings: () => ipcRenderer.invoke('get-shortcut-settings'),
+    updateGlobalShortcut: (binding) => ipcRenderer.invoke('update-global-shortcut', binding),
     onUpdateStatus: (callback) => {
         ipcRenderer.on('update-status', (_event, status, data) => callback(status, data))
     },

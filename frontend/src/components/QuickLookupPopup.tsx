@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, type CSSProperties, type Poin
 import { X, BookOpen, Languages, Check, Loader2, ExternalLink, Copy, Sprout, RefreshCw, Sparkles } from 'lucide-react'
 import AudioButton from './AudioButton'
 import { api, ApiError, API_PATHS, getClientId } from '../utils/api'
+import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 
@@ -51,6 +52,7 @@ const isSingleWordLookup = (text: string) => /^[A-Za-z][A-Za-z'-]{0,47}$/.test(t
 
 export default function QuickLookupPopup({ text, type, position, onClose, onNavigateToAddWord }: QuickLookupProps) {
     const { t } = useTranslation()
+    const { matches } = useShortcuts()
     const { token } = useAuth()
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -84,7 +86,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
     }, [getPopupMetrics])
 
     useEffect(() => {
-        let x = position.x
+        const x = position.x
         let y = position.y + 8
         const { height } = getPopupMetrics()
         if (y + height > window.innerHeight - 12) {
@@ -134,11 +136,11 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
 
     useEffect(() => {
         const handleEsc = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose()
+            if (matches(event, 'common.closeDialog')) onClose()
         }
         window.addEventListener('keydown', handleEsc)
         return () => window.removeEventListener('keydown', handleEsc)
-    }, [onClose])
+    }, [matches, onClose])
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

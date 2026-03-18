@@ -3,10 +3,12 @@ import AudioButton from '../components/AudioButton'
 import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2, Upload } from 'lucide-react'
 import { api, ApiError, API_PATHS } from '../utils/api'
 import { useGlobalState } from '../context/GlobalStateContext'
+import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 
 export default function AddWord({ onOpenImport }: { onOpenImport?: () => void }) {
     const { t } = useTranslation()
+    const { matches } = useShortcuts()
     const [searchWord, setSearchWord] = useState('')
     const [isSearching, setIsSearching] = useState(false)
     const [searchResult, setSearchResult] = useState<any>(null)
@@ -94,7 +96,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                 try {
                     const savedWord = await api.get(API_PATHS.WORD(data.word))
                     setIsSaved(!!savedWord && !savedWord.error)
-                } catch (err) {
+                } catch {
                     setIsSaved(false)
                 }
             }
@@ -113,8 +115,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
     // Keyboard shortcuts for AddWord page
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ctrl+Enter to add word
-            if (e.ctrlKey && e.key === 'Enter') {
+            if (matches(e, 'add.addWord')) {
                 e.preventDefault()
                 if (searchResult && !searchResult.error) {
                     handleAddWord()
@@ -122,8 +123,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                 return
             }
 
-            // Ctrl+G to generate AI sentences
-            if (e.ctrlKey && (e.key === 'g' || e.key === 'G')) {
+            if (matches(e, 'add.generateExample')) {
                 e.preventDefault()
                 if (searchWord.trim() && !isGeneratingAI) {
                     handleGenerateAI()
@@ -131,8 +131,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                 return
             }
 
-            // Ctrl+P to play audio
-            if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
+            if (matches(e, 'add.playAudio')) {
                 e.preventDefault()
                 if (searchResult && !searchResult.error) {
                     const audioSrc = `https://dict.youdao.com/dictvoice?audio=${searchResult.word}&type=2`
@@ -145,7 +144,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [searchResult, searchWord, isGeneratingAI])
+    }, [isGeneratingAI, matches, searchResult, searchWord])
 
     const handleAddWord = async () => {
         if (!searchResult || searchResult.error) return

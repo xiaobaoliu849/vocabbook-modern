@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import AudioButton from '../AudioButton'
+import { useShortcuts } from '../../context/ShortcutContext'
 import type { ReviewModeProps } from './types'
 
 /**
@@ -8,6 +9,7 @@ import type { ReviewModeProps } from './types'
  */
 export default function ChoiceMode({ word, allWords, onComplete }: ReviewModeProps) {
     const { t } = useTranslation()
+    const { findMatching } = useShortcuts()
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
     const [showResult, setShowResult] = useState(false)
 
@@ -56,17 +58,23 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
         const handleKeyDown = (e: KeyboardEvent) => {
             if (showResult) return
 
-            const key = e.key
-            if (['1', '2', '3', '4'].includes(key)) {
+            const matchedChoice = findMatching(e, ['review.choice1', 'review.choice2', 'review.choice3', 'review.choice4'])
+            if (matchedChoice) {
                 e.preventDefault()
-                const index = parseInt(key) - 1
+                const indexMap: Record<string, number> = {
+                    'review.choice1': 0,
+                    'review.choice2': 1,
+                    'review.choice3': 2,
+                    'review.choice4': 3,
+                }
+                const index = indexMap[matchedChoice]
                 handleSelect(index)
             }
         }
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [handleSelect, showResult])
+    }, [findMatching, handleSelect, showResult])
 
     return (
         <div className="w-full h-full min-h-0 flex flex-col p-6 md:p-8">
