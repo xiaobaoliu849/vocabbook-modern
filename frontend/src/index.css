@@ -291,6 +291,8 @@
 }
 
 /* Theme Transition Animations */
+.circular-transition::view-transition-group(root),
+.circular-transition::view-transition-image-pair(root),
 .circular-transition::view-transition-old(root),
 .circular-transition::view-transition-new(root) {
   animation: none;
@@ -303,9 +305,9 @@
   instead of capturing a "fading" state which would look like the old theme.
   INCLUDE PSEUDO-ELEMENTS to ensure no sub-element transitions persist.
 */
-.circular-transition *,
-.circular-transition *::before,
-.circular-transition *::after {
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
   transition: none !important;
 }
 

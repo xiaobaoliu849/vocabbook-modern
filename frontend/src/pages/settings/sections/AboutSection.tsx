@@ -2,21 +2,6 @@ import { useState, useEffect } from 'react'
 import { RefreshCw, Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-// Extend window type for Electron API
-declare global {
-    interface Window {
-        electronAPI?: {
-            checkForUpdates: () => Promise<void>
-            downloadUpdate: () => Promise<void>
-            installUpdate: () => Promise<void>
-            getAppVersion: () => Promise<string>
-            onUpdateStatus: (callback: (status: string, data: unknown) => void) => void
-            removeUpdateStatusListener: () => void
-        }
-        isElectron?: boolean
-    }
-}
-
 type UpdateStatus = 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'
 
 interface UpdateInfo {
