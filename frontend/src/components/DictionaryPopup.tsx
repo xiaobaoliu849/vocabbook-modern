@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, ApiError, API_PATHS, getClientId } from '../utils/api';
 import AudioButton from './AudioButton';
 import { useGlobalState } from '../context/GlobalStateContext';
@@ -69,7 +69,7 @@ export default function DictionaryPopup() {
         setAutoSave(localStorage.getItem('auto_save') === 'true');
     }, [isVisible]); // Refresh config when opening
 
-    const saveWord = async (data: any, silent = false) => {
+    const saveWord = useCallback(async (data: any, silent = false) => {
         try {
             await api.post(API_PATHS.WORDS, data);
             notifyWordAdded();
@@ -81,9 +81,9 @@ export default function DictionaryPopup() {
             if (!silent) alert(t('addWord.alerts.failed', '❌ Failed to add word'));
             return 'error';
         }
-    };
+    }, [notifyWordAdded, t]);
 
-    const fetchDefinition = async (searchWord: string) => {
+    const fetchDefinition = useCallback(async (searchWord: string) => {
         setLoading(true);
         setError('');
         setResult(null);
@@ -130,7 +130,7 @@ export default function DictionaryPopup() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [autoPlay, autoSave, saveWord, t]);
 
     useEffect(() => {
         const handleSearchWord = (e: Event) => {
@@ -172,7 +172,7 @@ export default function DictionaryPopup() {
 
         window.addEventListener('search-word', handleSearchWord);
         return () => window.removeEventListener('search-word', handleSearchWord);
-    }, [autoPlay, autoSave]);
+    }, [fetchDefinition]);
 
     // Handle click outside to close
     useEffect(() => {

@@ -1,18 +1,9 @@
-import { useState, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ThemeProvider } from './context/ThemeContext'
 import { ShortcutProvider, useShortcuts } from './context/ShortcutContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import Sidebar from './components/Sidebar'
-import AddWord from './pages/AddWord'
-import WordList from './pages/WordList'
-import Review from './pages/Review'
-import Settings from './pages/Settings'
-import ImportWords from './pages/ImportWords'
-import TranslationPage from './pages/TranslationPage'
-import StatisticsPage from './pages/StatisticsPage'
-import AIChat from './pages/AIChat'
-import AdminPanel from './pages/AdminPanel'
 import DictionaryPopup from './components/DictionaryPopup'
 import SelectionActionBar from './components/SelectionActionBar'
 import { formatShortcutBinding, shortcutDefinitionMap, shortcutGroups, type ShortcutId } from './utils/shortcuts'
@@ -20,12 +11,39 @@ import './App.css'
 
 type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat' | 'admin'
 
+const AddWordPage = lazy(() => import('./pages/AddWord'))
+const WordListPage = lazy(() => import('./pages/WordList'))
+const ReviewPage = lazy(() => import('./pages/Review'))
+const SettingsPage = lazy(() => import('./pages/Settings'))
+const ImportWordsPage = lazy(() => import('./pages/ImportWords'))
+const TranslationPage = lazy(() => import('./pages/TranslationPage'))
+const StatisticsPage = lazy(() => import('./pages/StatisticsPage'))
+const AIChatPage = lazy(() => import('./pages/AIChat'))
+const AdminPanelPage = lazy(() => import('./pages/AdminPanel'))
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-slate-200 bg-white/70 text-sm text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+      Loading page...
+    </div>
+  )
+}
+
 function AppContent() {
   const { t } = useTranslation()
   const { getBindings, isElectron, matches, platform } = useShortcuts()
   const [currentPage, setCurrentPage] = useState<Page>('add')
+  const [mountedPages, setMountedPages] = useState<Page[]>(['add'])
   const [showHelp, setShowHelp] = useState(false)
   const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    setMountedPages((prev) => (prev.includes(currentPage) ? prev : [...prev, currentPage]))
+  }, [currentPage])
+
+  const mountedPageSet = useMemo(() => new Set(mountedPages), [mountedPages])
+  const shouldRenderPage = (page: Page) => currentPage === page || mountedPageSet.has(page)
+  const getPageClassName = (page: Page) => (currentPage === page ? '' : 'hidden')
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -83,28 +101,73 @@ function AppContent() {
       />
       <main className="flex-1 overflow-auto">
         <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-          {/* 保持所有页面常驻挂载，用 CSS 控制显示/隐藏，避免热力图等组件重新挂载导致闪现 */}
-          <div className={currentPage === 'add' ? '' : 'hidden'}>
-            <AddWord onOpenImport={() => setCurrentPage('import')} />
-          </div>
-          <div className={currentPage === 'list' ? '' : 'hidden'}><WordList isActive={currentPage === 'list'} /></div>
-          <div className={currentPage === 'review' ? '' : 'hidden'}><Review isActive={currentPage === 'review'} /></div>
-          <div className={currentPage === 'translation' ? '' : 'hidden'}>
-            <TranslationPage onBack={() => setCurrentPage('chat')} />
-          </div>
-          <div className={currentPage === 'stats' ? '' : 'hidden'}><StatisticsPage /></div>
-          <div className={currentPage === 'chat' ? '' : 'hidden'}>
-            <AIChat isActive={currentPage === 'chat'} onOpenTranslation={() => setCurrentPage('translation')} />
-          </div>
-          <div className={currentPage === 'admin' ? '' : 'hidden'}><AdminPanel /></div>
-          <div className={currentPage === 'import' ? '' : 'hidden'}><ImportWords /></div>
-          <div className={currentPage === 'settings' ? '' : 'hidden'}>
-            <Settings
-              initialTab={settingsTab}
-              onTabChange={(tab) => setSettingsTab(tab)}
-              onOpenAdmin={() => setCurrentPage('admin')}
-            />
-          </div>
+          {shouldRenderPage('add') && (
+            <div className={getPageClassName('add')}>
+              <Suspense fallback={<PageFallback />}>
+                <AddWordPage onOpenImport={() => setCurrentPage('import')} />
+              </Suspense>
+            </div>
+          )}
+          {shouldRenderPage('list') && (
+            <div className={getPageClassName('list')}>
+              <Suspense fallback={<PageFallback />}>
+                <WordListPage isActive={currentPage === 'list'} />
+              </Suspense>
+            </div>
+          )}
+          {shouldRenderPage('review') && (
+            <div className={getPageClassName('review')}>
+              <Suspense fallback={<PageFallback />}>
+                <ReviewPage isActive={currentPage === 'review'} />
+              </Suspense>
+            </div>
+          )}
+          {shouldRenderPage('translation') && (
+            <div className={getPageClassName('translation')}>
+              <Suspense fallback={<PageFallback />}>
+                <TranslationPage onBack={() => setCurrentPage('chat')} />
+              </Suspense>
+            </div>
+          )}
+          {shouldRenderPage('stats') && (
+            <div className={getPageClassName('stats')}>
+              <Suspense fallback={<PageFallback />}>
+                <StatisticsPage />
+              </Suspense>
+            </div>
+          )}
+          {shouldRenderPage('chat') && (
+            <div className={getPageClassName('chat')}>
+              <Suspense fallback={<PageFallback />}>
+                <AIChatPage isActive={currentPage === 'chat'} onOpenTranslation={() => setCurrentPage('translation')} />
+              </Suspense>
+            </div>
+          )}
+          {shouldRenderPage('admin') && (
+            <div className={getPageClassName('admin')}>
+              <Suspense fallback={<PageFallback />}>
+                <AdminPanelPage />
+              </Suspense>
+            </div>
+          )}
+          {shouldRenderPage('import') && (
+            <div className={getPageClassName('import')}>
+              <Suspense fallback={<PageFallback />}>
+                <ImportWordsPage />
+              </Suspense>
+            </div>
+          )}
+          {shouldRenderPage('settings') && (
+            <div className={getPageClassName('settings')}>
+              <Suspense fallback={<PageFallback />}>
+                <SettingsPage
+                  initialTab={settingsTab}
+                  onTabChange={(tab) => setSettingsTab(tab)}
+                  onOpenAdmin={() => setCurrentPage('admin')}
+                />
+              </Suspense>
+            </div>
+          )}
         </div>
       </main>
 

@@ -1,6 +1,13 @@
 """测试 Edge TTS 功能"""
 import edge_tts
 import asyncio
+import os
+import pytest
+
+pytestmark = pytest.mark.skipif(
+    os.environ.get("RUN_TTS_SMOKE") != "1",
+    reason="manual Edge TTS smoke test; set RUN_TTS_SMOKE=1 to enable",
+)
 
 async def test_tts():
     """测试 Edge TTS 播放"""
@@ -17,7 +24,6 @@ async def test_tts():
     print("语音文件已生成: test_tts_output.mp3")
     
     # 自动播放（Windows）
-    import os
     os.system("start test_tts_output.mp3")
 
 if __name__ == "__main__":

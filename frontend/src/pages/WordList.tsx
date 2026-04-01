@@ -49,29 +49,15 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
     const searchInputRef = useRef<HTMLInputElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
-    const getDeleteConfirmMessage = (word: string) => t('wordList.confirmDelete', { word })
+    const hasFetchedOnceRef = useRef(false)
+    const getDeleteConfirmMessage = useCallback((word: string) => t('wordList.confirmDelete', { word }), [t])
 
     // Computed pagination values
     const totalPages = Math.ceil(totalItems / itemsPerPage) || 1
 
-    useEffect(() => {
-        if (isActive === false) return
-
-        const controller = new AbortController()
-        void fetchWords(controller.signal)
-
-        return () => controller.abort()
-    }, [debouncedKeyword, filterTag, isActive, currentPage, itemsPerPage, lastUpdate])
-
-    useEffect(() => {
-        if (isActive !== false) {
-            void fetchTags()
-        }
-    }, [isActive, lastUpdate])
-
-    const fetchWords = async (signal?: AbortSignal) => {
+    const fetchWords = useCallback(async (signal?: AbortSignal) => {
         setIsFetching(true)
-        if (words.length === 0) {
+        if (!hasFetchedOnceRef.current) {
             setLoading(true)
         }
         try {
@@ -85,6 +71,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             const data = await api.get(`${API_PATHS.WORDS}?${params}`, { signal })
             setWords(data.words || [])
             setTotalItems(data.total || 0)
+            hasFetchedOnceRef.current = true
         } catch (error) {
             if (error instanceof DOMException && error.name === 'AbortError') {
                 return
@@ -96,43 +83,58 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                 setIsFetching(false)
             }
         }
-    }
+    }, [currentPage, debouncedKeyword, filterTag, itemsPerPage])
 
-    const fetchTags = async () => {
+    const fetchTags = useCallback(async () => {
         try {
             const data = await api.get(API_PATHS.WORD_TAGS)
             setAllTags(data.tags || [])
         } catch (error) {
             console.error('Failed to fetch tags:', error)
         }
-    }
+    }, [])
 
-    const handleDelete = async (word: string, e: React.MouseEvent) => {
+    useEffect(() => {
+        if (isActive === false) return
+
+        const controller = new AbortController()
+        void fetchWords(controller.signal)
+
+        return () => controller.abort()
+    }, [fetchWords, isActive, lastUpdate])
+
+    useEffect(() => {
+        if (isActive !== false) {
+            void fetchTags()
+        }
+    }, [fetchTags, isActive, lastUpdate])
+
+    const handleDelete = useCallback(async (word: string, e: React.MouseEvent) => {
         e.stopPropagation()
         if (!confirm(getDeleteConfirmMessage(word))) return
 
         try {
             await api.delete(API_PATHS.WORD(word))
-            setWords(words.filter(w => w.word !== word))
+            setWords(prev => prev.filter(w => w.word !== word))
             if (selectedWord?.word === word) setSelectedWord(null)
             notifyWordDeleted()
         } catch (error) {
             console.error('Failed to delete word:', error)
         }
-    }
+    }, [getDeleteConfirmMessage, notifyWordDeleted, selectedWord?.word])
 
-    const handleMarkMastered = async (word: string, e: React.MouseEvent) => {
+    const handleMarkMastered = useCallback(async (word: string, e: React.MouseEvent) => {
         e.stopPropagation()
         try {
             await api.post(API_PATHS.WORD_MASTER(word))
-            setWords(words.map(w =>
+            setWords(prev => prev.map(w =>
                 w.word === word ? { ...w, mastered: true } : w
             ))
             notifyWordUpdated()
         } catch (error) {
             console.error('Failed to mark mastered:', error)
         }
-    }
+    }, [notifyWordUpdated])
 
     const getStatusBadge = (word: Word) => {
         if (word.mastered) {
@@ -247,7 +249,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isActive, isFetching, matches, scrollToSelected, selectedIndex, totalPages, words])
+    }, [getDeleteConfirmMessage, handleDelete, handleMarkMastered, isActive, isFetching, matches, notifyWordDeleted, notifyWordUpdated, scrollToSelected, selectedIndex, totalPages, words])
 
     // Reset selection and page when filters change
     useEffect(() => {

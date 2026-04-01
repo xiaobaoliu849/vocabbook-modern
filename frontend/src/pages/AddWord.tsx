@@ -33,7 +33,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
 
     const getDictionaryLabel = (source: string) => t(`addWord.dictionarySources.${source}`, { defaultValue: source })
 
-    const saveWord = async (data: any, silent = false, extraSentences: string[] = []) => {
+    const saveWord = useCallback(async (data: any, silent = false, extraSentences: string[] = []) => {
         // 合并额外例句 (AI 生成的)
         if (extraSentences.length > 0) {
             const aiContent = "\n\n" + extraSentences.join("\n\n");
@@ -58,7 +58,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             if (!silent) alert(t('addWord.alerts.failed'))
             return 'error'
         }
-    }
+    }, [notifyWordAdded, t])
 
     const handleSearch = useCallback(async (overrideWord?: string) => {
         const wordToSearch = overrideWord || searchWord
@@ -109,7 +109,47 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
         } finally {
             setIsSearching(false)
         }
-    }, [searchWord, autoPlay, autoSave, t]);
+    }, [autoPlay, autoSave, saveWord, searchWord, t]);
+
+    const handleAddWord = useCallback(async () => {
+        if (!searchResult || searchResult.error) return
+        const result = await saveWord(searchResult, false, aiSentences)
+        if (result === 'success' || result === 'exist') {
+            setIsSaved(true)
+        }
+    }, [aiSentences, saveWord, searchResult])
+
+    const handleGenerateAI = useCallback(async () => {
+        if (!searchWord.trim()) return
+        setIsGeneratingAI(true)
+
+        try {
+            const aiProvider = localStorage.getItem('ai_provider') || 'dashscope'
+            const aiApiKey = localStorage.getItem('ai_api_key') || ''
+            const aiModel = localStorage.getItem('ai_model') || 'qwen-plus'
+
+            const data = await api.post(API_PATHS.AI_GENERATE_SENTENCES,
+                { word: searchWord, count: 3 },
+                {
+                    headers: {
+                        'X-AI-Provider': aiProvider,
+                        'X-AI-Key': aiApiKey,
+                        'X-AI-Model': aiModel
+                    }
+                }
+            )
+            const newSentences = data.sentences || []
+            setAiSentences(newSentences)
+
+            if (searchResult && !searchResult.error && newSentences.length > 0) {
+                void saveWord(searchResult, true, newSentences);
+            }
+        } catch (error) {
+            console.error('AI generation failed:', error)
+        } finally {
+            setIsGeneratingAI(false)
+        }
+    }, [saveWord, searchResult, searchWord])
 
 
     // Keyboard shortcuts for AddWord page
@@ -144,47 +184,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isGeneratingAI, matches, searchResult, searchWord])
-
-    const handleAddWord = async () => {
-        if (!searchResult || searchResult.error) return
-        const result = await saveWord(searchResult, false, aiSentences)
-        if (result === 'success' || result === 'exist') {
-            setIsSaved(true)
-        }
-    }
-
-    const handleGenerateAI = async () => {
-        if (!searchWord.trim()) return
-        setIsGeneratingAI(true)
-
-        try {
-            const aiProvider = localStorage.getItem('ai_provider') || 'dashscope'
-            const aiApiKey = localStorage.getItem('ai_api_key') || ''
-            const aiModel = localStorage.getItem('ai_model') || 'qwen-plus'
-
-            const data = await api.post(API_PATHS.AI_GENERATE_SENTENCES,
-                { word: searchWord, count: 3 },
-                {
-                    headers: {
-                        'X-AI-Provider': aiProvider,
-                        'X-AI-Key': aiApiKey,
-                        'X-AI-Model': aiModel
-                    }
-                }
-            )
-            const newSentences = data.sentences || []
-            setAiSentences(newSentences)
-
-            if (searchResult && !searchResult.error && newSentences.length > 0) {
-                saveWord(searchResult, true, newSentences);
-            }
-        } catch (error) {
-            console.error('AI generation failed:', error)
-        } finally {
-            setIsGeneratingAI(false)
-        }
-    }
+    }, [handleAddWord, handleGenerateAI, isGeneratingAI, matches, searchResult, searchWord])
 
     // Helper to get display data for current tab
     const getDisplayData = () => {

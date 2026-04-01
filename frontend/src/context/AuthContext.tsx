@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { authService } from '../services/cloudApi';
 import { useAuthStore } from '../stores/useAuthStore';
 
@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const setStoreUser = useAuthStore((state) => state.setUser);
     const clearStoreAuth = useAuthStore((state) => state.logout);
 
-    const checkAuth = async (tokenOverride?: string | null) => {
+    const checkAuth = useCallback(async (tokenOverride?: string | null) => {
         try {
             const token = tokenOverride ?? localStorage.getItem('vocab_token');
             if (token) {
@@ -58,11 +58,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [clearStoreAuth, setStoreToken, setStoreUser]);
 
     useEffect(() => {
-        checkAuth();
-    }, []);
+        void checkAuth();
+    }, [checkAuth]);
 
     const login = async (email: string, password: string) => {
         const loginResult = await authService.login(email, password);

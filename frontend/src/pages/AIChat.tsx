@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages } from 'lucide-react'
 import { API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import EvermemLogo from '../assets/evermind-powered.svg'
 import { useAuth } from '../context/AuthContext'
+import { useChatSessionSync } from '../hooks/useChatSessionSync'
 
 const generateId = () => {
     return (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -136,13 +137,71 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const MAX_IMAGE_ATTACHMENTS = 3
     const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024
 
-    const getCommonHeaders = () => {
+    const getCommonHeaders = useCallback(() => {
         const headers: Record<string, string> = {
             'X-Client-Id': getClientId()
         }
         if (token) headers['Authorization'] = `Bearer ${token}`
         return headers
-    }
+    }, [token])
+
+    const {
+        clear: clearQueuedSessionSyncs,
+        drop: dropQueuedSessionSync,
+        flush: flushSessionSyncs,
+        schedule: scheduleQueuedSessionSync,
+    } = useChatSessionSync(API_BASE_URL, API_PATHS.AI_CHAT_SESSIONS)
+
+    const scheduleSessionSync = useCallback((
+        session: ChatSession,
+        options?: { immediate?: boolean }
+    ) => {
+        scheduleQueuedSessionSync(session, getCommonHeaders(), options)
+    }, [getCommonHeaders, scheduleQueuedSessionSync])
+
+    const loadConfig = useCallback(() => {
+        const currentProvider = localStorage.getItem('ai_provider') || 'dashscope'
+        setProvider(currentProvider)
+
+        const savedModelsStr = localStorage.getItem('ai_models_map')
+        let modelsMap: Record<string, string> = {}
+        if (savedModelsStr) {
+            try {
+                modelsMap = JSON.parse(savedModelsStr)
+            } catch {
+                // Ignore malformed saved model config.
+            }
+        }
+        setModel(modelsMap[currentProvider] || localStorage.getItem('ai_model') || '')
+        setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
+    }, [])
+
+    const scrollToBottom = useCallback((instant: boolean = false) => {
+        messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' })
+    }, [])
+
+    const createNewSession = useCallback(() => {
+        const existingEmptySession = sessions.find(
+            session => session.messages.length === 0 && isDefaultNewChatTitle(session.title)
+        )
+        if (existingEmptySession) {
+            setActiveSessionId(existingEmptySession.id)
+            setSidebarOpen(false)
+            return
+        }
+
+        const newSession: ChatSession = {
+            id: buildScopedSessionId(chatScope),
+            title: DEFAULT_NEW_CHAT_TITLE,
+            messages: [],
+            updatedAt: Date.now(),
+            createdAt: Date.now()
+        }
+        setSessions(prev => [newSession, ...prev])
+        setActiveSessionId(newSession.id)
+        setSidebarOpen(false)
+        scheduleSessionSync(newSession)
+    }, [chatScope, scheduleSessionSync, sessions])
 
     // Load sessions from API and fallback to local storage (scoped by current auth user)
     useEffect(() => {
@@ -232,16 +291,10 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 // Sync to DB if we loaded from LocalStorage fallback
                 if (loadedFromFallback) {
                     try {
-                        for (const s of loadedSessions) {
-                            await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    ...getCommonHeaders()
-                                },
-                                body: JSON.stringify(s)
-                            })
+                        for (const session of loadedSessions) {
+                            scheduleSessionSync(session)
                         }
+                        await flushSessionSyncs()
                     } catch {
                         // Best-effort sync only.
                     }
@@ -253,7 +306,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
         loadInitialData()
         return () => { cancelled = true }
-    }, [chatScope, token])
+    }, [chatScope, flushSessionSyncs, getCommonHeaders, scheduleSessionSync, token])
 
     useEffect(() => {
         if (isActive) {
@@ -266,7 +319,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             loadConfig()
             scrollToBottom()
         }
-    }, [isActive, chatScope, token])
+    }, [chatScope, isActive, loadConfig, scrollToBottom, token])
 
     // Entering AI chat starts a fresh session for the current account scope.
     useEffect(() => {
@@ -281,23 +334,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         if (!active || active.messages.length > 0) {
             createNewSession()
         }
-    }, [isActive, isInitialized, sessions, activeSessionId, chatScope])
-
-    // Save sessions to DB (and localStorage for quick cache) whenever they change
-    const saveSessionToDB = async (session: ChatSession) => {
-        try {
-            await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...getCommonHeaders()
-                },
-                body: JSON.stringify(session)
-            })
-        } catch (error) {
-            console.error("Failed to sync session to DB", error)
-        }
-    }
+    }, [activeSessionId, createNewSession, isActive, isInitialized, sessions])
 
     useEffect(() => {
         if (!isInitialized) return
@@ -310,9 +347,11 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     }, [sessions, isInitialized, chatScope])
 
     // Scroll to bottom when active session or its messages change
+    const activeMessageCount = sessions.find(s => s.id === activeSessionId)?.messages.length ?? 0
+
     useEffect(() => {
         scrollToBottom()
-    }, [activeSessionId, sessions.find(s => s.id === activeSessionId)?.messages.length])
+    }, [activeMessageCount, activeSessionId, scrollToBottom])
 
     // Auto-hide memory toast
     useEffect(() => {
@@ -321,27 +360,6 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             return () => clearTimeout(t)
         }
     }, [memoryToast])
-
-    const loadConfig = () => {
-        const currentProvider = localStorage.getItem('ai_provider') || 'dashscope'
-        setProvider(currentProvider)
-
-        const savedModelsStr = localStorage.getItem('ai_models_map')
-        let modelsMap: Record<string, string> = {}
-        if (savedModelsStr) {
-            try {
-                modelsMap = JSON.parse(savedModelsStr)
-            } catch {
-                // Ignore malformed saved model config.
-            }
-        }
-        setModel(modelsMap[currentProvider] || localStorage.getItem('ai_model') || '')
-        setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
-    }
-
-    const scrollToBottom = (instant: boolean = false) => {
-        messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' })
-    }
 
     const buildMessagePayload = (message: Message) => {
         if (message.role !== 'user' || !message.attachments || message.attachments.length === 0) {
@@ -449,7 +467,46 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         setPendingImages(prev => prev.filter(item => item.id !== attachmentId))
     }
 
-    const loadMemoryOverview = async (
+    const getApiHeaders = useCallback(() => {
+        const headers: Record<string, string> = getCommonHeaders()
+        if (provider) headers['X-AI-Provider'] = provider
+        if (model) headers['X-AI-Model'] = model
+
+        const savedBasesStr = localStorage.getItem('ai_bases_map')
+        let basesMap: Record<string, string> = {}
+        if (savedBasesStr) {
+            try {
+                basesMap = JSON.parse(savedBasesStr)
+            } catch {
+                // Ignore malformed saved base config.
+            }
+        }
+        const apiBase = basesMap[provider] || ''
+        if (apiBase) headers['X-AI-Base'] = apiBase
+
+        const savedKeysStr = localStorage.getItem('ai_api_keys_map')
+        let keysMap: Record<string, string> = {}
+        if (savedKeysStr) {
+            try {
+                keysMap = JSON.parse(savedKeysStr)
+            } catch {
+                // Ignore malformed saved key config.
+            }
+        }
+        const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || ''
+        if (apiKey) headers['X-AI-Key'] = apiKey
+
+        if (evermemEnabled) {
+            headers['X-EverMem-Enabled'] = 'true'
+            const evermemUrl = localStorage.getItem('evermem_url')
+            const evermemKey = localStorage.getItem('evermem_key')
+            if (evermemUrl) headers['X-EverMem-Url'] = evermemUrl
+            if (evermemKey) headers['X-EverMem-Key'] = evermemKey
+        }
+        return headers
+    }, [evermemEnabled, getCommonHeaders, model, provider])
+
+    const loadMemoryOverview = useCallback(async (
         options?: {
             force?: boolean
             silent?: boolean
@@ -508,46 +565,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
         memoryOverviewRequestRef.current = request
         return request
-    }
-
-    const getApiHeaders = () => {
-        const headers: Record<string, string> = getCommonHeaders()
-        if (provider) headers['X-AI-Provider'] = provider
-        if (model) headers['X-AI-Model'] = model
-
-        const savedBasesStr = localStorage.getItem('ai_bases_map')
-        let basesMap: Record<string, string> = {}
-        if (savedBasesStr) {
-            try {
-                basesMap = JSON.parse(savedBasesStr)
-            } catch {
-                // Ignore malformed saved base config.
-            }
-        }
-        const apiBase = basesMap[provider] || ''
-        if (apiBase) headers['X-AI-Base'] = apiBase
-
-        const savedKeysStr = localStorage.getItem('ai_api_keys_map')
-        let keysMap: Record<string, string> = {}
-        if (savedKeysStr) {
-            try {
-                keysMap = JSON.parse(savedKeysStr)
-            } catch {
-                // Ignore malformed saved key config.
-            }
-        }
-        const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || ''
-        if (apiKey) headers['X-AI-Key'] = apiKey
-
-        if (evermemEnabled) {
-            headers['X-EverMem-Enabled'] = 'true'
-            const evermemUrl = localStorage.getItem('evermem_url')
-            const evermemKey = localStorage.getItem('evermem_key')
-            if (evermemUrl) headers['X-EverMem-Url'] = evermemUrl
-            if (evermemKey) headers['X-EverMem-Key'] = evermemKey
-        }
-        return headers
-    }
+    }, [evermemEnabled, getApiHeaders, memoryOverview, t])
 
     const activeSession = sessions.find(s => s.id === activeSessionId)
     const messages = activeSession?.messages || []
@@ -590,33 +608,12 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         return t('chat.sidebar.emptySession')
     }
 
-    const createNewSession = () => {
-        const existingEmptySession = sessions.find(
-            session => session.messages.length === 0 && isDefaultNewChatTitle(session.title)
-        )
-        if (existingEmptySession) {
-            setActiveSessionId(existingEmptySession.id)
-            setSidebarOpen(false)
-            return
-        }
-
-        const newSession: ChatSession = {
-            id: buildScopedSessionId(chatScope),
-            title: DEFAULT_NEW_CHAT_TITLE,
-            messages: [],
-            updatedAt: Date.now(),
-            createdAt: Date.now()
-        }
-        setSessions(prev => [newSession, ...prev])
-        setActiveSessionId(newSession.id)
-        setSidebarOpen(false)
-        saveSessionToDB(newSession)
-    }
-
     const deleteSession = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation()
         if (window.confirm(t('chat.confirm.deleteSession'))) {
             try {
+                await flushSessionSyncs()
+                dropQueuedSessionSync(id)
                 await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSION_DELETE(id)}`, {
                     method: 'DELETE',
                     headers: getCommonHeaders()
@@ -649,7 +646,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             setSessions(prev => {
                 const updated = prev.map(s => s.id === id ? { ...s, title: updatedTitle, updatedAt: Date.now() } : s)
                 const target = updated.find(s => s.id === id)
-                if (target) saveSessionToDB(target)
+                if (target) scheduleSessionSync(target)
                 return updated
             })
         }
@@ -666,7 +663,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             setSessions(prev => {
                 const updated = prev.map(s => s.id === activeSessionId ? { ...s, messages: [], updatedAt: Date.now() } : s)
                 const target = updated.find(s => s.id === activeSessionId)
-                if (target) saveSessionToDB(target)
+                if (target) scheduleSessionSync(target)
                 return updated
             })
         }
@@ -677,6 +674,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         if (!window.confirm(t('chat.confirm.clearAllSessions'))) return
 
         try {
+            await flushSessionSyncs()
+            clearQueuedSessionSyncs()
             await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
                 method: 'DELETE',
                 headers: getCommonHeaders()
@@ -733,10 +732,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 }
                 return s
             })
-            // Wait to sync until bot replies, or sync user msg immediately.
-            // We'll sync at the very end to avoid multiple writes, but for safety:
             const target = updated.find(s => s.id === targetSessionId)
-            if (target) saveSessionToDB(target)
+            if (target) scheduleSessionSync(target)
             return updated
         })
 
@@ -947,7 +944,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                     return s
                 })
                 const target = updated.find(s => s.id === targetSessionId)
-                if (target) saveSessionToDB(target)
+                if (target) scheduleSessionSync(target, { immediate: true })
                 return updated
             })
 
@@ -972,32 +969,37 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             }
         } catch (error: unknown) {
             console.error('Chat stream failed:', error)
-            setSessions(prev => prev.map(s => {
-                if (s.id === targetSessionId) {
-                    const errorText = t('chat.errors.response', {
-                        message: error instanceof Error ? error.message : t('chat.errors.failedResponse')
-                    })
-                    let replaced = false
-                    const updatedMessages = s.messages.map(m => {
-                        if (botMsgId && m.id === botMsgId) {
-                            replaced = true
-                            return { ...m, content: errorText, reasoningContent: '' }
-                        }
-                        return m
-                    })
-                    if (!replaced) {
-                        updatedMessages.push({
-                            id: generateId(),
-                            role: 'assistant',
-                            content: errorText,
-                            reasoningContent: '',
-                            timestamp: Date.now()
+            setSessions(prev => {
+                const updated = prev.map(s => {
+                    if (s.id === targetSessionId) {
+                        const errorText = t('chat.errors.response', {
+                            message: error instanceof Error ? error.message : t('chat.errors.failedResponse')
                         })
+                        let replaced = false
+                        const updatedMessages = s.messages.map(m => {
+                            if (botMsgId && m.id === botMsgId) {
+                                replaced = true
+                                return { ...m, content: errorText, reasoningContent: '' }
+                            }
+                            return m
+                        })
+                        if (!replaced) {
+                            updatedMessages.push({
+                                id: generateId(),
+                                role: 'assistant',
+                                content: errorText,
+                                reasoningContent: '',
+                                timestamp: Date.now()
+                            })
+                        }
+                        return { ...s, messages: updatedMessages, updatedAt: Date.now() }
                     }
-                    return { ...s, messages: updatedMessages, updatedAt: Date.now() }
-                }
-                return s
-            }))
+                    return s
+                })
+                const target = updated.find(s => s.id === targetSessionId)
+                if (target) scheduleSessionSync(target, { immediate: true })
+                return updated
+            })
         } finally {
             setLoading(false)
         }
@@ -1025,7 +1027,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         if (shouldForce || shouldRefreshInBackground) {
             void loadMemoryOverview({ force: shouldForce, silent: true })
         }
-    }, [memoryPanelOpen, evermemEnabled, token, memoryOverview])
+    }, [loadMemoryOverview, memoryOverview, memoryPanelOpen])
 
     useEffect(() => {
         return () => {

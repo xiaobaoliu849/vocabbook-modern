@@ -25,13 +25,13 @@ function getRatingStyle(quality: number) {
 export default function SessionSummary({ data, onRestart, onBackToNormal, onReviewWeak }: SessionSummaryProps) {
     const { t } = useTranslation()
     const [showWeakWords, setShowWeakWords] = useState(false)
-    const ratingLabels: Record<number, string> = {
+    const ratingLabels = useMemo<Record<number, string>>(() => ({
         1: t('review.summary.ratingLabels.1'),
         2: t('review.summary.ratingLabels.2'),
         3: t('review.summary.ratingLabels.3'),
         4: t('review.summary.ratingLabels.4'),
         5: t('review.summary.ratingLabels.5'),
-    }
+    }), [t])
     const ratingConfig = useMemo(
         () => RATING_STYLES.map(cfg => ({ ...cfg, label: ratingLabels[cfg.quality] })),
         [ratingLabels]

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Crown, KeyRound, RefreshCw, Shield, ShoppingCart, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CLOUD_API_BASE_URL } from '../utils/api'
@@ -92,7 +92,7 @@ export default function AdminPanel() {
         return Math.round((summary.premium_users / summary.total_users) * 100)
     }, [summary])
 
-    const loadAdminData = async (tokenOverride?: string) => {
+    const loadAdminData = useCallback(async (tokenOverride?: string) => {
         const token = (tokenOverride ?? activeAdminToken).trim()
         if (!token) {
             setErrorMessage(t('admin.errors.missingToken', 'Please enter your admin token first.'))
@@ -118,7 +118,7 @@ export default function AdminPanel() {
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [activeAdminToken, t])
 
     const saveTokenAndLoad = async () => {
         const token = adminTokenInput.trim()
@@ -169,7 +169,7 @@ export default function AdminPanel() {
         if (savedToken) {
             void loadAdminData(savedToken)
         }
-    }, [])
+    }, [loadAdminData])
 
     return (
         <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">

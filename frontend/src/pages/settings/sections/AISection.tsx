@@ -2,6 +2,17 @@ import { useState, useEffect, useCallback } from 'react'
 import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+function getDefaultModel(provider: string) {
+    switch (provider) {
+        case 'dashscope': return 'qwen3.5-flash' // Latest Qwen native multimodal high-speed model
+        case 'openai': return 'gpt-4o-mini'
+        case 'anthropic': return 'claude-4.5-sonnet'
+        case 'gemini': return 'gemini-1.5-flash'
+        case 'ollama': return 'qwen2.5'
+        default: return ''
+    }
+}
+
 export default function AISection() {
     const { t } = useTranslation()
     const [aiProvider, setAiProvider] = useState('dashscope')
@@ -29,11 +40,7 @@ export default function AISection() {
     const [evermemKey, setEvermemKey] = useState('')
     const [showEvermemKey, setShowEvermemKey] = useState(false)
 
-    useEffect(() => {
-        loadAiSettings()
-    }, [])
-
-    const loadAiSettings = () => {
+    const loadAiSettings = useCallback(() => {
         const provider = localStorage.getItem('ai_provider') || 'dashscope'
         setAiProvider(provider)
 
@@ -105,18 +112,11 @@ export default function AISection() {
         setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
         setEvermemUrl(localStorage.getItem('evermem_url') || '')
         setEvermemKey(localStorage.getItem('evermem_key') || '')
-    }
+    }, [])
 
-    const getDefaultModel = (provider: string) => {
-        switch (provider) {
-            case 'dashscope': return 'qwen3.5-flash' // Latest Qwen native multimodal high-speed model
-            case 'openai': return 'gpt-4o-mini'
-            case 'anthropic': return 'claude-4.5-sonnet'
-            case 'gemini': return 'gemini-1.5-flash'
-            case 'ollama': return 'qwen2.5'
-            default: return ''
-        }
-    }
+    useEffect(() => {
+        loadAiSettings()
+    }, [loadAiSettings])
 
     const saveAiSettings = () => {
         localStorage.setItem('ai_provider', aiProvider)
@@ -216,14 +216,14 @@ export default function AISection() {
         } finally {
             setOllamaLoading(false)
         }
-    }, [aiBase, aiModel])
+    }, [aiBase, aiModel, t])
 
     // Fetch Ollama models when provider switches to ollama
     useEffect(() => {
         if (aiProvider === 'ollama') {
-            fetchOllamaModels()
+            void fetchOllamaModels()
         }
-    }, [aiProvider])
+    }, [aiProvider, fetchOllamaModels])
 
     return (
         <div className="space-y-6 animate-fade-in">
