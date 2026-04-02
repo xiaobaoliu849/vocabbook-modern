@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, type CSSProperties, type Poin
 import { X, BookOpen, Languages, Check, Loader2, ExternalLink, Copy, Sprout, RefreshCw, Sparkles } from 'lucide-react'
 import AudioButton from './AudioButton'
 import { api, ApiError, API_PATHS, getClientId } from '../utils/api'
+import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
@@ -328,7 +329,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                             ? t('quickLookup.errors.translateFailed', 'Translation failed. Please check your AI settings.')
                             : type === 'explain'
                                 ? t('quickLookup.errors.explainFailed', 'Explanation failed. Please check your AI settings.')
-                                : t('addWord.errors.searchFailed', 'Lookup failed. Please check the backend service.')
+                                : getDictionarySearchErrorMessage(err, t)
                     )
                 }
             } finally {

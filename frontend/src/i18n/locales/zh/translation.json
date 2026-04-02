@@ -641,7 +641,10 @@
     },
     "errors": {
       "notFound": "未找到该单词",
-      "searchFailed": "查询失败，请检查后端服务"
+      "lookupTimeout": "词典源响应超时，请稍后重试",
+      "serviceBusy": "词典服务暂时不可用，请稍后重试",
+      "backendUnavailable": "无法连接本地词典服务，请确认后端已启动",
+      "searchFailed": "查询失败，请稍后重试"
     },
     "actions": {
       "addToBook": "添加到生词本"

@@ -7,7 +7,7 @@ import time
 import requests
 import json
 from bs4 import BeautifulSoup
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait
 
 
 # 全局共享 Session，复用 TCP 连接，提升性能
@@ -43,9 +43,12 @@ def get_db_manager():
     global _db_manager
     if _db_manager is None:
         try:
-            from ..models.database import DatabaseManager
-            from ..config import DB_PATH
-            import os
+            try:
+                from models.database import DatabaseManager
+                from config import DB_PATH
+            except ImportError:
+                from ..models.database import DatabaseManager
+                from ..config import DB_PATH
             _db_manager = DatabaseManager(db_path=DB_PATH)
         except Exception as e:
             print(f"Failed to init DB manager for cache: {e}")
@@ -118,6 +121,8 @@ class MultiDictService:
 
     # 持久化缓存 TTL（二级缓存，24小时）
     _db_cache_ttl = 86400
+    # 聚合查询整体等待上限，超时后返回已拿到的部分结果
+    _aggregate_timeout = 12
 
     @classmethod
     def get_cached(cls, word, source):
@@ -417,7 +422,8 @@ class MultiDictService:
 
         # 并发查询其他
         tasks = {}
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        executor = ThreadPoolExecutor(max_workers=3)
+        try:
             if MultiDictService.DICT_CAMBRIDGE in enabled_dicts:
                 tasks[executor.submit(MultiDictService.search_cambridge, word)] = MultiDictService.DICT_CAMBRIDGE
             
@@ -427,7 +433,9 @@ class MultiDictService:
             if MultiDictService.DICT_FREE in enabled_dicts:
                 tasks[executor.submit(MultiDictService.search_free_dict, word)] = MultiDictService.DICT_FREE
 
-            for future in as_completed(tasks, timeout=12):
+            done, not_done = wait(list(tasks.keys()), timeout=MultiDictService._aggregate_timeout)
+
+            for future in done:
                 source = tasks[future]
                 try:
                     result = future.result()
@@ -435,6 +443,13 @@ class MultiDictService:
                         results["sources"][source] = result
                 except Exception as e:
                     print(f"Dict {source} error: {e}")
+            
+            for future in not_done:
+                source = tasks[future]
+                future.cancel()
+                print(f"Dict {source} timed out after {MultiDictService._aggregate_timeout}s")
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
         # 确定主要结果 (有道 > 剑桥 > Bing)
         if not results["primary"]:

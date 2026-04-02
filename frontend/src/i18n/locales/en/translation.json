@@ -641,7 +641,10 @@
     },
     "errors": {
       "notFound": "Word not found",
-      "searchFailed": "Lookup failed. Please check the backend service."
+      "lookupTimeout": "Dictionary sources timed out. Please try again in a moment.",
+      "serviceBusy": "Dictionary service is temporarily unavailable. Please try again later.",
+      "backendUnavailable": "Cannot reach the local dictionary service. Please make sure the backend is running.",
+      "searchFailed": "Lookup failed. Please try again later."
     },
     "actions": {
       "addToBook": "Add to VocabBook"

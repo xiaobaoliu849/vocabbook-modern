@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, ApiError, API_PATHS, getClientId } from '../utils/api';
+import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors';
 import AudioButton from './AudioButton';
 import { useGlobalState } from '../context/GlobalStateContext';
 import { useShortcuts } from '../context/ShortcutContext';
@@ -122,11 +123,7 @@ export default function DictionaryPopup() {
                 }
             }
         } catch (err) {
-            if (err instanceof ApiError && err.status === 404) {
-                setError(t('addWord.errors.notFound', 'Word not found'));
-            } else {
-                setError(t('addWord.errors.searchFailed', 'Lookup failed. Please check the backend service.'));
-            }
+            setError(getDictionarySearchErrorMessage(err, t));
         } finally {
             setLoading(false);
         }

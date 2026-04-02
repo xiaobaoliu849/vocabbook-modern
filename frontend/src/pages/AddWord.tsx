@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import AudioButton from '../components/AudioButton'
 import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2, Upload } from 'lucide-react'
 import { api, ApiError, API_PATHS } from '../utils/api'
+import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
@@ -101,11 +102,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                 }
             }
         } catch (error) {
-            if (error instanceof ApiError && error.status === 404) {
-                setSearchResult({ error: t('addWord.errors.notFound') })
-            } else {
-                setSearchResult({ error: t('addWord.errors.searchFailed') })
-            }
+            setSearchResult({ error: getDictionarySearchErrorMessage(error, t) })
         } finally {
             setIsSearching(false)
         }
