@@ -2,6 +2,7 @@ import subprocess
 import time
 import sys
 import os
+import socket
 
 # Configuration
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -36,12 +37,33 @@ def main():
 
     # 3. Start Frontend
     print('Starting Frontend...')
-    frontend_cmd = ['npm', 'run', 'dev']
+    frontend_cmd = ['npm', 'run', 'dev', '--', '--port', '5173', '--strictPort']
     frontend_process = subprocess.Popen(frontend_cmd, cwd=FRONTEND_DIR, shell=True, env=shared_env, creationflags=NEW_CONSOLE)
 
-    # Wait for services
-    print('Waiting for services to initialize...')
-    time.sleep(5)
+    # Wait for Vite dev server to be ready before launching Electron
+    # Use raw socket (tries both IPv4 and IPv6) to avoid proxy/TUN interference
+    print('Waiting for Vite dev server on port 5173...')
+    max_wait = 60
+    waited = 0
+    vite_ready = False
+    while waited < max_wait:
+        for host in ('127.0.0.1', '::1'):
+            try:
+                family = socket.AF_INET6 if ':' in host else socket.AF_INET
+                with socket.socket(family, socket.SOCK_STREAM) as s:
+                    s.settimeout(1)
+                    s.connect((host, 5173))
+                vite_ready = True
+                break
+            except Exception:
+                pass
+        if vite_ready:
+            print(f'Vite is ready after {waited}s!')
+            break
+        time.sleep(2)
+        waited += 2
+    if not vite_ready:
+        print(f'[WARNING] Vite did not respond within {max_wait}s, starting Electron anyway...')
 
     # 3. Start Electron
     print('Starting Electron...')

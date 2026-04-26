@@ -12,6 +12,9 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Header
 import httpx
 from pydantic import BaseModel
+from repositories.chat_repository import ChatSessionRepository
+from repositories.review_repository import ReviewRepository
+from services.blocking_io import run_db_blocking, run_io_blocking
 
 router = APIRouter()
 
@@ -143,14 +146,19 @@ async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Opt
     return fallback_owner_key
 
 
-def _build_learning_focus_context(limit: int = 5) -> str:
-    from main import get_db
+def get_chat_repository() -> ChatSessionRepository:
+    from main import get_db as main_get_db
 
-    try:
-        summary = get_db().get_learning_focus_summary(limit=limit)
-    except Exception:
-        return ""
+    return ChatSessionRepository(main_get_db())
 
+
+def get_review_repository() -> ReviewRepository:
+    from main import get_db as main_get_db
+
+    return ReviewRepository(main_get_db())
+
+
+def _format_learning_focus_context(summary: dict[str, Any], limit: int = 5) -> str:
     weak_words = summary.get("weak_words", [])
     if not weak_words:
         return ""
@@ -183,11 +191,9 @@ def _build_learning_focus_context(limit: int = 5) -> str:
     )
 
 
-def _get_learning_focus_overview(limit: int = 5) -> dict[str, Any]:
-    from main import get_db
-
+async def _get_learning_focus_summary(limit: int = 5) -> dict[str, Any]:
     try:
-        summary = get_db().get_learning_focus_summary(limit=limit)
+        return await run_db_blocking(get_review_repository().get_learning_focus_summary, limit)
     except Exception:
         return {
             "due_count": 0,
@@ -195,6 +201,14 @@ def _get_learning_focus_overview(limit: int = 5) -> dict[str, Any]:
             "weak_words": [],
         }
 
+
+async def _build_learning_focus_context(limit: int = 5) -> str:
+    summary = await _get_learning_focus_summary(limit=limit)
+    return _format_learning_focus_context(summary, limit=limit)
+
+
+async def _get_learning_focus_overview(limit: int = 5) -> dict[str, Any]:
+    summary = await _get_learning_focus_summary(limit=limit)
     weak_words: list[dict[str, Any]] = []
     for item in summary.get("weak_words", [])[:limit]:
         word = str(item.get("word", "")).strip()
@@ -395,11 +409,12 @@ async def chat(
         evermem_service=evermem_service,
     )
     try:
+        learning_context = await _build_learning_focus_context() if _is_learning_context_enabled() else ""
         result = await ai.chat(
             messages=[{"role": m.role, "content": m.content} for m in request.messages],
             context_word=request.context_word,
             session_id=request.session_id,
-            learning_context=_build_learning_focus_context() if _is_learning_context_enabled() else "",
+            learning_context=learning_context,
             enable_thinking=False if _is_enabled(x_ai_disable_thinking) else None,
         )
         return {
@@ -451,12 +466,13 @@ async def chat_stream(
     )
     try:
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
+        learning_context = await _build_learning_focus_context() if _is_learning_context_enabled() else ""
         return StreamingResponse(
             ai.chat_stream(
                 messages=messages,
                 context_word=request.context_word,
                 session_id=request.session_id,
-                learning_context=_build_learning_focus_context() if _is_learning_context_enabled() else "",
+                learning_context=learning_context,
                 enable_thinking=False if _is_enabled(x_ai_disable_thinking) else None,
             ),
             media_type="text/event-stream"
@@ -516,7 +532,7 @@ async def get_memory_overview(
     )
     owner_key = await _resolve_chat_owner_key(authorization, x_client_id) if evermem_enabled else "guest"
 
-    learning_focus = _get_learning_focus_overview(limit=5)
+    learning_focus = await _get_learning_focus_overview(limit=5)
     response: dict[str, Any] = {
         "enabled": evermem_enabled,
         "requested": evermem_requested,
@@ -686,10 +702,11 @@ async def translate(
 
     text = request.text.strip()
 
-    cached_translation = db.find_translation(
+    cached_translation = await run_db_blocking(
+        db.find_translation,
         source_text=text,
         source_lang=request.source_lang,
-        target_lang=request.target_lang
+        target_lang=request.target_lang,
     )
     if cached_translation and str(cached_translation.get("target_text", "")).strip():
         return {
@@ -712,13 +729,14 @@ async def translate(
     
     try:
         if request.target_lang.lower() == "chinese" and _is_fast_translate_candidate(text):
-            fast_translation = DictService.translate_text(text)
+            fast_translation = await run_io_blocking(DictService.translate_text, text)
             if fast_translation:
-                record_id = db.add_translation(
+                record_id = await run_db_blocking(
+                    db.add_translation,
                     source_text=text,
                     target_text=fast_translation,
                     source_lang=request.source_lang,
-                    target_lang=request.target_lang
+                    target_lang=request.target_lang,
                 )
                 return {
                     "id": record_id,
@@ -737,11 +755,12 @@ async def translate(
         )
         
         # Save to DB
-        record_id = db.add_translation(
+        record_id = await run_db_blocking(
+            db.add_translation,
             source_text=text,
             target_text=translation,
             source_lang=request.source_lang,
-            target_lang=request.target_lang
+            target_lang=request.target_lang,
         )
         
         return {
@@ -761,7 +780,7 @@ async def get_translation_history(limit: int = 20, offset: int = 0):
     """获取翻译历史"""
     from main import get_db
     db = get_db()
-    return db.get_translations(limit=limit, offset=offset)
+    return await run_db_blocking(db.get_translations, limit=limit, offset=offset)
 
 
 @router.delete("/translations/{record_id}")
@@ -769,7 +788,7 @@ async def delete_translation_record(record_id: int):
     """删除翻译记录"""
     from main import get_db
     db = get_db()
-    success = db.delete_translation(record_id)
+    success = await run_db_blocking(db.delete_translation, record_id)
     return {"success": success}
 
 # --- Chat Sessions Endpoints (Persistent Chat History) ---
@@ -788,11 +807,9 @@ async def get_chat_sessions(
     x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
 ):
     """获取所有持久化的聊天会话"""
-    from main import get_db
-    db = get_db()
     owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
-        sessions = db.get_all_chat_sessions(owner_key=owner_key)
+        sessions = await run_db_blocking(get_chat_repository().list_sessions, owner_key)
         return sessions
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat sessions: {str(e)}")
@@ -804,11 +821,13 @@ async def save_chat_session(
     x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
 ):
     """保存/更新聊天会话"""
-    from main import get_db
-    db = get_db()
     owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
-        success = db.save_chat_session(session.model_dump(), owner_key=owner_key)
+        success = await run_db_blocking(
+            get_chat_repository().save_session,
+            session.model_dump(),
+            owner_key,
+        )
         if not success:
             raise HTTPException(status_code=500, detail="Database save failed")
         return {"success": True}
@@ -822,11 +841,9 @@ async def delete_chat_session(
     x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
 ):
     """删除聊天会话"""
-    from main import get_db
-    db = get_db()
     owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
-        success = db.delete_chat_session(session_id, owner_key=owner_key)
+        success = await run_db_blocking(get_chat_repository().delete_session, session_id, owner_key)
         return {"success": success}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete chat session: {str(e)}")
@@ -837,11 +854,9 @@ async def clear_all_chat_sessions(
     x_client_id: Optional[str] = Header(None, alias="X-Client-Id")
 ):
     """清空所有聊天会话"""
-    from main import get_db
-    db = get_db()
     owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
-        success = db.clear_all_chat_sessions(owner_key=owner_key)
+        success = await run_db_blocking(get_chat_repository().clear_sessions, owner_key)
         return {"success": success}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear chat sessions: {str(e)}")

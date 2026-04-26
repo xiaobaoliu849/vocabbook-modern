@@ -7,12 +7,13 @@ from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel, Field
 from datetime import datetime
 import time
-import sqlite3 # Import at top level
 import base64
 import hashlib
 import json
 import re
 
+from repositories.review_repository import ReviewRepository
+from services.blocking_io import run_db_blocking
 from services.multi_dict_service import clean_chinese_text
 
 router = APIRouter()
@@ -34,6 +35,10 @@ class ReviewSession(BaseModel):
 def get_db():
     from main import get_db as main_get_db
     return main_get_db()
+
+
+def get_review_repository() -> ReviewRepository:
+    return ReviewRepository(get_db())
 
 
 def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
@@ -125,8 +130,7 @@ def _clean_review_words(words: List[dict]) -> List[dict]:
     return words
 
 
-def _format_learning_focus_summary(db, limit: int = 5) -> str:
-    summary = db.get_learning_focus_summary(limit=limit)
+def _format_learning_focus_summary(summary: dict, limit: int = 5) -> str:
     weak_words = summary.get("weak_words", [])
     if not weak_words:
         return ""
@@ -160,16 +164,10 @@ async def get_due_words(
     include_total: bool = False,
 ):
     """获取待复习的单词"""
-    db = get_db()
-
-    # Get words that are due for review
-    words, total = db.search_words(
-        status_filter="due",
-        sort_by="next_review_time",
-        sort_order="ASC",
-        limit=limit,
-        offset=0,
-        count_total=include_total,
+    words, total = await run_db_blocking(
+        get_review_repository().get_due_words,
+        limit,
+        include_total,
     )
 
     response = {
@@ -184,22 +182,13 @@ async def get_due_words(
 @router.get("/due-count")
 async def get_due_count():
     """获取当前待复习数量（轻量接口）"""
-    db = get_db()
-    return {"due_count": db.get_due_review_count()}
+    return {"due_count": await run_db_blocking(get_review_repository().get_due_count)}
 
 
 @router.get("/new")
 async def get_new_words(limit: int = Query(10, ge=1, le=50)):
     """获取新单词（未开始复习的）"""
-    db = get_db()
-    
-    words, total = db.search_words(
-        status_filter="new",
-        sort_by="date_added",
-        sort_order="DESC",
-        limit=limit,
-        offset=0
-    )
+    words, total = await run_db_blocking(get_review_repository().get_new_words, limit)
     
     return {
         "words": _clean_review_words(words),
@@ -211,31 +200,7 @@ async def get_new_words(limit: int = Query(10, ge=1, le=50)):
 @router.get("/difficult")
 async def get_difficult_words(limit: int = Query(20, ge=1, le=100)):
     """获取困难词（错误次数 >= 1 的单词）"""
-    db = get_db()
-
-    # Use direct SQL for now as search_words might not support error_count filtering yet
-    conn = db.get_connection()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    cursor.execute('''
-        SELECT * FROM words
-        WHERE error_count >= 1
-        ORDER BY error_count DESC, next_review_time ASC
-        LIMIT ?
-    ''', (limit,))
-
-    rows = cursor.fetchall()
-    words = []
-    for row in rows:
-        d = dict(row)
-        d['mastered'] = bool(d['mastered'])
-        d['date'] = d['date_added']
-        # Ensure text fields are not None
-        for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags']:
-            if d.get(key) is None:
-                d[key] = ""
-        words.append(d)
+    words = await run_db_blocking(get_review_repository().get_difficult_words, limit)
 
     return {
         "words": _clean_review_words(words),
@@ -253,10 +218,10 @@ async def submit_review(
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
 ):
     """提交单词复习结果（SM-2 算法）"""
-    db = get_db()
+    repo = get_review_repository()
     evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id) if _can_use_evermem(authorization) else None
-    
-    word_data = db.get_word(review.word)
+
+    word_data = await run_db_blocking(repo.get_word, review.word)
     if not word_data:
         raise HTTPException(status_code=404, detail=f"Word '{review.word}' not found")
     
@@ -269,16 +234,17 @@ async def submit_review(
     next_review_in_hours = round(max(0, next_time - time.time()) / 3600, 1)
     
     # Update database
-    db.update_sm2_status(
+    await run_db_blocking(
+        repo.update_sm2_status,
         word=review.word,
         easiness=easiness,
         interval=interval,
         repetitions=repetitions,
         next_time=next_time,
-        rating=review.quality
+        rating=review.quality,
     )
-    updated_word_data = db.get_word(review.word) or word_data
-    remaining_due_count = db.get_due_review_count()
+    updated_word_data = await run_db_blocking(repo.get_word, review.word) or word_data
+    remaining_due_count = await run_db_blocking(repo.get_due_count)
 
     # Store learning record to EverMemOS (fire-and-forget)
     try:
@@ -357,8 +323,8 @@ async def log_session(
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
 ):
     """记录复习会话"""
-    db = get_db()
-    db.log_study_session(session.duration, session.review_count)
+    repo = get_review_repository()
+    await run_db_blocking(repo.log_study_session, session.duration, session.review_count)
 
     evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id) if _can_use_evermem(authorization) else None
     try:
@@ -370,7 +336,10 @@ async def log_session(
         )
         if evermem and evermem_user_id:
             import asyncio
-            focus_summary = _format_learning_focus_summary(db, limit=5)
+            focus_summary = _format_learning_focus_summary(
+                await run_db_blocking(repo.get_learning_focus_summary, 5),
+                limit=5,
+            )
             if focus_summary:
                 review_group_id = _review_group_id_for_user(evermem_user_id)
                 session_record = (
@@ -410,21 +379,16 @@ async def log_session(
 @router.get("/heatmap")
 async def get_heatmap_data():
     """获取复习热力图数据"""
-    db = get_db()
-    data = db.get_review_heatmap_data()
+    data = await run_db_blocking(get_review_repository().get_heatmap_data)
     return {"heatmap": data}
 
 
 @router.get("/history/{word}")
 async def get_word_history(word: str):
     """获取单词复习历史"""
-    db = get_db()
-    
-    word_data = db.get_word(word)
+    word_data, history = await run_db_blocking(get_review_repository().get_word_history, word)
     if not word_data:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
-    
-    history = db.get_word_review_history(word_data.get("id"))
     return {
         "word": word,
         "history": history

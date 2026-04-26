@@ -6,6 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks
 from pydantic import BaseModel
 from datetime import datetime
+from services.blocking_io import run_db_blocking, run_io_blocking
 from utils.import_utils import parse_txt_content, parse_csv_content
 
 router = APIRouter()
@@ -115,7 +116,7 @@ async def process_import(entries: List[dict], auto_lookup: bool, tag: str) -> Im
         word = entry["word"]
         
         # 检查是否已存在
-        existing = db.get_word(word)
+        existing = await run_db_blocking(db.get_word, word)
         if existing:
             results["skipped"] += 1
             results["details"].append({
@@ -141,7 +142,7 @@ async def process_import(entries: List[dict], auto_lookup: bool, tag: str) -> Im
         
         # 自动查词典
         if auto_lookup and not word_data["meaning"]:
-            lookup_result = lookup_word(word)
+            lookup_result = await run_io_blocking(lookup_word, word)
             if lookup_result and not lookup_result.get("error"):
                 word_data["phonetic"] = lookup_result.get("phonetic", "")
                 word_data["meaning"] = lookup_result.get("meaning", "")
@@ -150,7 +151,7 @@ async def process_import(entries: List[dict], auto_lookup: bool, tag: str) -> Im
         # 保存到数据库
         try:
             if word_data["meaning"]:  # 只有有释义才保存
-                db.add_word(word_data)
+                await run_db_blocking(db.add_word, word_data)
                 results["success"] += 1
                 results["details"].append({
                     "word": word,

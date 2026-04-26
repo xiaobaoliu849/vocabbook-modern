@@ -1,7 +1,9 @@
+import asyncio
 import os
 import httpx
 from datetime import datetime
 from models.database import DatabaseManager
+from services.blocking_io import run_db_blocking
 
 class LimitException(Exception):
     def __init__(self, message: str, required_tier: str):
@@ -94,7 +96,7 @@ class LimitService:
             
         # 3. Check Free Limits
         max_allowed = self.LIMITS.get(feature, 5)
-        current_used = self._reset_if_needed(feature)
+        current_used = await run_db_blocking(self._reset_if_needed, feature)
         
         if current_used >= max_allowed:
             raise LimitException(
@@ -103,7 +105,7 @@ class LimitService:
             )
             
         # 4. Consume
-        self._increment_limit(feature)
+        await run_db_blocking(self._increment_limit, feature)
         return True
 
     def get_remaining(self, feature: str, token: str = None) -> dict:

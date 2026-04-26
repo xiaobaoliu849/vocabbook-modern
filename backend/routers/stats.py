@@ -3,6 +3,8 @@ Statistics API Router
 统计数据
 """
 from fastapi import APIRouter
+from services.blocking_io import run_db_blocking
+from services.request_metrics import request_metrics
 
 router = APIRouter()
 
@@ -16,7 +18,7 @@ def get_db():
 async def get_statistics():
     """获取学习统计信息"""
     db = get_db()
-    stats = db.get_statistics()
+    stats = await run_db_blocking(db.get_statistics)
     
     return {
         "total_words": stats.get("total", 0),
@@ -33,7 +35,7 @@ async def get_statistics():
 async def get_study_time():
     """获取学习时长统计"""
     db = get_db()
-    total_seconds = db.get_total_study_time()
+    total_seconds = await run_db_blocking(db.get_total_study_time)
     
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
@@ -49,7 +51,7 @@ async def get_study_time():
 async def get_progress():
     """获取学习进度"""
     db = get_db()
-    stats = db.get_statistics()
+    stats = await run_db_blocking(db.get_statistics)
     
     total = stats.get("total", 0)
     mastered = stats.get("mastered", 0)
@@ -68,7 +70,7 @@ async def get_progress():
 async def get_heatmap():
     """获取复习热力图数据"""
     db = get_db()
-    data = db.get_review_heatmap_data()
+    data = await run_db_blocking(db.get_review_heatmap_data)
     return {"heatmap": data}
 
 
@@ -76,5 +78,11 @@ async def get_heatmap():
 async def get_words_count():
     """获取单词总数"""
     db = get_db()
-    count = db.get_words_count()
+    count = await run_db_blocking(db.get_words_count)
     return {"count": count}
+
+
+@router.get("/request-timings")
+async def get_request_timings():
+    """Return in-memory request timing stats for p95 analysis."""
+    return request_metrics.snapshot()

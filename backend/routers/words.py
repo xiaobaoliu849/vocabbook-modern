@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from datetime import datetime
 
+from services.blocking_io import run_db_blocking
 from services.multi_dict_service import clean_chinese_text
 
 router = APIRouter()
@@ -109,8 +110,9 @@ async def get_words(
     """获取单词列表，支持分页和筛选"""
     db = get_db()
     offset = (page - 1) * page_size
-    
-    words, total = db.search_words(
+
+    words, total = await run_db_blocking(
+        db.search_words,
         keyword=keyword,
         tag_filter=tag,
         mastered_filter=mastered,
@@ -118,7 +120,7 @@ async def get_words(
         sort_by=sort_by,
         sort_order=sort_order,
         limit=page_size,
-        offset=offset
+        offset=offset,
     )
     
     return WordListResponse(
@@ -133,7 +135,7 @@ async def get_words(
 async def get_all_words():
     """获取所有单词（不分页）"""
     db = get_db()
-    words = db.get_all_words()
+    words = await run_db_blocking(db.get_all_words)
     return {"words": [_clean_word_data(w) for w in words], "total": len(words)}
 
 
@@ -141,7 +143,7 @@ async def get_all_words():
 async def get_all_tags():
     """获取所有标签"""
     db = get_db()
-    tags = db.get_all_tags()
+    tags = await run_db_blocking(db.get_all_tags)
     return {"tags": tags}
 
 
@@ -149,7 +151,7 @@ async def get_all_tags():
 async def get_word(word: str):
     """获取单个单词详情"""
     db = get_db()
-    word_data = db.get_word(word)
+    word_data = await run_db_blocking(db.get_word, word)
     if not word_data:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
     return _clean_word_data(word_data)
@@ -161,7 +163,7 @@ async def add_word(word_data: WordCreate):
     db = get_db()
     
     # Check if word already exists
-    existing = db.get_word(word_data.word)
+    existing = await run_db_blocking(db.get_word, word_data.word)
     if existing:
         raise HTTPException(status_code=409, detail=f"Word '{word_data.word}' already exists")
     
@@ -178,7 +180,7 @@ async def add_word(word_data: WordCreate):
         "date": datetime.now().strftime('%Y-%m-%d')
     }
     
-    db.add_word(data)
+    await run_db_blocking(db.add_word, data)
     return {"message": "Word added successfully", "word": word_data.word}
 
 
@@ -187,7 +189,7 @@ async def update_word(word: str, word_data: WordUpdate):
     """更新单词信息"""
     db = get_db()
     
-    existing = db.get_word(word)
+    existing = await run_db_blocking(db.get_word, word)
     if not existing:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
     
@@ -198,7 +200,7 @@ async def update_word(word: str, word_data: WordUpdate):
             update_dict[field] = value
             
     if update_dict:
-        db.update_word(word, update_dict)
+        await run_db_blocking(db.update_word, word, update_dict)
     
     return {"message": "Word updated successfully", "word": word}
 
@@ -208,11 +210,11 @@ async def delete_word(word: str):
     """删除单词"""
     db = get_db()
     
-    existing = db.get_word(word)
+    existing = await run_db_blocking(db.get_word, word)
     if not existing:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
     
-    db.delete_word(word)
+    await run_db_blocking(db.delete_word, word)
     return {"message": "Word deleted successfully", "word": word}
 
 
@@ -221,9 +223,9 @@ async def mark_mastered(word: str):
     """标记单词为已掌握"""
     db = get_db()
     
-    existing = db.get_word(word)
+    existing = await run_db_blocking(db.get_word, word)
     if not existing:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
     
-    db.mark_word_mastered(word)
+    await run_db_blocking(db.mark_word_mastered, word)
     return {"message": "Word marked as mastered", "word": word}

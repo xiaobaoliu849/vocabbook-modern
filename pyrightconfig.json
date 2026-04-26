@@ -19,7 +19,7 @@
     {
       "root": "backend",
       "extraPaths": [
-        "backend"
+        "."
       ]
     }
   ]
