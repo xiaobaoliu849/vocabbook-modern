@@ -62,8 +62,8 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
     }, [notifyWordAdded, t])
 
     const handleSearch = useCallback(async (overrideWord?: string) => {
-        const wordToSearch = overrideWord || searchWord
-        if (!wordToSearch.trim()) return
+        const wordToSearch = (overrideWord || searchWord).trim()
+        if (!wordToSearch) return
         setIsSearching(true)
         setSearchResult(null)
         setAiSentences([])
@@ -83,7 +83,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             setActiveTab('youdao')
 
             if (autoPlay) {
-                const audioSrc = `https://dict.youdao.com/dictvoice?audio=${data.word}&type=2`;
+                const audioSrc = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(data.word.trim())}&type=2`;
                 const audio = new Audio(audioSrc)
                 audio.play().catch(e => console.error("Auto-play blocked:", e))
             }
@@ -126,7 +126,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             const aiModel = localStorage.getItem('ai_model') || 'qwen-plus'
 
             const data = await api.post(API_PATHS.AI_GENERATE_SENTENCES,
-                { word: searchWord, count: 3 },
+                { word: searchWord.trim(), count: 3 },
                 {
                     headers: {
                         'X-AI-Provider': aiProvider,
@@ -171,7 +171,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             if (matches(e, 'add.playAudio')) {
                 e.preventDefault()
                 if (searchResult && !searchResult.error) {
-                    const audioSrc = `https://dict.youdao.com/dictvoice?audio=${searchResult.word}&type=2`
+                    const audioSrc = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(searchResult.word.trim())}&type=2`
                     const audio = new Audio(audioSrc)
                     audio.play().catch(err => console.warn('Audio play failed:', err))
                 }

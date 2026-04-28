@@ -126,18 +126,18 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
             )}
 
             {/* Cloud Sync Status */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 p-6">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 p-6 opacity-80">
                 <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
-                        <Cloud size={20} className="text-green-600 dark:text-green-400" />
+                    <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center">
+                        <Cloud size={20} className="text-slate-500 dark:text-slate-400" />
                     </div>
                     <div>
                         <h4 className="font-semibold text-slate-800 dark:text-white">{t('settings.account.cloudSync', '云同步')}</h4>
-                        <p className="text-xs text-green-600 dark:text-green-400">{t('settings.account.connected', '已连接')}</p>
+                        <p className="text-xs text-amber-600 dark:text-amber-400">{t('settings.account.comingSoon', '敬请期待')}</p>
                     </div>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {t('settings.account.cloudSyncDesc', '您的生词本数据已自动同步至云端，可在其他设备登录同一账户访问。')}
+                    {t('settings.account.cloudSyncPendingDesc', '多设备生词本云端同步功能正在紧锣密鼓地开发中，未来将为您提供无缝的多端学习体验。')}
                 </p>
             </div>
 

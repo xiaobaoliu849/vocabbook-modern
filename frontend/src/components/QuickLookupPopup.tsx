@@ -262,7 +262,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                 }
             })
             const sourcesParam = enabledDicts.join(',')
-            const data = await api.get(API_PATHS.DICT_SEARCH(text, sourcesParam))
+            const data = await api.get(API_PATHS.DICT_SEARCH(text.trim(), sourcesParam))
             if (cancelled) return null
             setWordData(data)
             if (options?.autoSave !== false) {

@@ -116,88 +116,65 @@ export default function AudioButton({
 
   const doPlay = useCallback(async () => {
     const textToSpeak = getTextToSpeak()
-    if (!textToSpeak) {
-      console.error('No text to speak')
-      return
-    }
+    if (!textToSpeak) return
 
-    // 停止之前的播放
     stopCurrentPlayback()
     setIsPlaying(false)
     setIsLoading(true)
 
-    let url: string
-    if (useTTS || isExample) {
-      url = `${API_BASE_URL}/api/tts/speak?text=${encodeURIComponent(textToSpeak)}`
-    } else if (audioSrc) {
-      url = audioSrc
+    // 按优先级构建音频来源列表
+    const sources: string[] = []
+    if (audioSrc) {
+      // 自定义音频源最优先
+      sources.push(audioSrc)
     } else if (word) {
-      url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=2`
-    } else {
-      setIsLoading(false)
-      return
+      const w = encodeURIComponent(word.trim())
+      // Level 1: 有道词典 US 音（最自然）
+      sources.push(`https://dict.youdao.com/dictvoice?audio=${w}&type=2`)
+      // Level 2: Free Dictionary API 真人录音
+      sources.push(`https://api.dictionaryapi.dev/media/pronunciations/en/${encodeURIComponent(word.toLowerCase())}-us.mp3`)
     }
+    // Level 3: 本地 Edge-TTS（始终可用，高质量合成）
+    sources.push(`${API_BASE_URL}/api/tts/speak?text=${encodeURIComponent(textToSpeak)}`)
+    // Level 4 (fallback): 浏览器 SpeechSynthesis（见下方）
 
-    console.log('Loading audio:', url)
-    const audio = new Audio(url)
-    audioRef.current = audio
-
-    // 关键修复：使用 canplay 事件
-    const handleAudioFailure = () => {
-      audioRef.current = null
-      if ((useTTS || isExample) && speakWithBrowser(textToSpeak)) {
+    const tryPlay = (index: number): void => {
+      if (index >= sources.length) {
+        // Level 4: 浏览器内置TTS兜底
+        if (!speakWithBrowser(textToSpeak)) {
+          setIsLoading(false)
+          setIsPlaying(false)
+        }
         return
       }
 
-      // TTS失败时回退到有道（仅单词场景）
-      if ((useTTS || isExample) && word) {
-        const fallback = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=1`)
-        fallback.onended = () => {
-          setIsPlaying(false)
-          setIsLoading(false)
-        }
-        fallback.onerror = () => {
-          setIsPlaying(false)
-          setIsLoading(false)
-        }
-        fallback.play().then(() => {
-          setIsLoading(false)
-          setIsPlaying(true)
-        }).catch(() => {
-          setIsPlaying(false)
-          setIsLoading(false)
-        })
-        return
+      console.log(`[Audio] Trying source ${index + 1}/${sources.length}:`, sources[index])
+      const audio = new Audio(sources[index])
+      audioRef.current = audio
+
+      audio.oncanplaythrough = () => {
+        setIsLoading(false)
+        audio.play()
+          .then(() => setIsPlaying(true))
+          .catch(() => {
+            audioRef.current = null
+            tryPlay(index + 1)
+          })
+      }
+      audio.onerror = () => {
+        audioRef.current = null
+        tryPlay(index + 1)
+      }
+      audio.onended = () => {
+        setIsPlaying(false)
+        setIsLoading(false)
+        audioRef.current = null
       }
 
-      setIsPlaying(false)
-      setIsLoading(false)
+      audio.load()
     }
 
-    audio.oncanplay = () => {
-      console.log('Audio can play now')
-      setIsLoading(false)
-      audio.play().then(() => {
-        setIsPlaying(true)
-      }).catch((err) => {
-        console.error('Play failed:', err)
-        handleAudioFailure()
-      })
-    }
-
-    audio.onended = () => {
-      setIsPlaying(false)
-      setIsLoading(false)
-      audioRef.current = null
-    }
-
-    audio.onerror = (e) => {
-      console.error('Audio error:', e)
-      handleAudioFailure()
-    }
-
-    // 开始加载
-    audio.load()
+    tryPlay(0)
   }, [getTextToSpeak, audioSrc, word, useTTS, isExample, speakWithBrowser, stopCurrentPlayback])
 
   // Track previous word/text to detect actual content changes

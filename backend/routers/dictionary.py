@@ -29,13 +29,14 @@ async def search_word(word: str, sources: Optional[str] = None):
     sources: comma separated list of enabled dicts (e.g. "youdao,cambridge,bing")
     """
     from services.dict_service import DictService
-    
+
+    trimmed = word.strip()
     source_list = sources.split(",") if sources else None
-    
-    result = await run_io_blocking(DictService.search_word, word, source_list)
+
+    result = await run_io_blocking(DictService.search_word, trimmed, source_list)
     if not result:
-        raise HTTPException(status_code=404, detail=f"Word '{word}' not found in dictionary")
-    
+        raise HTTPException(status_code=404, detail=f"Word '{trimmed}' not found in dictionary")
+
     return result
 
 
@@ -51,16 +52,19 @@ async def translate_text(request: TranslateRequest):
     return {"original": request.text, "translation": result}
 
 
+from urllib.parse import quote
+
+
 @router.get("/audio/{word}")
 async def get_audio_url(word: str, accent: str = Query("us", pattern="^(us|uk)$")):
     """获取单词发音 URL"""
-    # Youdao audio URL pattern
+    trimmed = word.strip()
     if accent == "uk":
-        url = f"https://dict.youdao.com/dictvoice?audio={word}&type=1"
+        url = f"https://dict.youdao.com/dictvoice?audio={quote(trimmed)}&type=1"
     else:
-        url = f"https://dict.youdao.com/dictvoice?audio={word}&type=2"
-    
-    return {"word": word, "accent": accent, "audio_url": url}
+        url = f"https://dict.youdao.com/dictvoice?audio={quote(trimmed)}&type=2"
+
+    return {"word": trimmed, "accent": accent, "audio_url": url}
 
 
 @router.get("/family/{word}")

@@ -4,7 +4,7 @@ Words API Router
 """
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 
 from services.blocking_io import run_db_blocking
@@ -24,6 +24,11 @@ class WordCreate(BaseModel):
     tags: str = ""
     roots: str = ""
     synonyms: str = ""
+
+    @field_validator('word')
+    @classmethod
+    def strip_word(cls, v: str) -> str:
+        return v.strip()
 
 
 class WordUpdate(BaseModel):

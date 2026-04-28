@@ -165,13 +165,6 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             const target = e.target as HTMLElement
             const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
 
-            // Focus search with / (when not in input)
-            if (matches(e, 'list.focusSearch') && !isInput) {
-                e.preventDefault()
-                searchInputRef.current?.focus()
-                return
-            }
-
             // Escape blurs search input
             if (matches(e, 'common.closeDialog') && isInput) {
                 (target as HTMLInputElement).blur()
@@ -180,6 +173,16 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
             // Other keyboard shortcuts only work when not in input
             if (isInput) return
+
+            // If the detail modal is open, let it handle the keyboard events
+            if (selectedWord) return
+
+            // Focus search with / (when not in input)
+            if (matches(e, 'list.focusSearch') && !isInput) {
+                e.preventDefault()
+                searchInputRef.current?.focus()
+                return
+            }
 
             // Arrow navigation
             if (matches(e, 'list.selectNext')) {
@@ -231,7 +234,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                     e.preventDefault()
                     const word = words[selectedIndex]
                     const accent = (localStorage.getItem('preferred_accent') || 'us') === 'uk' ? '1' : '2'
-                    const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${word.word}&type=${accent}`)
+                    const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word.word.trim())}&type=${accent}`)
                     audio.play().catch(err => console.warn('Audio play failed:', err))
                 }
             } else if (matches(e, 'list.previousPage')) {
@@ -249,7 +252,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [getDeleteConfirmMessage, handleDelete, handleMarkMastered, isActive, isFetching, matches, notifyWordDeleted, notifyWordUpdated, scrollToSelected, selectedIndex, totalPages, words])
+    }, [getDeleteConfirmMessage, handleDelete, handleMarkMastered, isActive, isFetching, matches, notifyWordDeleted, notifyWordUpdated, scrollToSelected, selectedIndex, selectedWord, totalPages, words])
 
     // Reset selection and page when filters change
     useEffect(() => {
@@ -397,6 +400,14 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                 <WordDetailModal
                     word={selectedWord}
                     onClose={() => setSelectedWord(null)}
+                    onPrevious={selectedIndex > 0 ? () => {
+                        setSelectedIndex(selectedIndex - 1)
+                        setSelectedWord(words[selectedIndex - 1])
+                    } : undefined}
+                    onNext={selectedIndex < words.length - 1 ? () => {
+                        setSelectedIndex(selectedIndex + 1)
+                        setSelectedWord(words[selectedIndex + 1])
+                    } : undefined}
                 />
             )}
 

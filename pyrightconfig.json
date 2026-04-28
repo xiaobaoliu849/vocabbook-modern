@@ -1,26 +1,24 @@
 {
   "venvPath": ".",
-  "venv": ".venv",
+  "venv": ".venv-win",
   "include": [
-    "backend"
+    "backend",
+    "cloud_server"
+  ],
+  "extraPaths": [
+    "backend",
+    "cloud_server",
+    ".venv-win/Lib/site-packages"
   ],
   "exclude": [
     "**/__pycache__",
     ".venv",
+    ".venv-win",
     "backend/build",
     "backend/dist",
     "backend/venv-build",
-    "cloud_server",
     "electron/dist",
     "electron/node_modules",
     "frontend/node_modules"
-  ],
-  "executionEnvironments": [
-    {
-      "root": "backend",
-      "extraPaths": [
-        "."
-      ]
-    }
   ]
 }
