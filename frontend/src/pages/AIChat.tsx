@@ -106,6 +106,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    const messagesContainerRef = useRef<HTMLDivElement>(null)
+    const isNearBottomRef = useRef(true)
     const wasActiveRef = useRef(false)
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
@@ -176,8 +178,16 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
     }, [])
 
-    const scrollToBottom = useCallback((instant: boolean = false) => {
+    const scrollToBottom = useCallback((instant: boolean = false, force: boolean = false) => {
+        if (!force && !isNearBottomRef.current) return
         messagesEndRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' })
+    }, [])
+
+    const handleMessagesScroll = useCallback(() => {
+        const el = messagesContainerRef.current
+        if (!el) return
+        const threshold = 120
+        isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
     }, [])
 
     const createNewSession = useCallback(() => {
@@ -350,7 +360,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const activeMessageCount = sessions.find(s => s.id === activeSessionId)?.messages.length ?? 0
 
     useEffect(() => {
-        scrollToBottom()
+        scrollToBottom(false, true)
     }, [activeMessageCount, activeSessionId, scrollToBottom])
 
     // Auto-hide memory toast
@@ -740,6 +750,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         setInput('')
         setPendingImages([])
         setLoading(true)
+        isNearBottomRef.current = true
 
         try {
             const history = messages.slice(-10).map(m => ({
@@ -1507,7 +1518,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 </div>
 
                 {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar scroll-smooth bg-slate-50/60 dark:bg-slate-900/30">
+                <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar scroll-smooth bg-slate-50/60 dark:bg-slate-900/30">
                     {messages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center">
                             <div className="relative mb-8">
@@ -1565,16 +1576,16 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                                     <button
                                                         type="button"
                                                         onClick={() => setExpandedReasoning(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))}
-                                                        className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-primary-100/60 dark:hover:bg-primary-800/20 transition-colors"
+                                                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-primary-100/60 dark:hover:bg-primary-800/20 transition-colors"
                                                     >
-                                                        <span className="flex items-center gap-2 text-primary-700 dark:text-primary-300 text-sm font-semibold">
+                                                        <span className="flex items-center gap-2 min-w-0 text-primary-700 dark:text-primary-300 text-sm font-semibold truncate">
                                                             <ChevronRight
                                                                 size={15}
-                                                                className={`transition-transform duration-200 ${expandedReasoning[msg.id] ? 'rotate-90' : ''}`}
+                                                                className={`shrink-0 transition-transform duration-200 ${expandedReasoning[msg.id] ? 'rotate-90' : ''}`}
                                                             />
-                                                            {t('chat.reasoning.title')}
+                                                            <span className="truncate">{t('chat.reasoning.title')}</span>
                                                         </span>
-                                                        <span className="text-[11px] text-primary-500/90 dark:text-primary-300/80">
+                                                        <span className="shrink-0 text-[11px] text-primary-500/90 dark:text-primary-300/80">
                                                             {expandedReasoning[msg.id] ? t('chat.reasoning.collapse') : t('chat.reasoning.expand')}
                                                         </span>
                                                     </button>

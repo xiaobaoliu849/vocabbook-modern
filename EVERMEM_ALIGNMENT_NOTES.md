@@ -2,14 +2,19 @@
 
 This document captures the main pitfalls we hit while integrating EverMem long-term memory recall into the chat flow, and the concrete alignments required to make recall work reliably.
 
+> **v1 Migration (2026-05-13):** Migrated from deprecated v0 API to v1.
+> SDK package renamed `evermemos` → `everos`. All endpoints moved from `/api/v0/` to `/api/v1/`.
+> Search and Get changed from GET to POST with filters DSL. Flush is now a separate endpoint.
+> `retrieve_method` parameter renamed to `method` ("rrf" mapped to "hybrid").
+> See `evermem_service.py` for the updated implementation.
+
 ## Official API References
 
-- Introduction: `https://docs.evermind.ai/api-reference/introduction`
-- Add memories: `https://docs.evermind.ai/api-reference/core-memory-operation/add-memories`
-- Search memories: `https://docs.evermind.ai/api-reference/core-memory-operation/search-memories`
-- Get memories: `https://docs.evermind.ai/api-reference/core-memory-operation/get-memories`
-- Delete memories: `https://docs.evermind.ai/api-reference/core-memory-operation/delete-memories`
-- Memory types: `https://docs.evermind.ai/api-reference/memory-types`
+- Introduction: `https://docs.evermind.ai/introduction`
+- Full API reference: `https://docs.evermind.ai/llms-full.txt`
+- Changelog: `https://docs.evermind.ai/changelog`
+- v1 Memories API: `POST /api/v1/memories`, `/search`, `/get`, `/flush`
+- v1 Group API: `POST /api/v1/memories/group`, `/group/flush`
 
 ## What Finally Worked
 

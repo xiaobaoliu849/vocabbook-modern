@@ -609,6 +609,26 @@ async def get_memory_overview(
     return response
 
 
+@router.get("/evermem-settings")
+async def get_evermem_settings(
+    x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    authorization: Optional[str] = Header(None),
+):
+    """Fetch current EverMemOS memory space settings."""
+    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+        authorization=authorization,
+        x_evermem_enabled=x_evermem_enabled,
+        x_evermem_url=x_evermem_url,
+        x_evermem_key=x_evermem_key,
+    )
+    if not evermem_enabled or not service:
+        return {"error": "EverMemOS not enabled"}
+    settings = await service.get_settings()
+    return {"settings": settings}
+
+
 @router.post("/test-connection")
 async def test_connection(
     x_ai_provider: Optional[str] = Header(None, alias="X-AI-Provider"),

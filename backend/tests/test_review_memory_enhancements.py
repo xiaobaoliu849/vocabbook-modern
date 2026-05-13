@@ -267,7 +267,7 @@ def test_evermem_requires_bearer_auth_for_chat_and_review():
 
 def test_evermem_key_not_persisted_to_disk(monkeypatch, tmp_path):
     if evermem_config is None:
-        pytest.skip("evermemos dependency not installed in current environment")
+        pytest.skip("everos dependency not installed in current environment")
 
     config_path = tmp_path / "evermem_config.json"
 
