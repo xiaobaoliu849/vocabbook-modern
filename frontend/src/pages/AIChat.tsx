@@ -1202,13 +1202,13 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             </div>
 
             {/* Main Chat Area */}
-            <div className="flex-1 flex flex-col min-w-0 bg-transparent relative">
+            <div className="flex-1 flex flex-col min-w-0 bg-slate-50/30 dark:bg-slate-900/20 relative">
                 {/* Header */}
-                <div className="flex-none h-16 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 bg-white/92 dark:bg-slate-900/92 backdrop-blur-xl sticky top-0 z-10">
-                    <div className="flex items-center gap-3">
+                <div className="flex-none h-[72px] border-b border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between px-6 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl sticky top-0 z-10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] dark:shadow-none">
+                    <div className="flex items-center gap-4">
                         <button
                             onClick={() => setSidebarOpen(!sidebarOpen)}
-                            className="p-2 -ml-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            className="p-2 -ml-2 text-slate-400 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"
                             title={sidebarOpen ? t('chat.actions.collapseHistory') : t('chat.actions.expandHistory')}
                         >
                             <Menu size={20} />
@@ -1261,7 +1261,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         )}
                         <button
                             onClick={createNewSession}
-                            className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-semibold rounded-xl transition-all shadow-md shadow-primary-500/30 hover:shadow-lg hover:shadow-primary-500/40 hover:scale-[1.02] active:scale-[0.98]"
+                            className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 font-semibold rounded-[14px] transition-all shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_12px_rgba(255,255,255,0.1)] hover:scale-[1.02] active:scale-[0.98]"
                             title={t('chat.actions.newChatTitle')}
                         >
                             <Plus size={16} />
@@ -1518,17 +1518,23 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 </div>
 
                 {/* Messages Area */}
-                <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar scroll-smooth bg-slate-50/60 dark:bg-slate-900/30">
+                <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8 custom-scrollbar scroll-smooth bg-amber-50/10 dark:bg-slate-900/30">
                     {messages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center">
-                            <div className="relative mb-8">
-                                <div className="absolute -inset-6 bg-gradient-to-br from-primary-100/45 to-slate-200/30 dark:from-primary-900/20 dark:to-slate-800/20 rounded-full blur-2xl" />
-                                <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 dark:from-primary-500 dark:to-primary-700 flex items-center justify-center shadow-lg shadow-primary-500/30">
-                                    <Sparkles size={36} className="text-white drop-shadow-sm" />
+                            <div className="relative mb-10 group cursor-default">
+                                <div className="absolute -inset-12 bg-gradient-to-br from-amber-300/40 via-rose-400/30 to-purple-500/40 dark:from-amber-600/20 dark:via-rose-700/20 dark:to-purple-800/20 rounded-full blur-3xl opacity-60 group-hover:opacity-100 transition-opacity duration-700 animate-pulse-slow" />
+                                <div className="relative w-24 h-24 rounded-[2rem] bg-gradient-to-br from-amber-400 via-rose-500 to-purple-600 p-[2px] shadow-2xl shadow-rose-500/20">
+                                    <div className="w-full h-full rounded-[1.9rem] bg-white/10 backdrop-blur-md flex items-center justify-center">
+                                        <Sparkles size={36} className="text-white drop-shadow-md" />
+                                    </div>
                                 </div>
                             </div>
-                            <p className="text-lg font-bold text-slate-900 dark:text-white mb-1 tracking-tight">{t('chat.empty.title')}</p>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">{t('chat.empty.subtitle')}</p>
+                            <h3 className="text-3xl font-extrabold bg-gradient-to-br from-slate-800 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent mb-3 tracking-tight">
+                                {t('chat.empty.title')}
+                            </h3>
+                            <p className="text-[15px] text-slate-500/90 dark:text-slate-400 font-medium">
+                                {t('chat.empty.subtitle')}
+                            </p>
                         </div>
                     )}
 
@@ -1538,16 +1544,16 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                             className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
                         >
                             {msg.role === 'assistant' && (
-                                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-primary-400 to-primary-600 text-white shadow-lg shadow-primary-500/30 ring-2 ring-primary-200/50 dark:ring-primary-700/30">
-                                    <Sparkles size={18} />
+                                <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-amber-400 via-rose-500 to-purple-600 text-white shadow-md shadow-rose-500/20 ring-2 ring-white/50 dark:ring-slate-800/50">
+                                    <Sparkles size={18} className="drop-shadow-sm" />
                                 </div>
                             )}
 
                             <div className={`flex flex-col gap-1.5 max-w-[85%] md:max-w-[75%]`}>
-                                <div className={`rounded-2xl px-5 py-3.5 shadow-sm text-[16.5px] leading-[1.75] whitespace-pre-wrap relative
+                                <div className={`px-5 py-3.5 text-[15.5px] leading-[1.7] whitespace-pre-wrap relative transition-all
                                     ${msg.role === 'user'
-                                        ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white rounded-tr-sm shadow-md shadow-primary-500/25'
-                                        : 'bg-white dark:bg-slate-800/94 text-slate-800 dark:text-slate-200 rounded-tl-sm border border-slate-200 dark:border-slate-700/70 shadow-sm shadow-slate-300/10 dark:shadow-slate-950/20'
+                                        ? 'bg-gradient-to-br from-slate-800 to-slate-900 dark:from-slate-100 dark:to-slate-200 text-white dark:text-slate-900 rounded-[24px] rounded-tr-[6px] shadow-md shadow-slate-900/10'
+                                        : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl text-slate-800 dark:text-slate-200 rounded-[24px] rounded-tl-[6px] border border-slate-100/50 dark:border-slate-700/50 shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.2)]'
                                     }`}
                                 >
                                     {msg.attachments && msg.attachments.length > 0 && (
@@ -1653,104 +1659,107 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                     <div ref={messagesEndRef} className="h-4" />
                 </div>
 
-                {/* Input Area */}
-                <div className="flex-none p-4 bg-white/92 dark:bg-slate-900/88 backdrop-blur-xl border-t border-slate-200 dark:border-slate-700/70">
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={handleImageSelect}
-                    />
-                    <div
-                        className={`max-w-4xl mx-auto bg-white dark:bg-slate-800 rounded-2xl shadow-sm shadow-slate-300/15 dark:shadow-slate-950/20 border p-2 relative focus-within:ring-2 focus-within:ring-primary-400/25 focus-within:border-primary-300/70 transition-all cursor-text ${isDragOverComposer ? 'border-primary-300 bg-primary-50/40 dark:border-primary-700 dark:bg-primary-900/10' : 'border-slate-200 dark:border-slate-700'}`}
-                        onClick={() => inputRef.current?.focus()}
-                        onDragOver={(event) => {
-                            event.preventDefault()
-                            setIsDragOverComposer(true)
-                        }}
-                        onDragEnter={(event) => {
-                            event.preventDefault()
-                            setIsDragOverComposer(true)
-                        }}
-                        onDragLeave={(event) => {
-                            if (event.currentTarget.contains(event.relatedTarget as Node)) return
-                            setIsDragOverComposer(false)
-                        }}
-                        onDrop={handleComposerDrop}
-                    >
-                        {pendingImages.length > 0 && (
-                            <div className="px-2 pt-2 pb-1">
-                                <div className="flex flex-wrap gap-2">
-                                    {pendingImages.map(attachment => (
-                                        <div
-                                            key={attachment.id}
-                                            className="group relative w-20 h-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-                                        >
-                                            <img
-                                                src={attachment.dataUrl}
-                                                alt={attachment.name}
-                                                className="h-full w-full object-cover"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    removePendingImage(attachment.id)
-                                                }}
-                                                className="absolute top-1 right-1 rounded-full bg-slate-900/65 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                                                title={t('chat.attachments.removeImage')}
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                        <div className="flex gap-3 items-end">
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    fileInputRef.current?.click()
-                                }}
-                                className="mb-0.5 ml-0.5 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-600 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300"
-                                title={t('chat.attachments.attachImage')}
-                            >
-                                <Paperclip size={18} />
-                            </button>
-                        <textarea
-                            ref={inputRef}
-                            autoFocus
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onPaste={handleComposerPaste}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault()
-                                    handleSend()
-                                }
-                            }}
-                            placeholder={t('chat.input.placeholder')}
-                            className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 p-3 max-h-48 min-h-[52px] resize-none text-[15px] text-slate-800 dark:text-white placeholder-slate-400 custom-scrollbar"
-                            rows={1}
+                {/* Slim & Elegant Input Area */}
+                <div className="flex-none px-4 pb-6 pt-2 bg-transparent relative z-20">
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-50 dark:from-slate-900 via-slate-50/80 dark:via-slate-900/80 to-transparent pointer-events-none" />
+                    <div className="relative max-w-3xl mx-auto">
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={handleImageSelect}
                         />
-                        <button
-                            onClick={handleSend}
-                            disabled={(!input.trim() && pendingImages.length === 0) || loading || !activeSessionId || !isInitialized}
-                            className="p-3.5 mb-0.5 mr-0.5 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 active:from-primary-700 active:to-primary-800 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-all flex-shrink-0 shadow-lg shadow-primary-500/30 hover:shadow-primary-500/40 hover:scale-105 active:scale-95"
+                        <div
+                            className={`bg-white/95 dark:bg-slate-800/95 backdrop-blur-2xl rounded-full shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.4)] border border-slate-200/50 dark:border-slate-700/50 p-1.5 flex flex-col relative focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-300/50 transition-all cursor-text ${isDragOverComposer ? 'ring-2 ring-rose-500/30 bg-rose-50/50 dark:bg-rose-900/20' : ''}`}
+                            onClick={() => inputRef.current?.focus()}
+                            onDragOver={(event) => {
+                                event.preventDefault()
+                                setIsDragOverComposer(true)
+                            }}
+                            onDragEnter={(event) => {
+                                event.preventDefault()
+                                setIsDragOverComposer(true)
+                            }}
+                            onDragLeave={(event) => {
+                                if (event.currentTarget.contains(event.relatedTarget as Node)) return
+                                setIsDragOverComposer(false)
+                            }}
+                            onDrop={handleComposerDrop}
                         >
-                            {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={18} className="translate-x-[1px] -translate-y-[1px]" />}
-                        </button>
+                            {pendingImages.length > 0 && (
+                                <div className="px-3 pt-2 pb-1">
+                                    <div className="flex flex-wrap gap-2">
+                                        {pendingImages.map(attachment => (
+                                            <div
+                                                key={attachment.id}
+                                                className="group relative w-14 h-14 overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm"
+                                            >
+                                                <img
+                                                    src={attachment.dataUrl}
+                                                    alt={attachment.name}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        removePendingImage(attachment.id)
+                                                    }}
+                                                    className="absolute top-1 right-1 rounded-full bg-slate-900/70 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                                    title={t('chat.attachments.removeImage')}
+                                                >
+                                                    <X size={10} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-2 w-full">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        fileInputRef.current?.click()
+                                    }}
+                                    className="ml-1 flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                                    title={t('chat.attachments.attachImage')}
+                                >
+                                    <Paperclip size={18} />
+                                </button>
+                                <textarea
+                                    ref={inputRef}
+                                    autoFocus
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onPaste={handleComposerPaste}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault()
+                                            handleSend()
+                                        }
+                                    }}
+                                    placeholder={t('chat.input.placeholder')}
+                                    className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 px-1 py-[10px] max-h-32 min-h-[40px] resize-none text-[15px] text-slate-800 dark:text-white placeholder-slate-400 font-medium custom-scrollbar"
+                                    rows={1}
+                                />
+                                <button
+                                    onClick={handleSend}
+                                    disabled={(!input.trim() && pendingImages.length === 0) || loading || !activeSessionId || !isInitialized}
+                                    className="mr-1 flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-rose-500 disabled:from-slate-200 disabled:to-slate-200 dark:disabled:from-slate-700 dark:disabled:to-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500 text-white transition-all shadow-md shadow-rose-500/20 disabled:shadow-none hover:scale-105 active:scale-95 disabled:hover:scale-100"
+                                >
+                                    {loading ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin opacity-50" /> : <Send size={16} className="translate-x-[1px] -translate-y-[1px]" />}
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <div className="text-center mt-2.5">
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                            {t('chat.attachments.hint')} <span className="opacity-60">•</span>{' '}
-                            {t('chat.disclaimer')}
-                        </span>
+                        <div className="text-center mt-2.5 relative z-10">
+                            <span className="text-[10px] font-medium text-slate-400/80 dark:text-slate-500">
+                                {t('chat.attachments.hint')} <span className="opacity-40 px-1">•</span>{' '}
+                                {t('chat.disclaimer')}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
