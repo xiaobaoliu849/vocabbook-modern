@@ -330,7 +330,15 @@
       "count": "{{count}} 条记录",
       "emptySession": "还没有消息",
       "imageMessage": "{{count}} 张图片",
-      "yesterday": "昨天"
+      "yesterday": "昨天",
+      "searchPlaceholder": "搜索历史对话...",
+      "groups": {
+        "today": "今天",
+        "yesterday": "昨天",
+        "previous7Days": "过去 7 天",
+        "previous30Days": "过去 30 天",
+        "older": "更早"
+      }
     },
     "header": {
       "title": "AI 语伴",
@@ -343,8 +351,8 @@
       "clearAllSessions": "确定要删除全部对话记录吗？此操作无法撤销。"
     },
     "empty": {
-      "title": "开始和 AI 练习英语对话吧！",
-      "subtitle": "发送消息，和 AI 进行英语口语练习",
+      "title": "言语相伴，深度思考",
+      "subtitle": "开启你的英文沉浸式口语练习",
       "memoryTitle": "EverMemOS 记忆引擎已激活",
       "memoryDesc": "AI 会自动记忆关键内容，赋予每次对话延续性"
     },

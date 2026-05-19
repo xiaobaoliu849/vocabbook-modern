@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 function getDefaultModel(provider: string) {
     switch (provider) {
-        case 'dashscope': return 'qwen3.5-flash' // Latest Qwen native multimodal high-speed model
+        case 'dashscope': return 'qwen-flash-latest' // Latest Qwen native multimodal high-speed model
         case 'openai': return 'gpt-4o-mini'
         case 'anthropic': return 'claude-4.5-sonnet'
         case 'gemini': return 'gemini-1.5-flash'
@@ -17,7 +17,7 @@ export default function AISection() {
     const { t } = useTranslation()
     const [aiProvider, setAiProvider] = useState('dashscope')
     const [aiApiKey, setAiApiKey] = useState('')
-    const [aiModel, setAiModel] = useState('qwen3.5-flash')
+    const [aiModel, setAiModel] = useState('qwen-flash-latest')
     const [showApiKey, setShowApiKey] = useState(false)
     const [isTesting, setIsTesting] = useState(false)
     const [testResult, setTestResult] = useState<{ success: boolean; message: string; details?: string } | null>(null)
@@ -93,11 +93,11 @@ export default function AISection() {
         setApiKeys(keysMap)
 
         let loadedModel = modelsMap[provider] || getDefaultModel(provider)
-        // Auto-migrate qwen-plus to qwen3.5-flash once if user hasn't explicitly saved after this update
-        if (provider === 'dashscope' && loadedModel === 'qwen-plus' && !localStorage.getItem('qwen_flash_migrated')) {
-            loadedModel = 'qwen3.5-flash'
+        // Auto-migrate legacy models to qwen-flash-latest once if user hasn't explicitly saved after this update
+        if (provider === 'dashscope' && (loadedModel === 'qwen-plus' || loadedModel === 'qwen3.5-flash') && !localStorage.getItem('qwen_flash_latest_migrated')) {
+            loadedModel = 'qwen-flash-latest'
             modelsMap[provider] = loadedModel
-            localStorage.setItem('qwen_flash_migrated', 'true')
+            localStorage.setItem('qwen_flash_latest_migrated', 'true')
             localStorage.setItem('ai_models_map', JSON.stringify(modelsMap))
             localStorage.setItem('ai_model', loadedModel)
         }

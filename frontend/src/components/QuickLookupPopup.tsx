@@ -36,7 +36,7 @@ function getAiSettings() {
     } catch {
         // ignore malformed config
     }
-    if (!model) model = localStorage.getItem('ai_model') || 'qwen3.5-flash'
+    if (!model) model = localStorage.getItem('ai_model') || 'qwen-flash-latest'
 
     let apiBase = ''
     try {

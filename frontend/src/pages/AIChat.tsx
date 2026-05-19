@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages } from 'lucide-react'
+import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages, RotateCw, Search } from 'lucide-react'
 import { API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import EvermemLogo from '../assets/evermind-powered.svg'
@@ -109,7 +109,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const messagesContainerRef = useRef<HTMLDivElement>(null)
     const isNearBottomRef = useRef(true)
     const wasActiveRef = useRef(false)
-    const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true)
+    const [searchQuery, setSearchQuery] = useState('')
     const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
     const [editingTitle, setEditingTitle] = useState('')
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -174,7 +175,18 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 // Ignore malformed saved model config.
             }
         }
-        setModel(modelsMap[currentProvider] || localStorage.getItem('ai_model') || '')
+        let activeModel = modelsMap[currentProvider] || localStorage.getItem('ai_model') || ''
+
+        // Auto-migrate legacy models to qwen-flash-latest immediately on load
+        if (currentProvider === 'dashscope' && (activeModel === 'qwen-plus' || activeModel === 'qwen3.5-flash' || !activeModel) && !localStorage.getItem('qwen_flash_latest_migrated')) {
+            activeModel = 'qwen-flash-latest'
+            modelsMap[currentProvider] = activeModel
+            localStorage.setItem('qwen_flash_latest_migrated', 'true')
+            localStorage.setItem('ai_models_map', JSON.stringify(modelsMap))
+            localStorage.setItem('ai_model', activeModel)
+        }
+
+        setModel(activeModel)
         setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
     }, [])
 
@@ -295,8 +307,24 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             if (cancelled) return
 
             if (loadedSessions.length > 0) {
-                setSessions(loadedSessions)
-                setActiveSessionId(loadedSessions[0].id)
+                // If the most recent session is already used, auto-create a clean new session
+                const mostRecent = loadedSessions[0]
+                if (mostRecent && mostRecent.messages.length > 0) {
+                    const newSession: ChatSession = {
+                        id: buildScopedSessionId(chatScope),
+                        title: DEFAULT_NEW_CHAT_TITLE,
+                        messages: [],
+                        updatedAt: Date.now(),
+                        createdAt: Date.now()
+                    }
+                    loadedSessions.unshift(newSession)
+                    setSessions(loadedSessions)
+                    setActiveSessionId(newSession.id)
+                    scheduleSessionSync(newSession)
+                } else {
+                    setSessions(loadedSessions)
+                    setActiveSessionId(mostRecent.id)
+                }
 
                 // Sync to DB if we loaded from LocalStorage fallback
                 if (loadedFromFallback) {
@@ -331,7 +359,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         }
     }, [chatScope, isActive, loadConfig, scrollToBottom, token])
 
-    // Entering AI chat starts a fresh session for the current account scope.
+    // Entering AI chat ensures at least one session exists, but doesn't force a new one if they have history.
     useEffect(() => {
         if (!isActive) {
             wasActiveRef.current = false
@@ -340,11 +368,10 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         if (!isInitialized || wasActiveRef.current) return
         wasActiveRef.current = true
 
-        const active = sessions.find(s => s.id === activeSessionId)
-        if (!active || active.messages.length > 0) {
+        if (sessions.length === 0) {
             createNewSession()
         }
-    }, [activeSessionId, createNewSession, isActive, isInitialized, sessions])
+    }, [createNewSession, isActive, isInitialized, sessions.length])
 
     useEffect(() => {
         if (!isInitialized) return
@@ -577,11 +604,6 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         return request
     }, [evermemEnabled, getApiHeaders, memoryOverview, t])
 
-    const activeSession = sessions.find(s => s.id === activeSessionId)
-    const messages = activeSession?.messages || []
-    const sortedSessions = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)
-    const weakWords = memoryOverview?.review_focus?.weak_words || []
-    const canStartWeakWordPractice = weakWords.length > 0
     const getDisplaySessionTitle = (title: string) => {
         if (isDefaultNewChatTitle(title)) return t('chat.session.newChat')
         if (title === LEGACY_MIGRATED_CHAT_TITLE) return t('chat.session.migratedChat')
@@ -604,6 +626,50 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         }
         return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
     }
+
+    const activeSession = sessions.find(s => s.id === activeSessionId)
+    const messages = activeSession?.messages || []
+
+    const filteredSessions = useMemo(() => {
+        if (!searchQuery.trim()) return sessions
+        const q = searchQuery.toLowerCase()
+        return sessions.filter(s =>
+            getDisplaySessionTitle(s.title).toLowerCase().includes(q) ||
+            s.messages.some(m => m.content.toLowerCase().includes(q))
+        )
+    }, [sessions, searchQuery, t])
+
+    const groupedSessions = useMemo(() => {
+        const sorted = [...filteredSessions].sort((a, b) => b.updatedAt - a.updatedAt)
+        const groups: Record<string, ChatSession[]> = {
+            today: [],
+            yesterday: [],
+            previous7Days: [],
+            previous30Days: [],
+            older: []
+        }
+
+        const now = new Date()
+        now.setHours(0, 0, 0, 0)
+        const todayTimestamp = now.getTime()
+        const yesterdayTimestamp = todayTimestamp - 24 * 60 * 60 * 1000
+        const sevenDaysTimestamp = todayTimestamp - 7 * 24 * 60 * 60 * 1000
+        const thirtyDaysTimestamp = todayTimestamp - 30 * 24 * 60 * 60 * 1000
+
+        sorted.forEach(session => {
+            const time = session.updatedAt
+            if (time >= todayTimestamp) groups.today.push(session)
+            else if (time >= yesterdayTimestamp) groups.yesterday.push(session)
+            else if (time >= sevenDaysTimestamp) groups.previous7Days.push(session)
+            else if (time >= thirtyDaysTimestamp) groups.previous30Days.push(session)
+            else groups.older.push(session)
+        })
+
+        return groups
+    }, [filteredSessions])
+
+    const weakWords = memoryOverview?.review_focus?.weak_words || []
+    const canStartWeakWordPractice = weakWords.length > 0
 
     const getSessionPreview = (session: ChatSession) => {
         const lastMessage = [...session.messages].reverse().find(message => {
@@ -1016,12 +1082,6 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         }
     }
 
-    const providerLabel = provider === 'openai' ? 'OpenAI' :
-        provider === 'anthropic' ? 'Claude' :
-            provider === 'dashscope' ? t('chat.providers.dashscope') :
-                provider === 'gemini' ? 'Gemini' :
-                    provider === 'ollama' ? 'Ollama' : provider
-
     useEffect(() => {
         if (!memoryPanelOpen) return
         const now = Date.now()
@@ -1075,127 +1135,157 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     }
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg shadow-slate-300/20 dark:shadow-slate-950/30">
-            {/* Global Sidebar Overlay */}
-            <div
-                className={`absolute inset-0 z-40 bg-slate-900/20 dark:bg-slate-900/50 backdrop-blur-[2px] transition-opacity duration-300 ${sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-                    }`}
-                style={{ display: sidebarOpen ? 'block' : 'none' }}
-                onClick={() => setSidebarOpen(false)}
-            />
+        <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative rounded-3xl overflow-hidden border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/50 shadow-2xl shadow-slate-200/40 dark:shadow-black/40">
+            {/* Immersive Animated Background */}
+            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+                <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-rose-400/10 dark:bg-rose-900/10 blur-[120px] animate-pulse-slow" />
+                <div className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] rounded-full bg-indigo-400/10 dark:bg-indigo-900/10 blur-[120px] animate-pulse-slow" style={{ animationDelay: '3s' }} />
+                <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] rounded-full bg-amber-400/10 dark:bg-amber-900/5 blur-[100px] animate-pulse-slow" style={{ animationDelay: '5s' }} />
+            </div>
+
+            {/* Global Sidebar Overlay (Mobile only) */}
+            {/* Global Sidebar Overlay (Click outside/blank space to close) */}
+            {sidebarOpen && (
+                <div
+                    className="absolute inset-0 z-40 bg-slate-900/15 dark:bg-slate-900/40 backdrop-blur-[1px] lg:bg-transparent lg:backdrop-blur-none transition-opacity duration-300 opacity-100 pointer-events-auto cursor-pointer"
+                    onClick={() => setSidebarOpen(false)}
+                />
+            )}
 
             {/* Sidebar Drawer */}
             <div className={`
-                absolute inset-y-0 left-0 z-50
-                w-72 bg-white/96 dark:bg-slate-800/96 backdrop-blur-xl border-r border-slate-200/80 dark:border-slate-700/60 flex flex-col shadow-[4px_0_24px_rgba(15,23,42,0.06)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.4)]
-                transition-transform duration-300 ease-out
-                ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+                absolute lg:relative inset-y-0 left-0 z-50
+                bg-white/40 dark:bg-slate-900/40 backdrop-blur-3xl flex flex-col shadow-2xl lg:shadow-none transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden
+                ${sidebarOpen 
+                    ? 'translate-x-0 w-72 lg:w-72 opacity-100 lg:opacity-100 border-r border-white/20 dark:border-slate-800/20 lg:border-r lg:border-white/20 lg:dark:border-slate-800/20' 
+                    : '-translate-x-full lg:translate-x-0 lg:w-0 lg:opacity-0 lg:border-none'
+                }
             `}>
-                <div className="flex-none border-b border-slate-200/80 dark:border-slate-700/60 px-4 py-4 bg-slate-50/70 dark:bg-slate-900/30">
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                {t('chat.sidebar.title')}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                {t('chat.sidebar.count', { count: sortedSessions.length })}
-                            </p>
-                        </div>
+                <div className="flex-none px-6 pt-8 pb-4">
+                    <div className="flex items-center justify-between gap-3 mb-6">
+                        <p className="text-[10px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.2em]">
+                            {t('chat.sidebar.title')}
+                        </p>
                         <button
                             onClick={createNewSession}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm shadow-primary-500/25 transition-colors hover:bg-primary-700"
+                            className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-lg shadow-slate-900/10 dark:shadow-black/20 hover:scale-110 active:scale-95 transition-all"
                             title={t('chat.actions.newChatTitle')}
                         >
                             <Plus size={16} />
                         </button>
                     </div>
+
+                    {/* Search Bar */}
+                    <div className="relative group">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder={t('chat.sidebar.searchPlaceholder', 'Search history...')}
+                            className="w-full bg-white/40 dark:bg-slate-800/40 border border-white/60 dark:border-slate-700/60 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                        />
+                    </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 custom-scrollbar">
-                    {sortedSessions.map(session => (
-                        <div
-                            key={session.id}
-                            onClick={() => {
-                                setActiveSessionId(session.id);
-                                setSidebarOpen(false);
-                            }}
-                            className={`
-                                group rounded-2xl border p-3 cursor-pointer transition-all
-                                ${activeSessionId === session.id
-                                    ? 'border-primary-200 bg-primary-50/80 text-primary-700 shadow-sm shadow-primary-500/10 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-200'
-                                    : 'border-slate-200/90 text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700/80 dark:text-slate-400 dark:hover:border-slate-600 dark:hover:bg-slate-700/40'
-                                }
-                            `}
-                        >
-                            <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0">
-                                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${activeSessionId === session.id ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/70 dark:text-slate-300'}`}>
-                                    <MessageSquare size={15} className="flex-shrink-0" />
-                                </div>
-                                {editingSessionId === session.id ? (
-                                    <input
-                                        autoFocus
-                                        type="text"
-                                        value={editingTitle}
-                                        onChange={(e) => setEditingTitle(e.target.value)}
-                                        onBlur={() => commitRename(session.id)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                commitRename(session.id);
-                                            } else if (e.key === 'Escape') {
-                                                cancelRename();
-                                            }
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="w-full bg-white dark:bg-slate-900 border border-primary-500 rounded px-2 py-0.5 text-sm text-slate-800 dark:text-white outline-none"
-                                    />
-                                ) : (
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <span className="truncate text-sm font-semibold">{getDisplaySessionTitle(session.title)}</span>
-                                            <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">
-                                                {formatSessionTimestamp(session.updatedAt)}
-                                            </span>
+                <div className="flex-1 overflow-y-auto px-4 py-2 space-y-6 custom-scrollbar">
+                    {(Object.entries(groupedSessions) as [string, ChatSession[]][]).map(([key, groupSessions]) => {
+                        if (groupSessions.length === 0) return null;
+                        return (
+                            <div key={key} className="space-y-2">
+                                <h3 className="px-3 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="h-px flex-1 bg-slate-200/50 dark:bg-slate-700/50" />
+                                    {t(`chat.sidebar.groups.${key}`)}
+                                    <span className="h-px flex-1 bg-slate-200/50 dark:bg-slate-700/50" />
+                                </h3>
+                                <div className="space-y-1">
+                                    {groupSessions.map(session => (
+                                        <div
+                                            key={session.id}
+                                            onClick={() => {
+                                                setActiveSessionId(session.id);
+                                                if (window.innerWidth < 1024) setSidebarOpen(false);
+                                            }}
+                                            className={`
+                                                group relative rounded-2xl border p-3 cursor-pointer transition-all duration-300
+                                                ${activeSessionId === session.id
+                                                    ? 'border-indigo-500/30 bg-indigo-500/10 dark:bg-indigo-400/10 shadow-sm'
+                                                    : 'border-transparent hover:bg-white/40 dark:hover:bg-slate-800/40'
+                                                }
+                                            `}
+                                        >
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all ${activeSessionId === session.id ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 scale-110' : 'bg-white/50 dark:bg-slate-800/50 text-slate-400 border border-slate-200/50 dark:border-slate-700/50'}`}>
+                                                    <MessageSquare size={14} />
+                                                </div>
+                                                {editingSessionId === session.id ? (
+                                                    <input
+                                                        autoFocus
+                                                        type="text"
+                                                        value={editingTitle}
+                                                        onChange={(e) => setEditingTitle(e.target.value)}
+                                                        onBlur={() => commitRename(session.id)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') commitRename(session.id);
+                                                            else if (e.key === 'Escape') cancelRename();
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="w-full bg-white dark:bg-slate-900 border border-indigo-500 rounded-xl px-2 py-1 text-xs text-slate-800 dark:text-white outline-none font-bold"
+                                                    />
+                                                ) : (
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className={`block truncate text-xs font-bold ${activeSessionId === session.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                                {getDisplaySessionTitle(session.title)}
+                                                            </span>
+                                                            <span className="text-[9px] font-bold text-slate-400/80 dark:text-slate-500 shrink-0">
+                                                                {formatSessionTimestamp(session.updatedAt)}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-0.5 truncate text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                                                            {getSessionPreview(session)}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {editingSessionId !== session.id && (
+                                                <div className="absolute top-1/2 -translate-y-1/2 right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={(e) => startRenameSession(e, session)}
+                                                        className="p-1.5 text-slate-400 hover:text-indigo-500 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-all"
+                                                        title={t('chat.actions.rename')}
+                                                    >
+                                                        <Edit2 size={11} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault()
+                                                            e.stopPropagation()
+                                                            deleteSession(e, session.id)
+                                                        }}
+                                                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-white dark:hover:bg-slate-700 transition-all"
+                                                        title={t('chat.actions.delete')}
+                                                    >
+                                                        <Trash2 size={11} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                        <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
-                                            {getSessionPreview(session)}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {editingSessionId !== session.id && (
-                                <div className={`relative z-10 ml-2 flex items-center gap-1 self-start opacity-0 group-hover:opacity-100 transition-opacity ${activeSessionId === session.id ? 'opacity-100' : ''}`}>
-                                    <button
-                                        onClick={(e) => startRenameSession(e, session)}
-                                        className="p-1.5 text-slate-400 hover:text-primary-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors cursor-pointer"
-                                        title={t('chat.actions.rename')}
-                                    >
-                                        <Edit2 size={14} />
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.preventDefault()
-                                            e.stopPropagation()
-                                            deleteSession(e, session.id)
-                                        }}
-                                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-white dark:hover:bg-slate-600 transition-colors cursor-pointer"
-                                        title={t('chat.actions.delete')}
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                                    ))}
                                 </div>
-                            )}
-                        </div>
-                    ))}
+                            </div>
+                        )
+                    })}
                 </div>
 
-                <div className="flex-none border-t border-slate-200/80 dark:border-slate-700/60 px-3 py-3 bg-white/80 dark:bg-slate-800/80">
+                <div className="flex-none p-4">
                     <button
                         onClick={clearAllSessions}
-                        disabled={sortedSessions.length === 0}
-                        className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300 dark:hover:border-red-900/40 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+                        disabled={sessions.length === 0}
+                        className="w-full flex items-center justify-center gap-2 rounded-2xl border border-red-200/50 bg-red-500/5 px-4 py-3 text-[10px] font-black text-red-500 transition-all hover:bg-red-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-20 uppercase tracking-[0.2em]"
                     >
-                        <Trash2 size={15} />
+                        <Trash2 size={14} />
                         {t('chat.actions.deleteAllSessions')}
                     </button>
                 </div>
@@ -1204,68 +1294,67 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0 bg-slate-50/30 dark:bg-slate-900/20 relative">
                 {/* Header */}
-                <div className="flex-none h-[72px] border-b border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between px-6 bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl sticky top-0 z-10 shadow-[0_2px_10px_rgba(0,0,0,0.02)] dark:shadow-none">
-                    <div className="flex items-center gap-4">
+                <div className="flex-none h-16 border-b border-slate-200/30 dark:border-slate-700/30 flex items-center justify-between px-6 bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl sticky top-0 z-10">
+                    <div className="flex items-center gap-3 min-w-0 flex-shrink-1">
                         <button
                             onClick={() => setSidebarOpen(!sidebarOpen)}
-                            className="p-2 -ml-2 text-slate-400 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"
+                            className="p-2 -ml-2 text-slate-500 hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400 rounded-xl hover:bg-white/50 dark:hover:bg-slate-800/50 transition-all border border-transparent hover:border-slate-200/50 dark:hover:border-slate-700/50"
                             title={sidebarOpen ? t('chat.actions.collapseHistory') : t('chat.actions.expandHistory')}
                         >
-                            <Menu size={20} />
+                            <Menu size={18} />
                         </button>
 
-                        <div>
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 tracking-tight">
-                                <span className="hidden sm:inline">{t('chat.header.title')}</span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5 flex-shrink-0">
+                                <span>{t('chat.header.title')}</span>
+                            </h2>
+                            <span className="text-slate-200 dark:text-slate-800 text-xs">|</span>
+                            <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100/80 dark:bg-slate-800/80 text-[9px] font-bold text-slate-500 dark:text-slate-400 border border-slate-200/20 dark:border-slate-700/20">
+                                    <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="truncate max-w-[120px]">{model || t('chat.header.defaultModel')}</span>
+                                </span>
                                 {evermemEnabled && (
-                                    <span className="px-2 py-0.5 text-[10px] font-bold bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300 rounded-full flex items-center gap-1 border border-primary-200/70 dark:border-primary-700/50">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-primary-500 dark:bg-primary-300" />
-                                        {t('chat.header.longTermMemoryEnabled')}
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-[9px] font-black text-indigo-600 dark:text-indigo-400 border border-indigo-200/20 dark:border-indigo-800/20 tracking-wider uppercase">
+                                        <img src={EvermemLogo} className="w-3 h-3 object-contain" alt="Evermem" />
+                                        EVERMEM
                                     </span>
                                 )}
-
-                                <div className="ml-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-300">
-                                    <img src={EvermemLogo} alt="EverMemOS" className="h-5 w-5 rounded" />
-                                    <span className="whitespace-nowrap">Powered by EverMemOS</span>
-                                </div>
-                            </h2>
-                            <p className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 text-[10px] sm:text-xs">
-                                {providerLabel} <span className="opacity-50">•</span> {model || t('chat.header.defaultModel')}
-                            </p>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                         {onOpenTranslation && (
                             <button
                                 onClick={onOpenTranslation}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-600 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300"
-                                title={t('sidebar.translationTooltip', 'Multilingual AI translation assistant')}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200/50 bg-white/30 text-[11px] font-bold text-slate-600 transition-all hover:bg-white/60 hover:border-primary-200 dark:border-slate-700/50 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60 shadow-sm"
+                                title={t('sidebar.translationTooltip')}
                             >
-                                <Languages size={16} />
-                                <span className="hidden lg:inline">{t('sidebar.translation', 'Translator')}</span>
+                                <Languages size={13} />
+                                <span className={`hidden ${sidebarOpen ? 'xl:inline' : 'lg:inline'}`}>{t('sidebar.translation')}</span>
                             </button>
                         )}
                         {evermemEnabled && (
                             <button
                                 onClick={() => setMemoryPanelOpen(prev => !prev)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors ${memoryPanelOpen
-                                    ? 'border-primary-300 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300'
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition-all shadow-sm ${memoryPanelOpen
+                                    ? 'border-indigo-300/50 bg-indigo-50/50 text-indigo-700 dark:border-indigo-800/50 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                    : 'border-slate-200/50 bg-white/30 text-slate-600 hover:bg-white/60 hover:border-indigo-300 dark:border-slate-700/50 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60'
                                     }`}
                                 title={t('chat.memory.panel.title')}
                             >
-                                <span className={`h-2 w-2 rounded-full ${memoryPanelOpen ? 'bg-primary-500 dark:bg-primary-300' : 'bg-slate-400 dark:bg-slate-500'}`} />
-                                <span className="hidden sm:inline">{t('chat.memory.panel.button')}</span>
+                                <Sparkles size={13} className={memoryPanelOpen ? 'text-indigo-500' : 'text-slate-400'} />
+                                <span className={`hidden ${sidebarOpen ? 'xl:inline' : 'sm:inline'}`}>{t('chat.memory.panel.button')}</span>
                             </button>
                         )}
                         <button
                             onClick={createNewSession}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 font-semibold rounded-[14px] transition-all shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_12px_rgba(255,255,255,0.1)] hover:scale-[1.02] active:scale-[0.98]"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:scale-[1.02] active:scale-[0.98] text-[11px] font-bold rounded-xl transition-all shadow-sm"
                             title={t('chat.actions.newChatTitle')}
                         >
-                            <Plus size={16} />
-                            <span className="text-sm hidden sm:inline">{t('chat.actions.newChat')}</span>
+                            <Plus size={14} />
+                            <span className={`hidden ${sidebarOpen ? 'xl:inline' : 'sm:inline'}`}>{t('chat.actions.newChat')}</span>
                         </button>
 
                         <div className="relative">
@@ -1279,18 +1368,16 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                             dropdown.style.display = 'none';
                                         } else {
                                             dropdown.style.display = 'block';
-                                            dropdown.style.top = `${rect.bottom + 8}px`;
+                                            dropdown.style.top = `${rect.bottom + 12}px`;
                                             dropdown.style.right = `${window.innerWidth - rect.right}px`;
                                         }
                                     }
                                 }}
-                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-white/50 dark:hover:bg-slate-800/50 transition-all border border-transparent hover:border-slate-200/50 dark:hover:border-slate-700/50"
                                 title={t('chat.actions.moreOptions')}
                             >
                                 <MoreHorizontal size={18} />
                             </button>
-
-                            {/* Dropdown Menu - Click Outside to Close Handled by a global listener ideally, simplified here for pure React state or vanilla if preferred */}
                         </div>
                     </div>
                 </div>
@@ -1298,135 +1385,124 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 {/* Global Dropdown (Absolute to body or container) */}
                 <div
                     id="chat-actions-dropdown"
-                    className="hidden fixed z-50 min-w-[160px] bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm"
+                    className="hidden fixed z-50 min-w-[200px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-3xl rounded-2xl shadow-2xl border border-white/60 dark:border-slate-800/60 overflow-hidden p-1.5 animate-scale-up"
                     style={{ display: 'none' }}
                 >
-                    <div className="p-1">
-                        <button
-                            className="w-full flex items-center gap-2 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-lg transition-colors text-left"
-                            onClick={() => {
-                                document.getElementById('chat-actions-dropdown')!.style.display = 'none';
-                                clearSession();
-                            }}
-                        >
-                            <Eraser size={14} className="text-slate-400" />
-                            <span>{t('chat.actions.clearCurrentMessages')}</span>
-                        </button>
+                    <button
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-slate-700 dark:text-slate-300 hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-xl transition-all text-left font-bold text-xs uppercase tracking-wider"
+                        onClick={() => {
+                            document.getElementById('chat-actions-dropdown')!.style.display = 'none';
+                            clearSession();
+                        }}
+                    >
+                        <Eraser size={16} className="opacity-60" />
+                        <span>{t('chat.actions.clearCurrentMessages')}</span>
+                    </button>
 
-                        <div className="h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
-
-                        <button
-                            className="w-full flex items-center gap-2 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-left font-medium"
-                            onClick={(e) => {
-                                document.getElementById('chat-actions-dropdown')!.style.display = 'none';
-                                if (activeSessionId) deleteSession(e, activeSessionId);
-                            }}
-                        >
-                            <Trash2 size={14} className="text-red-500" />
-                            <span>{t('chat.actions.deleteSessionRecord')}</span>
-                        </button>
-                    </div>
+                    <button
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-red-500 hover:bg-red-500/10 rounded-xl transition-all text-left font-bold text-xs uppercase tracking-wider mt-1"
+                        onClick={(e) => {
+                            document.getElementById('chat-actions-dropdown')!.style.display = 'none';
+                            if (activeSessionId) deleteSession(e, activeSessionId);
+                        }}
+                    >
+                        <Trash2 size={16} className="opacity-60" />
+                        <span>{t('chat.actions.deleteSessionRecord')}</span>
+                    </button>
                 </div>
 
                 {/* Memory Toast */}
                 {memoryToast && (
-                    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 animate-fade-in shadow-xl">
-                        <div className="bg-indigo-600/95 backdrop-blur-md text-white text-sm px-4 py-2 rounded-full shadow-indigo-500/20 shadow-lg flex items-center gap-2 whitespace-nowrap border border-indigo-500">
-                            <span className="h-2 w-2 rounded-full bg-white/90" />
+                    <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 animate-fade-in">
+                        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-3xl text-indigo-600 dark:text-indigo-400 text-[11px] font-bold px-6 py-3 rounded-2xl shadow-2xl shadow-indigo-500/10 flex items-center gap-3 whitespace-nowrap border border-white/60 dark:border-slate-800/60 uppercase tracking-widest">
+                            <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
                             {memoryToast}
                         </div>
                     </div>
                 )}
 
-                <div className={`absolute inset-y-0 right-0 z-30 w-full max-w-sm border-l border-slate-200/80 dark:border-slate-700/60 bg-white/96 dark:bg-slate-900/96 backdrop-blur-xl shadow-[-8px_0_24px_rgba(15,23,42,0.08)] dark:shadow-[-8px_0_24px_rgba(0,0,0,0.35)] transition-transform duration-300 ease-out ${memoryPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className={`absolute inset-y-0 right-0 z-30 w-full max-w-sm border-l border-white/20 dark:border-slate-800/20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-3xl shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${memoryPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                     <div className="flex h-full flex-col">
-                        <div className="flex items-start justify-between gap-3 border-b border-slate-200/80 dark:border-slate-700/60 px-4 py-4">
+                        <div className="flex items-start justify-between gap-3 border-b border-slate-200/20 dark:border-slate-700/20 px-6 py-6">
                             <div>
-                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                     {t('chat.memory.panel.title')}
                                 </p>
-                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
                                     {t('chat.memory.panel.subtitle')}
                                 </p>
                                 {memoryOverviewUpdatedAt && (
-                                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                    <p className="mt-1 text-[10px] font-bold text-indigo-500/60 uppercase tracking-wider">
                                         {t('chat.memory.panel.updatedAt', { time: formatPanelUpdatedAt(memoryOverviewUpdatedAt) })}
                                     </p>
                                 )}
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => void loadMemoryOverview({ force: true })}
-                                    className="rounded-lg px-2.5 py-2 text-[11px] font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                                    className="rounded-xl p-2.5 text-slate-400 transition-all hover:bg-white/50 dark:hover:bg-slate-800/50 hover:text-indigo-500"
                                     title={t('chat.memory.panel.refresh')}
                                 >
-                                    {t('chat.memory.panel.refresh')}
+                                    <RotateCw size={16} className={memoryOverviewLoading ? 'animate-spin' : ''} />
                                 </button>
                                 <button
                                     onClick={() => setMemoryPanelOpen(false)}
-                                    className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                                    className="rounded-xl p-2.5 text-slate-400 transition-all hover:bg-white/50 dark:hover:bg-slate-800/50 hover:text-slate-600"
                                     title={t('chat.memory.panel.close')}
                                 >
-                                    <X size={16} />
+                                    <X size={18} />
                                 </button>
                             </div>
                         </div>
 
-                        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 custom-scrollbar">
-                            {memoryOverviewLoading && (
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
-                                    {t('chat.memory.panel.loading')}
+                        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6 custom-scrollbar">
+                            {memoryOverviewLoading && !memoryOverview && (
+                                <div className="flex flex-col items-center justify-center h-40 space-y-3">
+                                    <div className="w-8 h-8 border-3 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('chat.memory.panel.loading')}</p>
                                 </div>
                             )}
 
                             {!memoryOverviewLoading && memoryOverviewError && (
-                                <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                                <div className="rounded-2xl border border-red-200/50 bg-red-500/5 px-4 py-4 text-xs font-bold text-red-500 uppercase tracking-wider">
                                     {memoryOverviewError}
                                 </div>
                             )}
 
                             {!memoryOverviewLoading && memoryOverview?.requires_auth && (
-                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-5 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+                                <div className="rounded-2xl border border-amber-200/50 bg-amber-500/5 px-4 py-4 text-xs font-bold text-amber-600 uppercase tracking-wider">
                                     {t('chat.memory.panel.requiresAuth')}
                                 </div>
                             )}
 
                             {!memoryOverviewLoading && !memoryOverview?.requires_auth && (
                                 <>
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                                    {t('chat.memory.panel.reviewFocusTitle')}
-                                                </p>
-                                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                                    {t('chat.memory.panel.reviewFocusDesc')}
-                                                </p>
-                                            </div>
-                                            <div className="flex gap-2 text-xs font-semibold">
-                                                <span className="rounded-full bg-white px-3 py-1 text-slate-600 dark:bg-slate-900 dark:text-slate-200">
-                                                    {t('chat.memory.panel.dueCount', { count: memoryOverview?.review_focus?.due_count || 0 })}
-                                                </span>
-                                                <span className="rounded-full bg-red-100 px-3 py-1 text-red-600 dark:bg-red-900/30 dark:text-red-300">
-                                                    {t('chat.memory.panel.difficultCount', { count: memoryOverview?.review_focus?.difficult_count || 0 })}
+                                    <div className="rounded-2xl border border-slate-200/30 bg-white/40 dark:bg-slate-800/40 p-5 shadow-sm">
+                                        <div className="flex items-center justify-between gap-3 mb-4">
+                                            <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                                {t('chat.memory.panel.reviewFocusTitle')}
+                                            </p>
+                                            <div className="flex gap-2">
+                                                <span className="rounded-lg bg-indigo-500/10 px-2 py-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 border border-indigo-200/30">
+                                                    {memoryOverview?.review_focus?.due_count || 0}
                                                 </span>
                                             </div>
                                         </div>
 
                                         {weakWords.length > 0 ? (
-                                            <div className="mt-4 space-y-2">
+                                            <div className="space-y-2">
                                                 {weakWords.slice(0, 4).map(item => (
-                                                    <div key={item.word} className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60">
+                                                    <div key={item.word} className="rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-900/40 px-3 py-2.5 transition-all hover:bg-white/80 dark:hover:bg-slate-900/60">
                                                         <div className="flex items-center justify-between gap-3">
                                                             <div className="min-w-0">
-                                                                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                                                <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
                                                                     {item.word}
                                                                 </p>
-                                                                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                                                                <p className="truncate text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                                                                     {item.meaning || t('chat.memory.panel.noMeaning')}
                                                                 </p>
                                                             </div>
-                                                            <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${item.is_due ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                                                            <span className={`shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] font-bold ${item.is_due ? 'bg-amber-500/10 text-amber-600 border border-amber-200/30' : 'bg-slate-500/10 text-slate-500 border border-slate-200/30'}`}>
                                                                 {item.error_count}x
                                                             </span>
                                                         </div>
@@ -1434,7 +1510,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                                 ))}
                                             </div>
                                         ) : (
-                                            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                                            <p className="text-xs font-medium text-slate-400 italic">
                                                 {t('chat.memory.panel.noWeakWords')}
                                             </p>
                                         )}
@@ -1443,54 +1519,54 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                             type="button"
                                             onClick={startWeakWordPractice}
                                             disabled={!canStartWeakWordPractice}
-                                            className="mt-4 w-full rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="mt-5 w-full rounded-2xl bg-indigo-500 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:bg-indigo-600 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30 disabled:hover:scale-100 uppercase tracking-widest"
                                         >
                                             {t('chat.memory.panel.practiceAction')}
                                         </button>
                                     </div>
 
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
-                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                    <div className="rounded-2xl border border-slate-200/30 bg-white/40 dark:bg-slate-800/40 p-5 shadow-sm">
+                                        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
                                             {t('chat.memory.panel.profileTitle')}
                                         </p>
-                                        <div className="mt-3 space-y-2">
+                                        <div className="flex flex-wrap gap-2">
                                             {(memoryOverview?.profile_facts || []).length > 0 ? (
                                                 memoryOverview?.profile_facts.map((fact, index) => (
-                                                    <div key={`${fact}-${index}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
+                                                    <div key={`${fact}-${index}`} className="rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-900/40 px-3 py-2 text-[11px] font-bold text-slate-600 dark:text-slate-300">
                                                         {fact}
                                                     </div>
                                                 ))
                                             ) : (
-                                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                <p className="text-xs font-medium text-slate-400 italic">
                                                     {t('chat.memory.panel.noProfile')}
                                                 </p>
                                             )}
                                         </div>
                                     </div>
 
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
-                                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                    <div className="rounded-2xl border border-slate-200/30 bg-white/40 dark:bg-slate-800/40 p-5 shadow-sm">
+                                        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
                                             {t('chat.memory.panel.recentTitle')}
                                         </p>
-                                        <div className="mt-3 space-y-2">
+                                        <div className="space-y-3">
                                             {(memoryOverview?.recent_memories || []).length > 0 ? (
                                                 memoryOverview?.recent_memories.map((item, index) => (
-                                                    <div key={`${item.content}-${index}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60">
-                                                        <div className="flex items-center justify-between gap-3">
-                                                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.bucket === 'review' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                                                    <div key={`${item.content}-${index}`} className="relative pl-4 border-l-2 border-indigo-500/20">
+                                                        <div className="flex items-center justify-between gap-3 mb-1">
+                                                            <span className={`text-[10px] font-bold uppercase tracking-widest ${item.bucket === 'review' ? 'text-emerald-500' : 'text-indigo-500'}`}>
                                                                 {item.bucket === 'review' ? t('chat.memory.panel.reviewBucket') : t('chat.memory.panel.chatBucket')}
                                                             </span>
-                                                            <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                                            <span className="text-[10px] font-bold text-slate-400">
                                                                 {formatMemoryTimestamp(item.timestamp)}
                                                             </span>
                                                         </div>
-                                                        <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">
+                                                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
                                                             {item.content}
                                                         </p>
                                                     </div>
                                                 ))
                                             ) : (
-                                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                <p className="text-xs font-medium text-slate-400 italic">
                                                     {t('chat.memory.panel.noRecent')}
                                                 </p>
                                             )}
@@ -1498,15 +1574,23 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                     </div>
 
                                     {(memoryOverview?.suggestions || []).length > 0 && (
-                                        <div className="rounded-2xl border border-primary-200 bg-primary-50 p-4 dark:border-primary-800/60 dark:bg-primary-900/20">
-                                            <p className="text-sm font-semibold text-primary-700 dark:text-primary-300">
+                                        <div className="rounded-2xl border border-indigo-200/30 bg-indigo-500/5 p-5">
+                                            <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-4">
                                                 {t('chat.memory.panel.nextTitle')}
                                             </p>
-                                            <div className="mt-3 space-y-2">
+                                            <div className="space-y-2">
                                                 {memoryOverview?.suggestions.map((item, index) => (
-                                                    <div key={`${item}-${index}`} className="rounded-xl bg-white/80 px-3 py-2 text-sm text-slate-700 dark:bg-slate-900/40 dark:text-slate-200">
+                                                    <button
+                                                        key={`${item}-${index}`}
+                                                        onClick={() => {
+                                                            setInput(item);
+                                                            setMemoryPanelOpen(false);
+                                                            inputRef.current?.focus();
+                                                        }}
+                                                        className="w-full text-left rounded-xl bg-white/60 dark:bg-slate-900/40 px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 border border-white/60 dark:border-slate-700/60 hover:bg-white dark:hover:bg-slate-900/80 transition-all"
+                                                    >
                                                         {item}
-                                                    </div>
+                                                    </button>
                                                 ))}
                                             </div>
                                         </div>
@@ -1518,23 +1602,15 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 </div>
 
                 {/* Messages Area */}
-                <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8 custom-scrollbar scroll-smooth bg-amber-50/10 dark:bg-slate-900/30">
+                <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8 custom-scrollbar scroll-smooth relative z-10">
                     {messages.length === 0 && (
-                        <div className="h-full flex flex-col items-center justify-center">
-                            <div className="relative mb-10 group cursor-default">
-                                <div className="absolute -inset-12 bg-gradient-to-br from-amber-300/40 via-rose-400/30 to-purple-500/40 dark:from-amber-600/20 dark:via-rose-700/20 dark:to-purple-800/20 rounded-full blur-3xl opacity-60 group-hover:opacity-100 transition-opacity duration-700 animate-pulse-slow" />
-                                <div className="relative w-24 h-24 rounded-[2rem] bg-gradient-to-br from-amber-400 via-rose-500 to-purple-600 p-[2px] shadow-2xl shadow-rose-500/20">
-                                    <div className="w-full h-full rounded-[1.9rem] bg-white/10 backdrop-blur-md flex items-center justify-center">
-                                        <Sparkles size={36} className="text-white drop-shadow-md" />
-                                    </div>
+                        <div className="h-full flex flex-col items-center justify-center animate-fade-in select-none">
+                            <div className="relative group cursor-default">
+                                <div className="absolute -inset-10 bg-gradient-to-tr from-indigo-500/20 via-purple-500/10 to-pink-500/20 blur-[60px] opacity-70 group-hover:opacity-100 transition-opacity duration-1000 animate-pulse-slow" />
+                                <div className="relative w-20 h-20 rounded-full bg-white/30 dark:bg-slate-800/30 backdrop-blur-3xl border border-white/40 dark:border-slate-700/40 shadow-xl flex items-center justify-center transform group-hover:scale-105 transition-transform duration-500">
+                                    <Sparkles size={36} className="text-indigo-500 dark:text-indigo-400 drop-shadow-md" />
                                 </div>
                             </div>
-                            <h3 className="text-3xl font-extrabold bg-gradient-to-br from-slate-800 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent mb-3 tracking-tight">
-                                {t('chat.empty.title')}
-                            </h3>
-                            <p className="text-[15px] text-slate-500/90 dark:text-slate-400 font-medium">
-                                {t('chat.empty.subtitle')}
-                            </p>
                         </div>
                     )}
 
@@ -1544,16 +1620,16 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                             className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
                         >
                             {msg.role === 'assistant' && (
-                                <div className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-amber-400 via-rose-500 to-purple-600 text-white shadow-md shadow-rose-500/20 ring-2 ring-white/50 dark:ring-slate-800/50">
-                                    <Sparkles size={18} className="drop-shadow-sm" />
+                                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md text-indigo-600 dark:text-indigo-400 shadow-lg shadow-slate-200/10 dark:shadow-black/20 border border-white/50 dark:border-slate-700/50 self-start mt-1">
+                                    <Sparkles size={18} />
                                 </div>
                             )}
 
-                            <div className={`flex flex-col gap-1.5 max-w-[85%] md:max-w-[75%]`}>
-                                <div className={`px-5 py-3.5 text-[15.5px] leading-[1.7] whitespace-pre-wrap relative transition-all
+                            <div className={`flex flex-col gap-2 max-w-[85%] md:max-w-[80%]`}>
+                                <div className={`px-5 py-3.5 text-[15px] leading-[1.6] whitespace-pre-wrap relative transition-all
                                     ${msg.role === 'user'
-                                        ? 'bg-gradient-to-br from-slate-800 to-slate-900 dark:from-slate-100 dark:to-slate-200 text-white dark:text-slate-900 rounded-[24px] rounded-tr-[6px] shadow-md shadow-slate-900/10'
-                                        : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl text-slate-800 dark:text-slate-200 rounded-[24px] rounded-tl-[6px] border border-slate-100/50 dark:border-slate-700/50 shadow-[0_2px_12px_rgba(0,0,0,0.03)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.2)]'
+                                        ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-[22px] rounded-tr-[4px] shadow-xl shadow-slate-900/10 dark:shadow-black/20 border border-slate-800 dark:border-white'
+                                        : 'bg-white/60 dark:bg-slate-800/60 backdrop-blur-2xl text-slate-800 dark:text-slate-200 rounded-[22px] rounded-tl-[4px] border border-white/60 dark:border-slate-700/60 shadow-sm'
                                     }`}
                                 >
                                     {msg.attachments && msg.attachments.length > 0 && (
@@ -1561,9 +1637,9 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                             {msg.attachments.map(attachment => (
                                                 <div
                                                     key={attachment.id}
-                                                    className={`overflow-hidden rounded-2xl border ${msg.role === 'user'
+                                                    className={`overflow-hidden rounded-xl border ${msg.role === 'user'
                                                         ? 'border-white/20 bg-white/10'
-                                                        : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/60'
+                                                        : 'border-slate-200/50 bg-white dark:border-slate-700/50 dark:bg-slate-900/60'
                                                         }`}
                                                 >
                                                     <img
@@ -1576,22 +1652,22 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                         </div>
                                     )}
                                     {msg.content || (msg.reasoningContent && msg.reasoningContent.trim()) ? (
-                                        <div className="space-y-2">
+                                        <div className="space-y-3">
                                             {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
-                                                <div className="rounded-xl border border-primary-200/70 dark:border-primary-700/50 bg-primary-50/70 dark:bg-primary-900/20 overflow-hidden">
+                                                <div className="rounded-xl border border-indigo-200/40 dark:border-indigo-700/30 bg-indigo-50/40 dark:bg-indigo-900/10 overflow-hidden">
                                                     <button
                                                         type="button"
                                                         onClick={() => setExpandedReasoning(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))}
-                                                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-primary-100/60 dark:hover:bg-primary-800/20 transition-colors"
+                                                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-indigo-100/40 dark:hover:bg-indigo-800/20 transition-colors"
                                                     >
-                                                        <span className="flex items-center gap-2 min-w-0 text-primary-700 dark:text-primary-300 text-sm font-semibold truncate">
+                                                        <span className="flex items-center gap-2 min-w-0 text-indigo-700 dark:text-indigo-300 text-[13px] font-bold">
                                                             <ChevronRight
-                                                                size={15}
+                                                                size={14}
                                                                 className={`shrink-0 transition-transform duration-200 ${expandedReasoning[msg.id] ? 'rotate-90' : ''}`}
                                                             />
                                                             <span className="truncate">{t('chat.reasoning.title')}</span>
                                                         </span>
-                                                        <span className="shrink-0 text-[11px] text-primary-500/90 dark:text-primary-300/80">
+                                                        <span className="shrink-0 text-[10px] font-bold text-indigo-400 dark:text-indigo-500 uppercase tracking-wider">
                                                             {expandedReasoning[msg.id] ? t('chat.reasoning.collapse') : t('chat.reasoning.expand')}
                                                         </span>
                                                     </button>
@@ -1600,7 +1676,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                                     >
                                                         <div className="overflow-hidden">
                                                             {expandedReasoning[msg.id] && (
-                                                                <div className="border-t border-primary-200/70 dark:border-primary-700/50 px-3 py-2 text-[13px] leading-7 whitespace-pre-wrap text-primary-700/90 dark:text-primary-200/90 max-h-[22rem] overflow-y-auto custom-scrollbar">
+                                                                <div className="border-t border-indigo-200/40 dark:border-indigo-700/30 px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-indigo-700/80 dark:text-indigo-200/80 max-h-[20rem] overflow-y-auto custom-scrollbar italic">
                                                                     {msg.reasoningContent}
                                                                 </div>
                                                             )}
@@ -1608,50 +1684,47 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                                     </div>
                                                 </div>
                                             )}
-                                            {msg.content && <div>{msg.content}</div>}
+                                            {msg.content && <div className="tracking-normal">{msg.content}</div>}
                                             {msg.role === 'assistant' && msg.content && (
-                                                <div className="mt-3 flex items-center justify-end border-t border-slate-200/70 dark:border-slate-700/70 pt-2">
+                                                <div className="mt-3 flex items-center justify-end border-t border-slate-200/30 dark:border-slate-700/30 pt-2">
                                                     <AudioButton
                                                         text={msg.content}
                                                         useTTS={true}
-                                                        size={16}
-                                                        className="!p-2.5 bg-slate-50 hover:bg-primary-50 dark:bg-slate-900/70 dark:hover:bg-primary-900/30 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-500 hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-300"
+                                                        size={14}
+                                                        className="!p-2 hover:bg-white dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-lg text-slate-400 hover:text-primary-600 dark:text-slate-500 dark:hover:text-primary-400 transition-all"
                                                     />
                                                 </div>
                                             )}
                                         </div>
                                     ) : (
                                         msg.role === 'assistant' && loading && (
-                                            <div className="flex gap-1.5 items-center h-6">
-                                                {evermemEnabled ? (
-                                                    <span className="text-[13px] font-medium text-indigo-500 dark:text-indigo-400 flex items-center gap-1.5">
-                                                        <span className="h-2 w-2 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-pulse" />
-                                                        {t('chat.loading.thinking')}
-                                                    </span>
-                                                ) : (
-                                                    <>
-                                                        <div className="w-1.5 h-1.5 bg-indigo-400 dark:bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                                        <div className="w-1.5 h-1.5 bg-indigo-400 dark:bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                                        <div className="w-1.5 h-1.5 bg-indigo-400 dark:bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                                                    </>
-                                                )}
+                                            <div className="flex gap-2 items-center h-6">
+                                                <div className="flex gap-1">
+                                                    <div className="w-1.5 h-1.5 bg-indigo-400 dark:bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                    <div className="w-1.5 h-1.5 bg-indigo-400 dark:bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                    <div className="w-1.5 h-1.5 bg-indigo-400 dark:bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                                </div>
+                                                <span className="text-xs font-bold text-indigo-500/80 dark:text-indigo-400/80 uppercase tracking-widest animate-pulse">
+                                                    {t('chat.loading.thinking')}
+                                                </span>
                                             </div>
                                         )
                                     )}
-
                                 </div>
 
                                 {/* Memory indicators */}
-                                {msg.role === 'user' && msg.memorySaved && (
-                                    <span className="text-[11px] text-indigo-500 dark:text-indigo-400 flex items-center gap-1 self-end mr-1 font-medium">
-                                        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400" /> {t('chat.memory.savedIndicator')}
-                                    </span>
-                                )}
-                                {msg.role === 'assistant' && (msg.memoriesUsed || 0) > 0 && (
-                                    <span className="text-[11px] text-indigo-500 dark:text-indigo-400 flex items-center gap-1 ml-1 font-medium">
-                                        <Sparkles size={10} /> {t('chat.memory.retrievedIndicator', { count: msg.memoriesUsed })}
-                                    </span>
-                                )}
+                                <div className={`flex items-center gap-3 px-1 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    {msg.role === 'user' && msg.memorySaved && (
+                                        <span className="text-[10px] text-indigo-500/80 dark:text-indigo-400/80 flex items-center gap-1 font-bold uppercase tracking-wider">
+                                            <div className="h-1 w-1 rounded-full bg-indigo-500 animate-pulse" /> {t('chat.memory.savedIndicator')}
+                                        </span>
+                                    )}
+                                    {msg.role === 'assistant' && (msg.memoriesUsed || 0) > 0 && (
+                                        <span className="text-[10px] text-indigo-500/80 dark:text-indigo-400/80 flex items-center gap-1 font-bold uppercase tracking-wider">
+                                            <Sparkles size={10} /> {t('chat.memory.retrievedIndicator', { count: msg.memoriesUsed })}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -1659,10 +1732,10 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                     <div ref={messagesEndRef} className="h-4" />
                 </div>
 
-                {/* Slim & Elegant Input Area */}
-                <div className="flex-none px-4 pb-6 pt-2 bg-transparent relative z-20">
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-50 dark:from-slate-900 via-slate-50/80 dark:via-slate-900/80 to-transparent pointer-events-none" />
-                    <div className="relative max-w-3xl mx-auto">
+                {/* Floating Command Bar Input */}
+                <div className="flex-none px-6 pb-8 pt-4 bg-transparent relative z-20">
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-50/50 dark:from-slate-950/50 to-transparent pointer-events-none" />
+                    <div className="relative max-w-4xl mx-auto">
                         <input
                             ref={fileInputRef}
                             type="file"
@@ -1672,7 +1745,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                             onChange={handleImageSelect}
                         />
                         <div
-                            className={`bg-white/95 dark:bg-slate-800/95 backdrop-blur-2xl rounded-full shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.4)] border border-slate-200/50 dark:border-slate-700/50 p-1.5 flex flex-col relative focus-within:ring-2 focus-within:ring-rose-500/20 focus-within:border-rose-300/50 transition-all cursor-text ${isDragOverComposer ? 'ring-2 ring-rose-500/30 bg-rose-50/50 dark:bg-rose-900/20' : ''}`}
+                            className={`bg-white/60 dark:bg-slate-800/60 backdrop-blur-3xl rounded-[28px] shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/60 dark:border-slate-700/60 p-2 flex flex-col relative focus-within:ring-2 focus-within:ring-indigo-500/30 transition-all cursor-text group ${isDragOverComposer ? 'ring-2 ring-indigo-500/40 bg-indigo-50/30 dark:bg-indigo-900/20' : ''}`}
                             onClick={() => inputRef.current?.focus()}
                             onDragOver={(event) => {
                                 event.preventDefault()
@@ -1694,7 +1767,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                         {pendingImages.map(attachment => (
                                             <div
                                                 key={attachment.id}
-                                                className="group relative w-14 h-14 overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-sm"
+                                                className="group relative w-16 h-16 overflow-hidden rounded-2xl border border-white/60 dark:border-slate-700/60 bg-white/40 shadow-sm"
                                             >
                                                 <img
                                                     src={attachment.dataUrl}
@@ -1717,17 +1790,17 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                     </div>
                                 </div>
                             )}
-                            <div className="flex items-center gap-2 w-full">
+                            <div className="flex items-end gap-2 w-full">
                                 <button
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation()
                                         fileInputRef.current?.click()
                                     }}
-                                    className="ml-1 flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                                    className="mb-1 flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-2xl text-slate-400 transition-all hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-indigo-600 dark:hover:text-indigo-400 border border-transparent hover:border-white/60 dark:hover:border-slate-700/60"
                                     title={t('chat.attachments.attachImage')}
                                 >
-                                    <Paperclip size={18} />
+                                    <Paperclip size={20} />
                                 </button>
                                 <textarea
                                     ref={inputRef}
@@ -1742,24 +1815,19 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                         }
                                     }}
                                     placeholder={t('chat.input.placeholder')}
-                                    className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 px-1 py-[10px] max-h-32 min-h-[40px] resize-none text-[15px] text-slate-800 dark:text-white placeholder-slate-400 font-medium custom-scrollbar"
+                                    className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 px-2 py-3 max-h-48 min-h-[44px] resize-none text-[15px] text-slate-800 dark:text-white placeholder-slate-400 font-medium custom-scrollbar"
                                     rows={1}
                                 />
                                 <button
                                     onClick={handleSend}
                                     disabled={(!input.trim() && pendingImages.length === 0) || loading || !activeSessionId || !isInitialized}
-                                    className="mr-1 flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-rose-500 disabled:from-slate-200 disabled:to-slate-200 dark:disabled:from-slate-700 dark:disabled:to-slate-700 disabled:text-slate-400 dark:disabled:text-slate-500 text-white transition-all shadow-md shadow-rose-500/20 disabled:shadow-none hover:scale-105 active:scale-95 disabled:hover:scale-100"
+                                    className="mb-1 flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-2xl bg-slate-900 dark:bg-slate-100 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white dark:text-slate-900 transition-all shadow-lg hover:scale-[1.05] active:scale-[0.95] disabled:hover:scale-100 disabled:shadow-none"
                                 >
-                                    {loading ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin opacity-50" /> : <Send size={16} className="translate-x-[1px] -translate-y-[1px]" />}
+                                    {loading ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin opacity-50" /> : <Send size={18} className="translate-x-[1px]" />}
                                 </button>
                             </div>
                         </div>
-                        <div className="text-center mt-2.5 relative z-10">
-                            <span className="text-[10px] font-medium text-slate-400/80 dark:text-slate-500">
-                                {t('chat.attachments.hint')} <span className="opacity-40 px-1">•</span>{' '}
-                                {t('chat.disclaimer')}
-                            </span>
-                        </div>
+
                     </div>
                 </div>
             </div>
