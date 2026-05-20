@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 import pytest
 
 from models.database import DatabaseManager
+from services.blocking_io import run_db_blocking
 from routers.ai import (
     _resolve_chat_owner_key,
     _can_use_evermem as _ai_can_use_evermem,
@@ -238,6 +239,10 @@ def test_submit_review_returns_remaining_due_count(monkeypatch):
         assert result["remaining_due_count"] == 1
     finally:
         db.close_connection()
+        try:
+            asyncio.run(run_db_blocking(db.close_connection))
+        except Exception:
+            pass
         temp_dir.cleanup()
 
 
@@ -407,6 +412,10 @@ def test_due_count_route_uses_lightweight_summary(monkeypatch):
         assert result == {"due_count": 1}
     finally:
         db.close_connection()
+        try:
+            asyncio.run(run_db_blocking(db.close_connection))
+        except Exception:
+            pass
         temp_dir.cleanup()
 
 

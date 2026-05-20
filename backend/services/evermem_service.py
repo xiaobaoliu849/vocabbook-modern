@@ -500,6 +500,301 @@ class EverMemService:
             return None
 
     # ------------------------------------------------------------------
+    # delete_memories  —  POST /api/v1/memories/delete
+    # ------------------------------------------------------------------
+
+    async def delete_memories(
+        self,
+        memory_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        group_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        sender_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Delete memories by memory_id (single delete) or by filters (batch delete).
+        """
+        if not self.api_key:
+            logger.error("EverMemService: Missing API key. Cannot delete memories.")
+            return False
+
+        url = f"{self.api_url}/api/v1/memories/delete"
+        body = {}
+        if memory_id:
+            body["memory_id"] = memory_id
+        else:
+            if user_id:
+                body["user_id"] = user_id
+            if group_id:
+                body["group_id"] = group_id
+            if session_id:
+                body["session_id"] = session_id
+            if sender_id:
+                body["sender_id"] = sender_id
+
+        def sync_delete():
+            return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_delete)
+            if resp.status_code not in (200, 204):
+                logger.error(f"EverMem v1 delete returned {resp.status_code}: {resp.text[:200]}")
+                return False
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete memories in EverMemOS: {e}")
+            return False
+
+    # ------------------------------------------------------------------
+    # Groups API  —  POST/GET/PATCH /api/v1/groups
+    # ------------------------------------------------------------------
+
+    async def create_group(
+        self,
+        group_id: str,
+        name: str,
+        description: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Create a new group or update an existing one (upsert by group_id)."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/groups"
+        body = {"group_id": group_id, "name": name}
+        if description is not None:
+            body["description"] = description
+
+        def sync_post():
+            return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_post)
+            if resp.status_code != 200:
+                logger.error(f"EverMem v1 create_group returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            return self._unwrap_v1_response(resp.json())
+        except Exception as e:
+            logger.error(f"Failed to create group in EverMemOS: {e}")
+            return None
+
+    async def get_group_details(self, group_id: str) -> Optional[Dict]:
+        """Retrieve group details by group_id."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/groups/{group_id}"
+
+        def sync_get():
+            return httpx.get(url, headers=self._headers(), timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_get)
+            if resp.status_code != 200:
+                logger.error(f"EverMem v1 get_group_details returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            return self._unwrap_v1_response(resp.json())
+        except Exception as e:
+            logger.error(f"Failed to get group details from EverMemOS: {e}")
+            return None
+
+    async def update_group(
+        self,
+        group_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Update group fields. At least one of name or description must be provided."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/groups/{group_id}"
+        body = {}
+        if name is not None:
+            body["name"] = name
+        if description is not None:
+            body["description"] = description
+
+        def sync_patch():
+            return httpx.patch(url, headers=self._headers(), json=body, timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_patch)
+            if resp.status_code != 200:
+                logger.error(f"EverMem v1 update_group returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            return self._unwrap_v1_response(resp.json())
+        except Exception as e:
+            logger.error(f"Failed to update group in EverMemOS: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # Senders API  —  POST/GET/PATCH /api/v1/senders
+    # ------------------------------------------------------------------
+
+    async def create_sender(self, sender_id: str, name: str) -> Optional[Dict]:
+        """Create a new sender or update an existing one (upsert by sender_id)."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/senders"
+        body = {"sender_id": sender_id, "name": name}
+
+        def sync_post():
+            return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_post)
+            if resp.status_code != 200:
+                logger.error(f"EverMem v1 create_sender returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            return self._unwrap_v1_response(resp.json())
+        except Exception as e:
+            logger.error(f"Failed to create sender in EverMemOS: {e}")
+            return None
+
+    async def get_sender_details(self, sender_id: str) -> Optional[Dict]:
+        """Retrieve sender details by sender_id."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/senders/{sender_id}"
+
+        def sync_get():
+            return httpx.get(url, headers=self._headers(), timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_get)
+            if resp.status_code != 200:
+                logger.error(f"EverMem v1 get_sender_details returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            return self._unwrap_v1_response(resp.json())
+        except Exception as e:
+            logger.error(f"Failed to get sender details from EverMemOS: {e}")
+            return None
+
+    async def update_sender(self, sender_id: str, name: str) -> Optional[Dict]:
+        """Update sender's display name."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/senders/{sender_id}"
+        body = {"name": name}
+
+        def sync_patch():
+            return httpx.patch(url, headers=self._headers(), json=body, timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_patch)
+            if resp.status_code != 200:
+                logger.error(f"EverMem v1 update_sender returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            return self._unwrap_v1_response(resp.json())
+        except Exception as e:
+            logger.error(f"Failed to update sender in EverMemOS: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # Tasks API  —  GET /api/v1/tasks/{task_id}
+    # ------------------------------------------------------------------
+
+    async def get_task_status(self, task_id: str) -> Optional[Dict]:
+        """Query the processing status of a specific async task by task_id."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/tasks/{task_id}"
+
+        def sync_get():
+            return httpx.get(url, headers=self._headers(), timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_get)
+            if resp.status_code != 200:
+                logger.error(f"EverMem v1 get_task_status returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            return self._unwrap_v1_response(resp.json())
+        except Exception as e:
+            logger.error(f"Failed to get task status from EverMemOS: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # Storage API  —  POST /api/v1/object/sign
+    # ------------------------------------------------------------------
+
+    async def upload_multimodal_data(self, object_list: List[Dict]) -> Optional[Dict]:
+        """Generate a pre-signed S3 upload URL for multimodal content."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/object/sign"
+        body = {"objectList": object_list}
+
+        def sync_post():
+            return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_post)
+            if resp.status_code not in (200, 400):
+                logger.error(f"EverMem v1 upload_multimodal_data returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            return resp.json()
+        except Exception as e:
+            logger.error(f"Failed to sign object upload in EverMemOS: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # Agent Memories API  —  POST /api/v1/memories/agent
+    # ------------------------------------------------------------------
+
+    async def add_agent_memories(
+        self,
+        user_id: str,
+        session_id: str,
+        messages: List[Dict],
+        async_mode: bool = True,
+    ) -> Optional[Dict]:
+        """Add messages and extract memory into agent memory space (cases and skills)."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/memories/agent"
+        body = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "messages": messages,
+            "async_mode": async_mode,
+        }
+
+        def sync_post():
+            return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_post)
+            if resp.status_code not in (200, 202):
+                logger.error(f"EverMem v1 add_agent_memories returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            return self._unwrap_v1_response(resp.json())
+        except Exception as e:
+            logger.error(f"Failed to add agent memories in EverMemOS: {e}")
+            return None
+
+    async def flush_agent_memories(self, user_id: str, session_id: str) -> Optional[str]:
+        """Trigger agent-aware boundary detection on accumulated agent messages."""
+        if not self.api_key:
+            return None
+        url = f"{self.api_url}/api/v1/memories/agent/flush"
+        body = {
+            "user_id": user_id,
+            "session_id": session_id,
+        }
+
+        def sync_post():
+            return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
+
+        try:
+            resp = await asyncio.to_thread(sync_post)
+            if resp.status_code not in (200, 202):
+                logger.error(f"EverMem v1 flush_agent_memories returned {resp.status_code}: {resp.text[:200]}")
+                return "error"
+            data = resp.json() if resp.text else {}
+            inner = self._unwrap_v1_response(data)
+            return inner.get("status", "unknown")
+        except Exception as e:
+            logger.error(f"Failed to flush agent memories in EverMemOS: {e}")
+            return "error"
+
+    # ------------------------------------------------------------------
     # utils
     # ------------------------------------------------------------------
 
