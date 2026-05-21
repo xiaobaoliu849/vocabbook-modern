@@ -66,6 +66,7 @@ class EverMemService:
         group_name: str = None,
         role: str = "user",
         refer_list: Optional[List[str]] = None,
+        async_mode: Optional[bool] = None,
     ) -> Optional[Dict]:
         """
         Add a memory to EverMemOS via v1 API.
@@ -73,6 +74,13 @@ class EverMemService:
         Uses the group endpoint when group_id is provided,
         otherwise falls back to the personal endpoint.
         If flush=True, a separate flush call is made after adding.
+
+        async_mode:
+          None  → let API use its default (true / async).
+          False → request synchronous processing (200 + 'extracted' status).
+                  Use this for high-value data like review records to guarantee
+                  the memory is fully written before returning.
+          True  → explicitly request async (202 + task_id).
         """
         if not self.api_key:
             logger.error("EverMemService: Missing API key. Cannot add memory.")
@@ -102,6 +110,10 @@ class EverMemService:
                 "messages": [message],
             }
 
+        # Only inject async_mode when explicitly set by the caller.
+        if async_mode is not None:
+            body["async_mode"] = async_mode
+
         def sync_add():
             return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
 
@@ -111,7 +123,24 @@ class EverMemService:
                 logger.error(f"EverMem v1 add returned {resp.status_code}: {resp.text[:200]}")
                 return None
 
-            result = {"status": "success"}
+            resp_data = resp.json() if resp.text else {}
+            inner = self._unwrap_v1_response(resp_data)
+            task_id = inner.get("task_id") if isinstance(inner, dict) else None
+            write_status = inner.get("status", "unknown") if isinstance(inner, dict) else "unknown"
+
+            result: Dict = {"status": write_status}
+            if task_id:
+                result["task_id"] = task_id
+
+            # Log async queued vs synchronous extracted for observability
+            if resp.status_code == 202:
+                logger.debug(
+                    f"[EverMem add] async queued task_id={task_id} group_id={group_id} user_id={user_id}"
+                )
+            else:
+                logger.debug(
+                    f"[EverMem add] sync extracted status={write_status} group_id={group_id} user_id={user_id}"
+                )
 
             # Separate flush call if requested
             if flush:

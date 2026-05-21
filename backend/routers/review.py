@@ -287,9 +287,11 @@ async def submit_review(
                     flush=True,
                     group_id=review_group_id,
                     group_name=review_group_id,
+                    async_mode=False,  # Synchronous: guarantee write before returning
                 )
                 if result is not None:
-                    print(f"[EverMem Review] Stored review record user={evermem_user_id} group_id={review_group_id} word={review.word} quality={review.quality}")
+                    status = result.get("status", "unknown")
+                    print(f"[EverMem Review] Stored review record user={evermem_user_id} group_id={review_group_id} word={review.word} quality={review.quality} status={status}")
 
             asyncio.create_task(_store_review_record())
         elif evermem_enabled:
@@ -356,9 +358,11 @@ async def log_session(
                         flush=True,
                         group_id=review_group_id,
                         group_name=review_group_id,
+                        async_mode=False,  # Synchronous: session summary is high-value data
                     )
                     if result is not None:
-                        print(f"[EverMem Review] Stored review session summary user={evermem_user_id} group_id={review_group_id} reviewed={session.review_count}")
+                        status = result.get("status", "unknown")
+                        print(f"[EverMem Review] Stored review session summary user={evermem_user_id} group_id={review_group_id} reviewed={session.review_count} status={status}")
 
                 asyncio.create_task(_store_review_session())
         elif evermem_enabled:

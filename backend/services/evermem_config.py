@@ -5,6 +5,7 @@ Persists evermem settings so any router can access it (not just AI chat).
 import os
 import json
 import logging
+import asyncio
 from typing import Optional
 from services.evermem_service import EverMemService
 
@@ -60,6 +61,33 @@ def _load_persisted_config():
     return enabled, url, legacy_key
 
 
+def _schedule_timezone_init(service: EverMemService) -> None:
+    """Fire-and-forget coroutine to set Asia/Shanghai timezone on Evermind.
+
+    This ensures the server-side memory extraction engine understands
+    time-relative expressions ("today", "yesterday") correctly for users
+    in China Standard Time (UTC+8). Called once whenever a new API key
+    is registered so we don't hit the settings endpoint on every request.
+    """
+    async def _do_set_timezone():
+        try:
+            result = await service.update_settings({"timezone": "Asia/Shanghai"})
+            if result:
+                logger.info("[EverMem] Timezone initialized to Asia/Shanghai")
+            else:
+                logger.warning("[EverMem] Timezone init returned no result (check API key/connectivity)")
+        except Exception as exc:
+            logger.warning(f"[EverMem] Timezone init failed: {exc}")
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_do_set_timezone())
+    except RuntimeError:
+        # No running event loop (e.g. called from a sync context / test).
+        # Skip silently — the timezone will be set on the next async call.
+        pass
+
+
 def save_config(enabled: bool, url: str = None, key: str = None):
     """Persist evermem settings without storing plaintext key to disk."""
     global _cached_service, _cached_key, _cached_url
@@ -76,9 +104,13 @@ def save_config(enabled: bool, url: str = None, key: str = None):
 
         if isinstance(key, str) and key.strip():
             in_memory_key = key.strip()
-            _cached_service = EverMemService(api_url=resolved_url, api_key=in_memory_key)
+            new_service = EverMemService(api_url=resolved_url, api_key=in_memory_key)
+            _cached_service = new_service
             _cached_key = in_memory_key
             _cached_url = resolved_url
+            # Fire-and-forget: set timezone so Evermind understands time-relative
+            # references ("today", "yesterday") correctly for China Standard Time.
+            _schedule_timezone_init(new_service)
             return
 
         # Keep existing in-memory key only when URL is unchanged.
