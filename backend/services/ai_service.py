@@ -770,11 +770,11 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 return (0, -score)
 
             priority = {
-                "event_log": 0,
+                "episodic_memory": 0,
                 "recent_memory": 1,
-                "episodic_memory": 2,
                 "history": 2,
                 "foresight": 2,
+                "agent_case": 2,
                 "profile": 3,
             }.get(memory_type, 2)
             return (priority, -score)
@@ -942,31 +942,34 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         def sort_key(item: Dict) -> tuple[int, int, float]:
             memory_type = str(item.get("type", ""))
             if identity_request:
+                # Profile facts first, then episodic evidence, agent cases last.
                 priority = {
                     "profile": 0,
-                    "event_log": 1,
-                    "episodic_memory": 2,
+                    "episodic_memory": 1,
+                    "agent_case": 2,
                     "history": 2,
                     "recent_memory": 3,
                     "foresight": 4,
                 }.get(memory_type, 3)
             elif review_request:
+                # Episodic memories carry review records; profile less relevant.
                 priority = {
-                    "event_log": 0,
-                    "episodic_memory": 1,
+                    "episodic_memory": 0,
                     "history": 1,
                     "recent_memory": 2,
+                    "agent_case": 3,
                     "foresight": 3,
                     "profile": 4,
                 }.get(memory_type, 3)
             else:
+                # General recall: episodic first, profile second (has user prefs).
                 priority = {
-                    "event_log": 0,
-                    "episodic_memory": 1,
+                    "episodic_memory": 0,
                     "history": 1,
-                    "recent_memory": 2,
+                    "recent_memory": 1,
+                    "profile": 2,
+                    "agent_case": 2,
                     "foresight": 3,
-                    "profile": 4,
                 }.get(memory_type, 3)
             term_matches = int(item.get("term_matches", 0))
             score = float(item.get("score", 0.0))
@@ -1195,12 +1198,25 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             for query in queries:
                 try:
                     search_min_score = 0.05 if recall_request and query != user_msg else min_score
+                    # Dynamically select memory types based on detected intent.
+                    # - Identity questions: also search user profile facts
+                    # - Guidance/planning questions: also include past AI case solutions
+                    # - Review recall: only episodic covers the compressed review records
+                    if self._is_identity_recall_request(user_msg):
+                        search_memory_types = ["episodic_memory", "profile"]
+                    elif any(
+                        pattern in user_msg.lower()
+                        for pattern in self._MEMORY_GUIDANCE_PATTERNS
+                    ) and not review_request:
+                        search_memory_types = ["episodic_memory", "profile", "agent_case"]
+                    else:
+                        search_memory_types = ["episodic_memory"]
                     found = await self.evermem_service.search_memories(
                         query=query,
                         user_id=self.evermem_user_id,
                         min_score=search_min_score,
                         group_ids=group_ids,
-                        memory_types=["episodic_memory"],
+                        memory_types=search_memory_types,
                         retrieve_method="rrf" if recall_request else "hybrid",
                         top_k=8,
                     )
@@ -1236,15 +1252,18 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     except Exception as e:
                         print(f"[EverMem] Failed to retrieve profiles: {e}")
                 try:
-                    event_logs = await self.evermem_service.get_memories(
+                    # v1 API: event_log is merged into episodic_memory.
+                    # We pull recent episodic memories here to use as a fallback
+                    # grounding source for explicit recall questions.
+                    episodic_memories = await self.evermem_service.get_memories(
                         user_id=self.evermem_user_id,
                         group_ids=group_ids,
-                        memory_type="event_log",
-                        page_size=100,
+                        memory_type="episodic_memory",
+                        page_size=60,
                     )
-                    scoped_raw_count += len(event_logs)
+                    scoped_raw_count += len(episodic_memories)
                     review_like_events = 0
-                    for event in event_logs:
+                    for event in episodic_memories:
                         content = str(event.get("content", "")).strip()
                         review_content = self._review_memory_text(event)
                         if not content:
@@ -1271,8 +1290,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         if not review_request and self._count_recall_term_matches(content, user_msg) < 1:
                             continue
                         scoped_collected.append({
-                            "content": f"[事件记录] {display_content}",
-                            "type": "event_log",
+                            "content": f"[记忆片段] {display_content}",
+                            "type": "episodic_memory",
                             "score": (
                                 self._score_review_memory(display_content, user_msg, event.get("timestamp"))
                                 if review_request
@@ -1288,7 +1307,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                             f"review_like_events={review_like_events}"
                         )
                 except Exception as e:
-                    print(f"[EverMem] Failed to retrieve event logs: {e}")
+                    print(f"[EverMem] Failed to retrieve episodic memories: {e}")
 
             raw_collected_count += scoped_raw_count
 

@@ -120,8 +120,8 @@ def test_recall_questions_fall_back_to_recent_memories():
     assert service.evermem_service.search_calls[0]["retrieve_method"] == "rrf"
     assert any(call["group_ids"] is None for call in service.evermem_service.search_calls)
     assert service.evermem_service.get_calls == [
-        {"user_id": "cloud_demo", "group_ids": ["session-1"], "memory_type": "event_log", "page_size": 100},
-        {"user_id": "cloud_demo", "group_ids": None, "memory_type": "event_log", "page_size": 100},
+        {"user_id": "cloud_demo", "group_ids": ["session-1"], "memory_type": "episodic_memory", "page_size": 60},
+        {"user_id": "cloud_demo", "group_ids": None, "memory_type": "episodic_memory", "page_size": 60},
     ]
     assert any("suancai" in call["query"].lower() or "march 15" in call["query"].lower() for call in service.evermem_service.search_calls)
     assert service.evermem_service.add_calls == []
@@ -131,7 +131,7 @@ def test_recall_questions_fall_back_to_recent_memories():
     assert "today's weather" not in system_prompt
     assert "Assistant responded to a user inquiry" not in system_prompt
     assert "suancai and sausages" in system_prompt
-    assert "[事件记录]" in system_prompt
+    assert "[记忆片段]" in system_prompt
     assert "请优先总结精确的历史事实" in system_prompt
 
 
@@ -301,7 +301,7 @@ def test_review_recall_uses_review_event_logs():
         service.evermem_service.get_calls.append({"user_id": user_id, "group_ids": group_ids, "memory_type": memory_type, "page_size": page_size})
         if group_ids == ["session-review"]:
             return []
-        if memory_type == "event_log":
+        if memory_type == "episodic_memory":
             return [
                 {"content": "The tutor completed a review session for the user.", "raw_content": "[REVIEW_SESSION] Review session completed. Duration: 92 seconds. Reviewed words: 5. Current weaker review words: connectivity (mistakes=3, ease=1.80, due now); default (mistakes=2, ease=2.00, reviewing). Difficult words tracked: 5.", "timestamp": "2026-03-15T03:58:00+00:00", "role": "user", "sender_name": "VocabBook Tutor"},
                 {"content": "复习单词 'theme' (主题). 评分: 1/5 (完全不认识). 下次复习: 8小时后. 当前难度信号: error_count=3, easiness=1.7, repetitions=0. This word is still weak for the user.", "timestamp": "2026-03-15T03:57:00+00:00", "role": "user", "sender_name": "VocabBook Tutor"},
