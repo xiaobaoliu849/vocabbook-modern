@@ -520,7 +520,7 @@ class AIService:
                                     continue
                 except Exception as e:
                     print(f"LLM Stream API Error: {e}")
-                    yield {"type": "token", "content": ""}
+                    yield {"type": "token", "content": f"对话失败，API报错：{str(e)}。请检查模型配置或 API Key。"}
             
             # Streaming for anthropic is not fully implemented here as dashscope/openai/ollama are primary
             else:
@@ -1707,27 +1707,43 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
     async def test_connection(self) -> Dict:
         """
         测试 AI 连接
-        
+
         Returns:
             Dict with 'success', 'message', and optional 'details'
         """
+        config = self._get_client_config()
         try:
-            response = await self._call_llm([
-                {"role": "user", "content": "Hello, please reply with 'OK' if you can hear me."}
-            ], temperature=0.1)
-            
-            if response and len(response.strip()) > 0:
-                return {
-                    "success": True,
-                    "message": "连接成功！",
-                    "details": f"AI 响应: {response[:50]}..."
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": "AI 响应为空，请检查模型名称是否正确。",
-                    "details": ""
-                }
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{config['base_url']}/chat/completions",
+                    headers=config['headers'],
+                    json={
+                        "model": self.model,
+                        "messages": [{"role": "user", "content": "Hello, please reply with 'OK' if you can hear me."}],
+                        "temperature": 0.1
+                    }
+                )
+                if response.status_code != 200:
+                    error_body = response.text[:200]
+                    return {
+                        "success": False,
+                        "message": f"API 返回 {response.status_code}",
+                        "details": f"Provider: {self.provider}, Model: {self.model}\n{error_body}"
+                    }
+                data = response.json()
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if content and len(content.strip()) > 0:
+                    return {
+                        "success": True,
+                        "message": "连接成功！",
+                        "details": f"AI 响应: {content[:50]}..."
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": "AI 响应为空",
+                        "details": f"Provider: {self.provider}, Model: {self.model}\n响应: {str(data)[:200]}"
+                    }
         except Exception as e:
             return {
                 "success": False,
