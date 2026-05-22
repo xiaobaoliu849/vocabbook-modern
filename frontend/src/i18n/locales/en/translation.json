@@ -346,7 +346,17 @@
       "title": "Speak Freely, Think Deeply",
       "subtitle": "Begin your immersive English practice",
       "memoryTitle": "EverMemOS memory engine is active",
-      "memoryDesc": "AI will automatically remember key details so every conversation feels continuous"
+      "memoryDesc": "AI will automatically remember key details so every conversation feels continuous",
+      "starters": {
+        "dailyTitle": "Daily Conversation",
+        "dailyDesc": "Chat about everyday topics to build fluency",
+        "scenarioTitle": "Role Play",
+        "scenarioDesc": "Practice real-life scenarios like ordering or interviewing",
+        "grammarTitle": "Grammar Check",
+        "grammarDesc": "Paste a sentence and get detailed correction",
+        "vocabTitle": "Word Explorer",
+        "vocabDesc": "Deep dive into a word's usage and collocations"
+      }
     },
     "reasoning": {
       "title": "Reasoning process",

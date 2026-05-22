@@ -354,7 +354,17 @@
       "title": "言语相伴，深度思考",
       "subtitle": "开启你的英文沉浸式口语练习",
       "memoryTitle": "EverMemOS 记忆引擎已激活",
-      "memoryDesc": "AI 会自动记忆关键内容，赋予每次对话延续性"
+      "memoryDesc": "AI 会自动记忆关键内容，赋予每次对话延续性",
+      "starters": {
+        "dailyTitle": "日常对话",
+        "dailyDesc": "聊聊日常话题，培养语感",
+        "scenarioTitle": "情景扮演",
+        "scenarioDesc": "模拟点餐、面试等真实场景",
+        "grammarTitle": "语法纠错",
+        "grammarDesc": "粘贴一句话，获取详细修正",
+        "vocabTitle": "词汇探索",
+        "vocabDesc": "深入了解一个词的用法和搭配"
+      }
     },
     "reasoning": {
       "title": "深度思考过程",
