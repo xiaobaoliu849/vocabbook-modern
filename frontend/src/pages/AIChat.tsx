@@ -1315,9 +1315,9 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                     <span className="truncate max-w-[120px]">{model || t('chat.header.defaultModel')}</span>
                                 </span>
                                 {evermemEnabled && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-500/10 text-[9px] font-black text-indigo-600 dark:text-indigo-400 border border-indigo-200/20 dark:border-indigo-800/20 tracking-wider uppercase">
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-[9px] font-black text-amber-600 dark:text-amber-400 border border-amber-500/20 dark:border-amber-800/20 tracking-wider uppercase">
                                         <img src={EvermemLogo} className="w-3 h-3 object-contain" alt="Evermem" />
-                                        EVERMEM
+                                        EVERMIND ACTIVE
                                     </span>
                                 )}
                             </div>
@@ -1605,12 +1605,32 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8 custom-scrollbar scroll-smooth relative z-10">
                     {messages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center animate-fade-in select-none">
-                            <div className="relative group cursor-default">
-                                <div className="absolute -inset-10 bg-gradient-to-tr from-indigo-500/20 via-purple-500/10 to-pink-500/20 blur-[60px] opacity-70 group-hover:opacity-100 transition-opacity duration-1000 animate-pulse-slow" />
-                                <div className="relative w-20 h-20 rounded-full bg-white/30 dark:bg-slate-800/30 backdrop-blur-3xl border border-white/40 dark:border-slate-700/40 shadow-xl flex items-center justify-center transform group-hover:scale-105 transition-transform duration-500">
-                                    <Sparkles size={36} className="text-indigo-500 dark:text-indigo-400 drop-shadow-md" />
+                            <div className="relative group cursor-default mb-6">
+                                <div className="absolute -inset-10 bg-gradient-to-tr from-amber-500/20 via-orange-500/10 to-yellow-500/20 blur-[60px] opacity-70 group-hover:opacity-100 transition-opacity duration-1000 animate-pulse-slow" />
+                                <div className="relative w-20 h-20 rounded-full bg-white/40 dark:bg-slate-800/40 backdrop-blur-3xl border border-white/50 dark:border-slate-700/50 shadow-xl flex items-center justify-center transform group-hover:scale-105 transition-transform duration-500">
+                                    <img src={EvermemLogo} className="w-10 h-10 object-contain drop-shadow-md" alt="Evermem" />
                                 </div>
                             </div>
+                            {evermemEnabled && memoryOverview?.review_focus && (
+                                <div className="animate-fade-in-up delay-300 flex flex-col items-center">
+                                    <div className="text-slate-500 dark:text-slate-400 font-medium text-[15px] mb-2 tracking-wide">
+                                        EverMind Cognitive Space
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[13px]">
+                                        <span className="text-amber-600 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-900/30 px-2.5 py-0.5 rounded-full border border-amber-200/50 dark:border-amber-700/30">
+                                            {memoryOverview.review_focus.due_count} {t('chat.memory.dueToday', 'due words today')}
+                                        </span>
+                                        {memoryOverview.review_focus.difficult_count > 0 && (
+                                            <>
+                                                <span className="text-slate-300 dark:text-slate-600">·</span>
+                                                <span className="text-slate-600 dark:text-slate-300 font-medium">
+                                                    {memoryOverview.review_focus.difficult_count} {t('chat.memory.difficultWords', 'difficult words')}
+                                                </span>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1620,8 +1640,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                             className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
                         >
                             {msg.role === 'assistant' && (
-                                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md text-indigo-600 dark:text-indigo-400 shadow-lg shadow-slate-200/10 dark:shadow-black/20 border border-white/50 dark:border-slate-700/50 self-start mt-1">
-                                    <Sparkles size={18} />
+                                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md text-amber-600 dark:text-amber-400 shadow-lg shadow-slate-200/10 dark:shadow-black/20 border border-white/50 dark:border-slate-700/50 self-start mt-1">
+                                    <img src={EvermemLogo} className="w-5 h-5 object-contain" alt="Evermem" />
                                 </div>
                             )}
 
