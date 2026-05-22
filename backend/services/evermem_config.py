@@ -88,6 +88,38 @@ def _schedule_timezone_init(service: EverMemService) -> None:
         pass
 
 
+def _schedule_sender_registration(service: EverMemService, user_id: str) -> None:
+    """Fire-and-forget: register display names for the two sender IDs used in VocabBook.
+
+    Registers:
+      - <user_id>  → "学习者"         (the human learner)
+      - "tutor_vocab" → "VocabBook 辅导员"  (the review/AI tutor bot)
+
+    This is purely cosmetic: it makes the Evermind dashboard show readable
+    participant names instead of raw IDs. Safe to call on every new key
+    registration since the API upserts by sender_id.
+    """
+    async def _do_register():
+        try:
+            r1 = await service.create_sender(sender_id=user_id, name="学习者")
+            r2 = await service.create_sender(sender_id="tutor_vocab", name="VocabBook 辅导员")
+            if r1 is not None and r2 is not None:
+                logger.info("[EverMem] Sender display names registered (学习者 / VocabBook 辅导员)")
+            else:
+                logger.warning(
+                    "[EverMem] Sender registration partial or failed "
+                    f"learner={r1 is not None} tutor={r2 is not None}"
+                )
+        except Exception as exc:
+            logger.warning(f"[EverMem] Sender registration failed: {exc}")
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_do_register())
+    except RuntimeError:
+        pass
+
+
 def save_config(enabled: bool, url: str = None, key: str = None):
     """Persist evermem settings without storing plaintext key to disk."""
     global _cached_service, _cached_key, _cached_url
@@ -111,6 +143,9 @@ def save_config(enabled: bool, url: str = None, key: str = None):
             # Fire-and-forget: set timezone so Evermind understands time-relative
             # references ("today", "yesterday") correctly for China Standard Time.
             _schedule_timezone_init(new_service)
+            # Fire-and-forget: register readable display names for the two sender IDs.
+            # Uses a placeholder user_id here; AI chat will use the real user_id at runtime.
+            _schedule_sender_registration(new_service, user_id="vocab_user")
             return
 
         # Keep existing in-memory key only when URL is unchanged.

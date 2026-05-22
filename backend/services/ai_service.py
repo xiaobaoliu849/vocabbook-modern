@@ -930,10 +930,23 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return [session_id]
         return [session_id]
 
-    def _review_group_id(self) -> Optional[str]:
+    def _review_group_ids(self, weeks: int = 4) -> Optional[List[str]]:
+        """Return group_ids for the last *weeks* ISO weeks of review data.
+
+        Mirrors ``_review_group_ids_recent`` in review.py so the AI recall
+        search targets the same weekly-scoped groups that review records
+        are written into.
+        """
         if not self.evermem_user_id:
             return None
-        return f"{self.evermem_user_id}::review"
+        today = datetime.date.today()
+        group_ids: List[str] = []
+        for offset in range(weeks):
+            target = today - datetime.timedelta(weeks=offset)
+            iso = target.isocalendar()
+            tag = f"{iso.year}-W{iso.week:02d}"
+            group_ids.append(f"{self.evermem_user_id}::review::{tag}")
+        return group_ids if group_ids else None
 
     def _rank_recall_memories(self, memories: List[Dict], user_msg: str) -> List[Dict]:
         identity_request = self._is_identity_recall_request(user_msg)
@@ -1180,8 +1193,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         scope_candidates: List[Optional[List[str]]] = []
         review_request = self._is_review_recall_request(user_msg)
         if review_request:
-            review_group = self._review_group_id()
-            primary_group_ids = [review_group] if review_group else None
+            review_group_ids = self._review_group_ids(weeks=4)
+            primary_group_ids = review_group_ids if review_group_ids else None
         else:
             primary_group_ids = self._build_memory_group_ids(session_id, recall_request)
         if primary_group_ids:

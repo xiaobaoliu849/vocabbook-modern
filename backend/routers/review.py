@@ -5,7 +5,7 @@ Review API Router
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import time
 import base64
 import hashlib
@@ -86,10 +86,42 @@ def _resolve_evermem_user_id(authorization: Optional[str], x_client_id: Optional
     return f"token_{token_fingerprint}"
 
 
-def _review_group_id_for_user(user_id: Optional[str]) -> Optional[str]:
+def _current_iso_week_tag() -> str:
+    """Return the current ISO year-week string, e.g. '2025-W20'."""
+    iso = date.today().isocalendar()
+    return f"{iso.year}-W{iso.week:02d}"
+
+
+def _review_group_id_for_user(user_id: Optional[str], week_tag: Optional[str] = None) -> Optional[str]:
+    """Return the weekly review group_id for this user.
+
+    Format: ``{user_id}::review::{YYYY-WNN}``
+    Scoping review records by ISO week prevents old records from polluting
+    AI recall searches — the assistant only needs to scan the last few weeks.
+    """
     if not isinstance(user_id, str) or not user_id.strip():
         return None
-    return f"{user_id}::review"
+    tag = week_tag or _current_iso_week_tag()
+    return f"{user_id}::review::{tag}"
+
+
+def _review_group_ids_recent(user_id: Optional[str], weeks: int = 4) -> Optional[List[str]]:
+    """Return the group_ids for the last *weeks* ISO weeks (inclusive of current).
+
+    Used by AI recall so it can pass a targeted group_ids list instead of
+    searching across all historical review data.
+    """
+    if not isinstance(user_id, str) or not user_id.strip():
+        return None
+    today = date.today()
+    group_ids = []
+    # Walk backwards week by week
+    for offset in range(weeks):
+        target = today - timedelta(weeks=offset)
+        iso = target.isocalendar()
+        tag = f"{iso.year}-W{iso.week:02d}"
+        group_ids.append(f"{user_id}::review::{tag}")
+    return group_ids if group_ids else None
 
 
 def _prime_evermem_runtime(
