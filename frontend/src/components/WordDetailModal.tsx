@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import AudioButton from './AudioButton'
-import { X, Check, GripHorizontal } from 'lucide-react'
+import { X, Check, GripHorizontal, Sparkles } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
@@ -30,6 +30,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
    const [note, setNote] = useState(word.note || '')
    const [isSavingNote, setIsSavingNote] = useState(false)
    const [savedSuccess, setSavedSuccess] = useState(false)
+   const [wordFamily, setWordFamily] = useState<any>(null)
  
    // Drag state
    const [position, setPosition] = useState({ x: 0, y: 0 })
@@ -39,11 +40,27 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
 
    const examples = word.example ? splitExamples(word.example) : []
  
-   // Reset note state when word changes (e.g. during next/prev navigation)
+   // Reset note state and fetch word family when word changes (e.g. during next/prev navigation)
    useEffect(() => {
      setNote(word.note || '')
      setSavedSuccess(false)
-     // Reset position when opening a new word? Optional, let's keep it where they dragged it for better UX.
+     
+     let active = true
+     const fetchFamily = async () => {
+       try {
+         const res = await api.get(`/api/dictionary/family/${word.word}`)
+         if (active) {
+           setWordFamily(res)
+         }
+       } catch (err) {
+         console.error('Failed to fetch word family:', err)
+       }
+     }
+     
+     fetchFamily()
+     return () => {
+       active = false
+     }
    }, [word])
 
    // Click outside handler
@@ -188,11 +205,6 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
          >
            <div className="flex items-center gap-4 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 transition-colors">
              <GripHorizontal size={18} className="opacity-50" />
-             {word.next_review_time !== undefined && (
-               <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 tracking-wider uppercase">
-                 {t('wordDetail.reviewCount', 'Reviews: {{count}}', { count: word.review_count || 0 })}
-               </span>
-             )}
            </div>
            <button 
              onClick={(e) => {
@@ -206,27 +218,56 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
          </div>
  
          <div className="px-10 pb-12 pt-2 space-y-12">
-           {/* Word Title & Phonetic - Bold, clean sans-serif for a modern, airy feel */}
-           <div>
-             <div className="flex flex-wrap items-center gap-4 mb-3">
-               <h2 className="text-5xl font-extrabold text-slate-800 dark:text-slate-50 tracking-tight">
-                 {word.word}
-               </h2>
-               {word.tags && word.tags.split(',').map((tag: string) => tag.trim() && (
-                 <span key={tag} className="px-2.5 py-1 text-xs rounded-lg bg-blue-50 text-blue-600 border border-blue-100/50 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800/30 font-medium">
-                   {tag.trim()}
+           <div className="space-y-6">
+             <div>
+               <div className="flex flex-wrap items-center gap-4 mb-3">
+                 <h2 className="text-5xl font-extrabold text-slate-800 dark:text-slate-50 tracking-tight">
+                   {word.word}
+                 </h2>
+                 {word.mastered && (
+                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-500/10 text-amber-600 border border-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30">
+                     <Sparkles size={12} className="fill-amber-500/30 shrink-0 animate-pulse" />
+                     {t('wordDetail.mastered', 'Mastered')}
+                   </span>
+                 )}
+                 {word.tags && word.tags.split(',').map((tag: string) => tag.trim() && (
+                   <span key={tag} className="px-2.5 py-1 text-xs rounded-lg bg-blue-50 text-blue-600 border border-blue-100/50 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800/30 font-medium">
+                     {tag.trim()}
+                   </span>
+                 ))}
+               </div>
+               <div className="flex items-center gap-4">
+                 <span className="text-2xl text-slate-400 dark:text-slate-500 font-medium tracking-wide">
+                   {word.phonetic}
                  </span>
-               ))}
+                 <AudioButton
+                   word={word.word}
+                   audioSrc={audioSrc}
+                   className="text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10"
+                 />
+               </div>
              </div>
-             <div className="flex items-center gap-4">
-               <span className="text-2xl text-slate-400 dark:text-slate-500 font-medium tracking-wide">
-                 {word.phonetic}
-               </span>
-               <AudioButton
-                 word={word.word}
-                 audioSrc={audioSrc}
-                 className="text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-500/10"
-               />
+
+             {/* SM-2 Review Stats Visualization */}
+             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/50">
+               <div className="text-center sm:text-left">
+                 <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{t('wordDetail.reviews', 'Reviews')}</span>
+                 <span className="text-lg font-extrabold text-slate-800 dark:text-slate-100">{word.review_count || 0}</span>
+               </div>
+               <div className="text-center sm:text-left border-l border-slate-200/50 dark:border-slate-800/80 pl-4">
+                 <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{t('wordDetail.sm2Interval', 'Interval')}</span>
+                 <span className="text-lg font-extrabold text-slate-800 dark:text-slate-100">{word.interval || 0} {t('common.days', 'd')}</span>
+               </div>
+               <div className="text-center sm:text-left border-l border-slate-200/50 dark:border-slate-800/80 pl-4">
+                 <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{t('wordDetail.sm2Stage', 'SM-2 Stage')}</span>
+                 <span className="text-lg font-extrabold text-slate-800 dark:text-slate-100">{word.stage !== undefined ? word.stage : 0} / 5</span>
+               </div>
+               <div className="text-center sm:text-left border-l border-slate-200/50 dark:border-slate-800/80 pl-4">
+                 <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{t('wordDetail.nextReview', 'Next Review')}</span>
+                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300 block truncate mt-1">
+                   {word.next_review_time ? new Date(word.next_review_time * 1000).toLocaleDateString() : t('wordDetail.notScheduled', 'Not scheduled')}
+                 </span>
+               </div>
              </div>
            </div>
  
@@ -257,6 +298,44 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
                    </p>
                  </div>
                )}
+             </div>
+           )}
+
+           {/* Word Family Section */}
+           {wordFamily?.family && wordFamily.family.length > 0 && (
+             <div>
+               <SectionHeader>{t('wordDetail.wordFamily', 'Word Family')}</SectionHeader>
+               <div className="space-y-4">
+                 {wordFamily.family.map((fam: any, fIdx: number) => (
+                   <div key={fIdx} className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                     <div className="flex items-baseline gap-2 mb-2">
+                       <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400">
+                         Root: {fam.root}
+                       </span>
+                       {fam.root_meaning && (
+                         <span className="text-xs text-slate-400 dark:text-slate-500">
+                           ({fam.root_meaning})
+                         </span>
+                       )}
+                     </div>
+                     <div className="flex flex-wrap gap-2">
+                       {fam.words && fam.words.map((fWord: any, wIdx: number) => (
+                         <span
+                           key={wIdx}
+                           className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-all ${
+                             fWord.in_vocab
+                               ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 font-bold'
+                               : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                           }`}
+                           title={fWord.in_vocab ? t('wordDetail.inVocab', 'In your vocabulary') : t('wordDetail.notInVocab', 'Not in vocabulary')}
+                         >
+                           {fWord.word}
+                         </span>
+                       ))}
+                     </div>
+                   </div>
+                 ))}
+               </div>
              </div>
            )}
  
@@ -295,7 +374,10 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
            <div className="pt-6 border-t border-slate-100 dark:border-slate-800/60">
              <div className="flex items-center justify-between mb-2">
                <SectionHeader>{t('wordDetail.notes', 'Personal notes')}</SectionHeader>
-               <div className="flex items-center gap-2 mb-4">
+               <div className="flex items-center gap-3 mb-4">
+                 <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                   {note.length} {t('wordDetail.chars', 'chars')}
+                 </span>
                  {isSavingNote && (
                    <span className="text-[11px] uppercase tracking-wider text-slate-400 animate-pulse">
                       {t('wordDetail.saving', 'Saving...')}
