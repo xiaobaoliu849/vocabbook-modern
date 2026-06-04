@@ -46,3 +46,8 @@ cloud_server/*.pem
 *.orig
 *.rej
 Untitled-*.txt
+
+# Local scratch / tool config
+.claude/
+backend/test_ai.py
+frontend/apply_redesign.py
