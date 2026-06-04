@@ -4,6 +4,7 @@ import { X, Loader2, CheckCircle2 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { payService } from '../../services/cloudApi';
 import { useAuth } from '../../context/AuthContext';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface PaymentModalProps {
     isOpen: boolean;
@@ -11,6 +12,7 @@ interface PaymentModalProps {
 }
 
 export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
+    const trapRef = useFocusTrap(isOpen);
     const [loading, setLoading] = useState(false);
     const [qrCode, setQrCode] = useState('');
     const [outTradeNo, setOutTradeNo] = useState('');
@@ -65,19 +67,19 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
     return createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl shadow-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in fade-in zoom-in duration-200">
+            <div ref={trapRef} role="dialog" aria-modal="true" className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
                 <div className="relative p-6 text-center">
                     <button
                         onClick={onClose}
-                        className="absolute right-4 top-4 p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        className="absolute right-4 top-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
 
                     <h3 className="text-xl font-bold mb-2">Upgrade to Premium</h3>
-                    <p className="text-zinc-500 mb-6">Scan with Alipay to pay</p>
+                    <p className="text-slate-500 mb-6">Scan with Alipay to pay</p>
 
-                    <div className="flex flex-col items-center justify-center min-h-[250px] bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4">
+                    <div className="flex flex-col items-center justify-center min-h-[250px] bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
                         {loading ? (
                             <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
                         ) : status === 'success' ? (
@@ -94,8 +96,8 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                         )}
                     </div>
 
-                    <div className="mt-4 text-zinc-400 text-sm">
-                        Total: <span className="text-zinc-900 dark:text-zinc-100 font-bold text-lg">¥29.00</span>
+                    <div className="mt-4 text-slate-400 text-sm">
+                        Total: <span className="text-slate-900 dark:text-slate-100 font-bold text-lg">¥29.00</span>
                     </div>
                 </div>
             </div>

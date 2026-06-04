@@ -2,6 +2,8 @@ import { useState, useRef } from 'react'
 import { Upload, FileText, CheckCircle, Loader2 } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
 import { useTranslation } from 'react-i18next'
+import { PageTitle } from '../components/PageTitle'
+import { useToast } from '../context/ToastContext'
 
 interface ImportResult {
     total: number
@@ -18,6 +20,7 @@ interface ImportResult {
 
 export default function ImportWords() {
     const { t } = useTranslation()
+    const { toast } = useToast()
     const [activeTab, setActiveTab] = useState<'file' | 'text'>('file')
     const [file, setFile] = useState<File | null>(null)
     const [textInput, setTextInput] = useState('')
@@ -74,7 +77,7 @@ export default function ImportWords() {
             }
         } catch (error) {
             console.error('Import failed:', error)
-            alert(t('importWords.errors.failedAlert'))
+            toast(t('importWords.errors.failedAlert'), 'error')
         } finally {
             setIsUploading(false)
         }
@@ -82,14 +85,9 @@ export default function ImportWords() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-            <header>
-                <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">
-                    {t('importWords.title')}
-                </h1>
-                <p className="text-slate-500 dark:text-slate-400">
-                    {t('importWords.subtitle')}
-                </p>
-            </header>
+            <PageTitle subtitle={t('importWords.subtitle')}>
+                {t('importWords.title')}
+            </PageTitle>
 
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                 {/* Tabs */}

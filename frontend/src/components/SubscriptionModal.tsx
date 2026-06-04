@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { Wrench } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { payService } from '../services/cloudApi';
 import { QRCodeSVG } from 'qrcode.react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SubscriptionModalProps {
     isOpen: boolean;
@@ -12,6 +14,7 @@ interface SubscriptionModalProps {
 
 export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
     const { t } = useTranslation();
+    const trapRef = useFocusTrap(isOpen);
     const { user, token, checkAuth } = useAuth();
     const [loading, setLoading] = useState(false);
     const [mockLoading, setMockLoading] = useState(false);
@@ -115,10 +118,10 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
 
     return createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
-            <div className="bg-white/10 dark:bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/20 dark:border-white/10 p-8 rounded-3xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto flex flex-col">
+            <div ref={trapRef} role="dialog" aria-modal="true" className="bg-white/10 dark:bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/20 dark:border-white/10 p-8 rounded-3xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto flex flex-col">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10"
+                    className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors z-10"
                 >
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -129,7 +132,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                     <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400 mb-2">
                         {t('subscription.title', 'Upgrade to Premium')}
                     </h2>
-                    <p className="text-gray-400 text-lg">{t('subscription.subtitle', 'Unlock the full potential of vocabulary learning.')}</p>
+                    <p className="text-slate-400 text-lg">{t('subscription.subtitle', 'Unlock the full potential of vocabulary learning.')}</p>
                 </div>
 
                 {error && (
@@ -144,18 +147,18 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                             {/* Free Tier */}
                             <div className="bg-black/20 border border-white/5 rounded-2xl p-6 relative">
                                 {user?.tier === 'free' && (
-                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-xs px-3 py-1 rounded-full font-medium">
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-600 text-white text-xs px-3 py-1 rounded-full font-medium">
                                         {t('subscription.currentPlan', 'Current plan')}
                                     </div>
                                 )}
                                 <h3 className="text-xl font-semibold text-white mb-2">{t('subscription.free.name', 'Free')}</h3>
-                                <div className="text-3xl font-bold text-white mb-6">¥0 <span className="text-sm text-gray-400 font-normal">{t('subscription.free.priceSuffix', '/ lifetime')}</span></div>
-                                <ul className="space-y-3 text-gray-300">
+                                <div className="text-3xl font-bold text-white mb-6">¥0 <span className="text-sm text-slate-400 font-normal">{t('subscription.free.priceSuffix', '/ lifetime')}</span></div>
+                                <ul className="space-y-3 text-slate-300">
                                     <li className="flex items-center"><span className="text-green-400 mr-2">✓</span> {t('subscription.free.features.basicSync', 'Basic vocabulary sync')}</li>
                                     <li className="flex items-center"><span className="text-green-400 mr-2">✓</span> {t('subscription.free.features.sm2', 'SM-2 spaced repetition')}</li>
-                                    <li className="flex items-center"><span className="text-gray-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.aiChatLimit', 'AI chat (10/day)')}</li>
-                                    <li className="flex items-center"><span className="text-gray-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.edgeTtsLimit', 'Edge TTS (30/day)')}</li>
-                                    <li className="flex items-center"><span className="text-gray-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.aiGenerationLimit', 'AI sentence generation (15/day)')}</li>
+                                    <li className="flex items-center"><span className="text-slate-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.aiChatLimit', 'AI chat (10/day)')}</li>
+                                    <li className="flex items-center"><span className="text-slate-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.edgeTtsLimit', 'Edge TTS (30/day)')}</li>
+                                    <li className="flex items-center"><span className="text-slate-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.aiGenerationLimit', 'AI sentence generation (15/day)')}</li>
                                 </ul>
                             </div>
 
@@ -194,11 +197,11 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                     </>
                 ) : (
                     <div className="bg-white rounded-2xl p-8 flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
-                        <h3 className="text-gray-800 font-bold mb-4 text-xl">{t('subscription.actions.scanWithAlipay', 'Scan with Alipay')}</h3>
-                        <div className="p-4 bg-gray-50 rounded-xl mb-4 border">
+                        <h3 className="text-slate-800 font-bold mb-4 text-xl">{t('subscription.actions.scanWithAlipay', 'Scan with Alipay')}</h3>
+                        <div className="p-4 bg-slate-50 rounded-xl mb-4 border">
                             <QRCodeSVG value={qrCodeUrl} size={200} />
                         </div>
-                        <p className="text-sm text-gray-500 mb-6 font-mono text-center">
+                        <p className="text-sm text-slate-500 mb-6 font-mono text-center">
                             {t('subscription.payment.sandbox', 'Sandbox test')}<br />
                             {t('subscription.payment.orderNo', {
                                 defaultValue: 'Order No: {{orderNo}}',
@@ -219,15 +222,15 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                             <button
                                 onClick={handleMockPayment}
                                 disabled={loading || mockLoading}
-                                className="text-emerald-600 text-sm hover:text-emerald-700 transition-colors bg-emerald-50 px-3 py-1.5 rounded-md border border-emerald-200"
+                                className="text-emerald-600 text-sm hover:text-emerald-700 transition-colors bg-emerald-50 px-3 py-1.5 rounded-md border border-emerald-200 inline-flex items-center gap-1"
                             >
                                 {mockLoading
                                     ? t('subscription.actions.mocking', 'Mocking...')
-                                    : t('subscription.actions.mockSuccess', '🔧 [Dev] Simulate success')}
+                                    : <><Wrench size={14} className="inline" /> {t('subscription.actions.mockSuccess', '[Dev] Simulate success')}</>}
                             </button>
                             <button
                                 onClick={() => { setQrCodeUrl(null); setOrderNo(null); setError(''); }}
-                                className="text-gray-400 text-sm hover:text-gray-600 transition-colors py-1.5"
+                                className="text-slate-400 text-sm hover:text-slate-600 transition-colors py-1.5"
                             >
                                 {t('subscription.actions.cancelPayment', 'Cancel payment')}
                             </button>

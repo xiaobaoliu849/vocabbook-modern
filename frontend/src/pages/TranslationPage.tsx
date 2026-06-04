@@ -3,6 +3,8 @@ import { Languages, ArrowRightLeft, Copy, Check, Trash2, Clock, Loader2, PanelRi
 import { api, API_PATHS } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import { useTranslation } from 'react-i18next'
+import { PageTitle } from '../components/PageTitle'
+import { useToast } from '../context/ToastContext'
 
 interface TranslationRecord {
     id: number
@@ -24,6 +26,7 @@ const LANGUAGES = ['Auto', 'English', 'Chinese', 'Japanese', 'Korean', 'French',
 
 export default function TranslationPage({ onBack }: { onBack?: () => void }) {
     const { t } = useTranslation()
+    const { confirmDialog } = useToast()
     const [sourceText, setSourceText] = useState('')
     const [targetText, setTargetText] = useState('')
     const [sourceLang, setSourceLang] = useState('Auto')
@@ -206,7 +209,7 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
 
     const handleDelete = async (id: number, e: React.MouseEvent) => {
         e.stopPropagation()
-        if (!confirm(t('translation.confirmDelete'))) return
+        if (!await confirmDialog(t('translation.confirmDelete'))) return
 
         try {
             await api.delete(API_PATHS.AI_TRANSLATION_DELETE(id))
@@ -246,12 +249,9 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
             {/* Left: Translation Area */}
             <div className={`flex-1 flex flex-col gap-4 transition-all duration-300 ${showHistory ? 'mr-0 md:mr-80' : ''} h-full`}>
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
-                            <Languages className="text-primary-500" />
-                            {t('translation.title')}
-                        </h2>
-                    </div>
+                    <PageTitle icon={<Languages className="text-primary-500" />}>
+                        {t('translation.title')}
+                    </PageTitle>
                     <div className="flex items-center gap-2">
                         {onBack && (
                             <button

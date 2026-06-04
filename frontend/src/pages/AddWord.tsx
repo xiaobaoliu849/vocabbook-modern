@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import AudioButton from '../components/AudioButton'
-import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2, Upload } from 'lucide-react'
+import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2, Upload, Star, AlertTriangle } from 'lucide-react'
 import { api, ApiError, API_PATHS } from '../utils/api'
 import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
+import { useToast } from '../context/ToastContext'
 
 export default function AddWord({ onOpenImport }: { onOpenImport?: () => void }) {
     const { t } = useTranslation()
@@ -15,10 +16,12 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
     const [searchResult, setSearchResult] = useState<any>(null)
     const [aiSentences, setAiSentences] = useState<string[]>([])
     const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+    const [aiError, setAiError] = useState('')
     const [activeTab, setActiveTab] = useState('youdao')
     const [isSaved, setIsSaved] = useState(false)
 
     const { notifyWordAdded } = useGlobalState()
+    const { toast } = useToast()
 
     // Auto features state
     const [autoSave, setAutoSave] = useState(() => localStorage.getItem('auto_save') === 'true')
@@ -45,7 +48,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
 
         try {
             await api.post(API_PATHS.WORDS, data)
-            if (!silent) alert(t('addWord.alerts.added'))
+            if (!silent) toast(t('addWord.alerts.added'), 'success')
             notifyWordAdded()
             return 'success'
         } catch (error) {
@@ -53,10 +56,10 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                 if (extraSentences.length > 0) {
                     await api.put(API_PATHS.WORD(data.word), { example: data.example })
                 }
-                if (!silent) alert(t('addWord.alerts.exists'))
+                if (!silent) toast(t('addWord.alerts.exists'), 'warning')
                 return 'exist'
             }
-            if (!silent) alert(t('addWord.alerts.failed'))
+            if (!silent) toast(t('addWord.alerts.failed'), 'error')
             return 'error'
         }
     }, [notifyWordAdded, t])
@@ -119,6 +122,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
     const handleGenerateAI = useCallback(async () => {
         if (!searchWord.trim()) return
         setIsGeneratingAI(true)
+        setAiError('')
 
         try {
             const aiProvider = localStorage.getItem('ai_provider') || 'dashscope'
@@ -143,6 +147,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             }
         } catch (error) {
             console.error('AI generation failed:', error)
+            setAiError('Failed to generate AI sentences. Please try again.')
         } finally {
             setIsGeneratingAI(false)
         }
@@ -196,10 +201,11 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             {/* Header */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
-                        🌟 {t('addWord.title')}
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <Star className="text-primary-500" size={24} />
+                        {t('addWord.title')}
                     </h2>
-                    <p className="text-slate-500 dark:text-slate-400 mt-2 text-lg">
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">
                         {t('addWord.subtitle', 'Ready to expand your vocabulary today?')}
                     </p>
                 </div>
@@ -473,6 +479,13 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                                         <span>{isGeneratingAI ? t('addWord.generating') : t('addWord.generateExamples')}</span>
                                     </button>
                                 </div>
+
+                                {aiError && (
+                                    <div className="flex items-center gap-2 text-sm text-red-500 mt-2">
+                                        <AlertTriangle size={14} />
+                                        <span>{aiError}</span>
+                                    </div>
+                                )}
 
                                 {aiSentences.length > 0 && (
                                     <div className="grid grid-cols-1 gap-4 mt-4">

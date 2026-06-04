@@ -1,7 +1,9 @@
 import { useState, useEffect, type ReactNode } from 'react'
+import { Flame, Clock, AlertTriangle } from 'lucide-react'
 import Heatmap from '../components/Heatmap'
 import { api, API_PATHS } from '../utils/api'
 import { useTranslation } from 'react-i18next'
+import { PageTitle } from '../components/PageTitle'
 
 interface Stats {
     total_words: number
@@ -21,22 +23,27 @@ export default function StatisticsPage() {
     const { t } = useTranslation()
     const [stats, setStats] = useState<Stats | null>(null)
     const [studyTime, setStudyTime] = useState<StudyTime | null>(null)
+    const [fetchError, setFetchError] = useState('')
 
     const fetchStats = async () => {
+        setFetchError('')
         try {
             const data = await api.get(API_PATHS.STATS)
             setStats(data)
         } catch (error) {
             console.error('Failed to fetch stats:', error)
+            setFetchError('Failed to load statistics. Please try again.')
         }
     }
 
     const fetchStudyTime = async () => {
+        setFetchError('')
         try {
             const data = await api.get(API_PATHS.STATS_STUDY_TIME)
             setStudyTime(data)
         } catch (error) {
             console.error('Failed to fetch study time:', error)
+            setFetchError('Failed to load study time data. Please try again.')
         }
     }
 
@@ -47,16 +54,20 @@ export default function StatisticsPage() {
 
     return (
         <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">
-                        {t('statistics.title')}
-                    </h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">
-                        {t('statistics.subtitle')}
-                    </p>
+            <PageTitle subtitle={t('statistics.subtitle')}>
+                {t('statistics.title')}
+            </PageTitle>
+
+            {/* Error Banner */}
+            {fetchError && (
+                <div className="glass-card p-4 flex items-center gap-3 border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10">
+                    <AlertTriangle size={18} className="text-red-500 shrink-0" />
+                    <p className="text-sm text-red-600 dark:text-red-400 flex-1">{fetchError}</p>
+                    <button onClick={() => { setFetchError(''); fetchStats(); fetchStudyTime(); }} className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-500/20 transition-colors">
+                        Retry
+                    </button>
                 </div>
-            </div>
+            )}
 
             {/* Core Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -71,7 +82,7 @@ export default function StatisticsPage() {
                             label={t('statistics.cards.streakDays')}
                             value={
                                 <span className="flex items-center justify-center gap-1">
-                                    {stats.streak_days} <span className="text-base">🔥</span>
+                                    {stats.streak_days} <Flame size={16} className="text-pink-500 inline" />
                                 </span>
                             }
                             color="text-pink-600"
@@ -98,7 +109,7 @@ export default function StatisticsPage() {
                 {studyTime && (
                     <div className="glass-card p-6 flex flex-col justify-center">
                         <div className="flex items-center gap-3 mb-2">
-                            <span className="text-4xl">⏱️</span>
+                            <Clock size={36} className="text-slate-400 dark:text-slate-500" />
                             <div>
                                 <h3 className="font-bold text-slate-800 dark:text-white text-lg">
                                     {t('statistics.studyTimeTitle')}
@@ -146,7 +157,7 @@ export default function StatisticsPage() {
 
 function StatCard({ label, value, color }: { label: string, value: ReactNode, color: string }) {
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 text-center shadow-sm border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-shadow">
+        <div className="glass-card p-4 text-center hover:shadow-lg transition-shadow">
             <div className={`text-2xl font-bold ${color}`}>{value}</div>
             <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">{label}</div>
         </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useToast } from '../../../context/ToastContext'
 
 function getDefaultModel(provider: string) {
     switch (provider) {
@@ -15,6 +16,7 @@ function getDefaultModel(provider: string) {
 
 export default function AISection() {
     const { t } = useTranslation()
+    const { toast } = useToast()
     const [aiProvider, setAiProvider] = useState('dashscope')
     const [aiApiKey, setAiApiKey] = useState('')
     const [aiModel, setAiModel] = useState('qwen-flash-latest')
@@ -146,8 +148,7 @@ export default function AISection() {
         localStorage.setItem('evermem_url', evermemUrl)
         localStorage.setItem('evermem_key', evermemKey)
 
-        // You might want to use a toast notification here instead of alert in a real app
-        alert(t('settings.ai.saveSuccess', '✅ AI settings saved'))
+        toast(t('settings.ai.saveSuccess', 'AI settings saved'), 'success')
     }
 
     const testConnection = async () => {

@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import WordDetailModal from '../components/WordDetailModal'
 import AudioButton from '../components/AudioButton'
-import { Trash2, CheckCircle, BookOpen, Loader2, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Trash2, CheckCircle, BookOpen, Loader2, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, AlertTriangle } from 'lucide-react'
 import { useDebounce } from '../utils/performance'
 import { api, API_PATHS } from '../utils/api'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
+import { PageTitle } from '../components/PageTitle'
+import { useToast } from '../context/ToastContext'
 
 interface Word {
     id: number
@@ -28,9 +30,11 @@ const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 export default function WordList({ isActive }: { isActive?: boolean }) {
     const { t } = useTranslation()
     const { matches } = useShortcuts()
+    const { confirmDialog } = useToast()
     const [words, setWords] = useState<Word[]>([])
     const [loading, setLoading] = useState(true)
     const [isFetching, setIsFetching] = useState(false)
+    const [fetchError, setFetchError] = useState('')
     const [searchKeyword, setSearchKeyword] = useState('')
     const [filterTag, setFilterTag] = useState('')
     const [allTags, setAllTags] = useState<string[]>([])
@@ -61,6 +65,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             setLoading(true)
         }
         try {
+            setFetchError('')
             const params = new URLSearchParams()
             if (debouncedKeyword) params.append('keyword', debouncedKeyword)
             if (filterTag) params.append('tag', filterTag)
@@ -77,6 +82,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                 return
             }
             console.error('Failed to fetch words:', error)
+            setFetchError('Failed to load word list. Please try again.')
         } finally {
             if (!signal?.aborted) {
                 setLoading(false)
@@ -111,7 +117,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
     const handleDelete = useCallback(async (word: string, e: React.MouseEvent) => {
         e.stopPropagation()
-        if (!confirm(getDeleteConfirmMessage(word))) return
+        if (!await confirmDialog(getDeleteConfirmMessage(word))) return
 
         try {
             await api.delete(API_PATHS.WORD(word))
@@ -207,15 +213,17 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                 // Delete selected word
                 e.preventDefault()
                 const word = words[selectedIndex]
-                if (confirm(getDeleteConfirmMessage(word.word))) {
-                    api.delete(API_PATHS.WORD(word.word))
-                        .then(() => {
-                            setWords(prev => prev.filter(w => w.word !== word.word))
-                            setSelectedIndex(prev => Math.min(prev, words.length - 2))
-                            notifyWordDeleted()
-                        })
-                        .catch(err => console.error('Failed to delete word:', err))
-                }
+                void (async () => {
+                    if (await confirmDialog(getDeleteConfirmMessage(word.word))) {
+                        api.delete(API_PATHS.WORD(word.word))
+                            .then(() => {
+                                setWords(prev => prev.filter(w => w.word !== word.word))
+                                setSelectedIndex(prev => Math.min(prev, words.length - 2))
+                                notifyWordDeleted()
+                            })
+                            .catch(err => console.error('Failed to delete word:', err))
+                    }
+                })()
             } else if (matches(e, 'list.markMastered') && selectedIndex >= 0 && selectedIndex < words.length) {
                 // Mark as mastered
                 e.preventDefault()
@@ -268,17 +276,11 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
     return (
         <div className="animate-fade-in space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold text-slate-800 dark:text-white">
-                        {t('wordList.title')}
-                    </h2>
-                    <p className="text-slate-500 dark:text-slate-400 mt-1">
-                        {t('wordList.totalWords', { count: totalItems })}
-                        {totalPages > 1 && ` · ${t('wordList.pageInfo', { current: currentPage, total: totalPages })}`}
-                    </p>
-                </div>
-            </div>
+            <PageTitle
+                subtitle={`${t('wordList.totalWords', { count: totalItems })}${totalPages > 1 ? ` · ${t('wordList.pageInfo', { current: currentPage, total: totalPages })}` : ''}`}
+            >
+                {t('wordList.title')}
+            </PageTitle>
 
             {/* Filters */}
             <div className="glass-card p-4 flex flex-wrap gap-4">
@@ -307,7 +309,15 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
             {/* Word List */}
             <div className="glass-card relative overflow-hidden">
-                {loading && words.length === 0 ? (
+                {fetchError && !loading ? (
+                    <div className="p-8 text-center">
+                        <AlertTriangle size={32} className="text-red-400 mx-auto mb-3" />
+                        <p className="text-slate-600 dark:text-slate-300 mb-4">{fetchError}</p>
+                        <button onClick={() => { setFetchError(''); fetchWords(); }} className="btn-primary">
+                            Retry
+                        </button>
+                    </div>
+                ) : loading && words.length === 0 ? (
                     <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
                         <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
                         <div className="animate-pulse">{t('wordList.loading')}</div>

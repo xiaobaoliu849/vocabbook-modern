@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Mail, Lock, Loader2, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -11,6 +12,7 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     const { t } = useTranslation();
+    const trapRef = useFocusTrap(isOpen);
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -65,7 +67,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             />
 
             {/* Modal Content */}
-            <div className="relative w-full max-w-md bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-white/10 overflow-hidden animate-in zoom-in-95 duration-300 ring-1 ring-black/5">
+            <div ref={trapRef} role="dialog" aria-modal="true" className="relative w-full max-w-md bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-white/10 overflow-hidden animate-in zoom-in-95 duration-300 ring-1 ring-black/5">
 
                 {/* Decorative Elements - Simplified */}
                 <div className="absolute top-0 left-0 w-full h-1 bg-primary-500 opacity-80" />
@@ -73,7 +75,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 <div className="relative p-8">
                     <button
                         onClick={onClose}
-                        className="absolute right-4 top-4 p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                        className="absolute right-4 top-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -82,24 +84,24 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                         <div className="w-12 h-12 bg-primary-50 dark:bg-primary-900/20 rounded-xl mx-auto mb-4 flex items-center justify-center text-primary-600 dark:text-primary-400 border border-primary-100 dark:border-primary-800/50">
                             {isLogin ? <Lock className="w-6 h-6" /> : <User className="w-6 h-6" />}
                         </div>
-                        <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                             {isLogin ? t('auth.welcomeBack') : t('auth.joinVocabBook')}
                         </h2>
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
                             {isLogin ? t('auth.loginForCloudSync') : t('auth.createForCloudSync')}
                         </p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-1.5">
-                            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 ml-1">{t('auth.email')}</label>
+                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 ml-1">{t('auth.email')}</label>
                             <div className="relative group">
-                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 group-focus-within:text-primary-500 transition-colors" />
+                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
                                 <input
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 bg-zinc-50/50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all placeholder:text-zinc-400"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50/50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all placeholder:text-slate-400"
                                     placeholder="name@example.com"
                                     required
                                 />
@@ -107,14 +109,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 ml-1">{t('auth.password')}</label>
+                            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 ml-1">{t('auth.password')}</label>
                             <div className="relative group">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400 group-focus-within:text-primary-500 transition-colors" />
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary-500 transition-colors" />
                                 <input
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2.5 bg-zinc-50/50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all placeholder:text-zinc-400"
+                                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50/50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all placeholder:text-slate-400"
                                     placeholder="••••••••"
                                     required
                                 />
@@ -139,16 +141,16 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     <div className="mt-6 text-center">
                         <div className="relative">
                             <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-zinc-200 dark:border-white/10"></div>
+                                <div className="w-full border-t border-slate-200 dark:border-white/10"></div>
                             </div>
                             <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-white dark:bg-zinc-900 text-zinc-500">{t('auth.or')}</span>
+                                <span className="px-2 bg-white dark:bg-slate-900 text-slate-500">{t('auth.or')}</span>
                             </div>
                         </div>
 
                         <button
                             onClick={() => setIsLogin(!isLogin)}
-                            className="mt-4 text-sm text-zinc-600 dark:text-zinc-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors"
+                            className="mt-4 text-sm text-slate-600 dark:text-slate-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors"
                         >
                             {isLogin ? t('auth.noAccountRegister') : t('auth.hasAccountLogin')}
                         </button>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import AudioButton from '../components/AudioButton'
-import { BookOpen, CheckCircle, Flame, Keyboard, Target, Volume2, type LucideIcon } from 'lucide-react'
+import { BookOpen, CheckCircle, Dumbbell, Flame, Keyboard, Target, Trophy, Volume2, type LucideIcon } from 'lucide-react'
 import { splitExamples, extractEnglish } from '../utils/textUtils'
 import { ChoiceMode, DictationMode, SessionSummary } from '../components/review'
 import type { ReviewMode, WordRating, SessionSummaryData } from '../components/review'
@@ -382,7 +382,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     if (dueWords.length === 0) {
         return (
             <div className="animate-fade-in text-center py-16">
-                <span className="text-6xl">{difficultMode ? '💪' : practiceMode ? '📚' : '🎉'}</span>
+                <span className="text-slate-400 dark:text-slate-500">{difficultMode ? <Dumbbell size={48} /> : practiceMode ? <BookOpen size={48} /> : <Trophy size={48} />}</span>
                 <h2 className="text-2xl font-bold mt-4 text-slate-800 dark:text-white">
                     {difficultMode ? t('review.empty.difficultTitle') : practiceMode ? t('review.empty.practiceTitle') : t('review.empty.normalTitle')}
                 </h2>
@@ -398,15 +398,15 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                     </button>
                     <button
                         onClick={() => fetchDueWords('practice')}
-                        className="btn-primary"
+                        className="btn-primary flex items-center gap-2"
                     >
-                        🎯 {t('review.empty.practiceMode')}
+                        <Target size={16} /> {t('review.empty.practiceMode')}
                     </button>
                     <button
                         onClick={() => fetchDueWords('difficult')}
                         className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:hover:bg-red-900/50 dark:text-red-400 rounded-lg transition-colors flex items-center gap-2 font-medium"
                     >
-                        🔥 {t('review.empty.difficultMode')}
+                        <Flame size={16} /> {t('review.empty.difficultMode')}
                     </button>
                 </div>
                 <p className="text-xs text-slate-400 mt-4">
@@ -467,7 +467,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 <div className="mb-4 flex items-start justify-between gap-6">
                     <div className="min-w-0 flex-1 space-y-3">
                         <div className="flex flex-wrap items-center gap-3">
-                            <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+                            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
                                 {t('review.title')}
                             </h2>
                             {practiceMode && (

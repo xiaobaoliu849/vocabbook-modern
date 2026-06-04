@@ -99,12 +99,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                 title={isCollapsed ? (user?.email || t('sidebar.loginRegister', 'Login / Sign Up')) : buttonLabel}
             >
                 <div
-                    className="relative h-9 w-9 shrink-0 rounded-xl text-sm font-bold text-white shadow-sm flex items-center justify-center"
-                    style={{
-                        background: isPremium
-                            ? 'linear-gradient(135deg, #fbbf24, #f97316)'
-                            : 'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600))'
-                    }}
+                    className={`relative h-9 w-9 shrink-0 rounded-xl text-sm font-bold text-white shadow-sm flex items-center justify-center ${isPremium ? 'premium-gradient' : 'avatar-gradient'}`}
                 >
                     {user ? initials : <UserIcon size={18} />}
                     {isPremium && (
@@ -122,18 +117,13 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
             {showDropdown && createPortal(
                 <div
                     ref={dropdownRef}
-                    className="fixed w-72 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl ring-1 ring-slate-200/50 dark:ring-zinc-800 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 z-[9999]"
+                    className="fixed w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl ring-1 ring-slate-200/50 dark:ring-slate-800 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 z-[9999]"
                     style={{ bottom: dropdownStyle.bottom, left: dropdownStyle.left }}
                 >
-                    <div className={`p-4 ${user && isPremium ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20' : 'bg-gradient-to-br from-slate-50 to-primary-50/50 dark:from-slate-900 dark:to-zinc-900'}`}>
+                    <div className={`p-4 ${user && isPremium ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20' : 'bg-gradient-to-br from-slate-50 to-primary-50/50 dark:from-slate-900 dark:to-slate-900'}`}>
                         <div className="flex items-center gap-3">
                             <div
-                                className="relative w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg ring-2 ring-white/50 dark:ring-white/10"
-                                style={{
-                                    background: user && isPremium
-                                        ? 'linear-gradient(135deg, #fbbf24, #f97316)'
-                                        : 'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600))'
-                                }}
+                                className={`relative w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg ring-2 ring-white/50 dark:ring-white/10 ${user && isPremium ? 'premium-gradient' : 'avatar-gradient'}`}
                             >
                                 {user ? initials : <UserIcon size={20} />}
                                 {user && isPremium && (
@@ -176,7 +166,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                         {user ? (
                             <button
                                 onClick={handleAccountSettings}
-                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800/80 hover:text-slate-900 dark:hover:text-white transition-all"
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white transition-all"
                             >
                                 <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
                                     <UserIcon size={18} />
@@ -186,7 +176,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                         ) : (
                             <button
                                 onClick={handleOpenAuth}
-                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800/80 hover:text-slate-900 dark:hover:text-white transition-all"
+                                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white transition-all"
                             >
                                 <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
                                     <UserIcon size={18} />
@@ -197,7 +187,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
 
                         <button
                             onClick={handleOpenGeneralSettings}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-zinc-800/80 hover:text-slate-900 dark:hover:text-white transition-all"
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white transition-all"
                         >
                             <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
                                 <Settings size={18} />
@@ -205,7 +195,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                             {t('sidebar.settingsTooltip', 'App Settings')}
                         </button>
 
-                        <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-3 dark:border-zinc-800 dark:bg-zinc-900/60">
+                        <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-3 dark:border-slate-800 dark:bg-slate-900/60">
                             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
                                 <Languages size={14} />
                                 {t('settings.general.language', 'Language')}
@@ -250,7 +240,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
 
                         {user && (
                             <>
-                                <div className="my-2 border-t border-slate-100 dark:border-zinc-800 mx-3" />
+                                <div className="my-2 border-t border-slate-100 dark:border-slate-800 mx-3" />
                                 <button
                                     onClick={handleLogout}
                                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
@@ -303,7 +293,7 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
 
     return (
         <aside
-            className={`glass-sidebar relative z-50 flex shrink-0 flex-col bg-white/80 backdrop-blur-xl transition-[width] duration-300 dark:bg-slate-900/80 ${isCollapsed ? 'w-20' : 'w-60'}`}
+            className={`glass-sidebar relative z-50 flex shrink-0 flex-col bg-white/80 transition-[width] duration-300 dark:bg-slate-900/80 ${isCollapsed ? 'w-20' : 'w-60'}`}
         >
             {/* Header with Logo and Collapse Button */}
             <div className="h-16 flex items-center gap-3 px-4 shrink-0">

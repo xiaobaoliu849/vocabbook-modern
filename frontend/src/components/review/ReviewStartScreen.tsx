@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import { Layers, Keyboard, PenLine, Headphones } from 'lucide-react'
 import type { ReviewMode } from './types'
 
 interface ReviewStartScreenProps {
@@ -9,31 +10,31 @@ interface ReviewStartScreenProps {
 
 export default function ReviewStartScreen({ dueCount, onStart, onStartPractice }: ReviewStartScreenProps) {
     const { t } = useTranslation()
-    const modes: { id: ReviewMode; icon: string; title: string; desc: string; color: string }[] = [
+    const modes: { id: ReviewMode; icon: React.ReactNode; title: string; desc: string; color: string }[] = [
         {
             id: 'flashcard',
-            icon: '🎴',
+            icon: <Layers size={24} />,
             title: t('review.start.modes.flashcard.title'),
             desc: t('review.start.modes.flashcard.desc'),
             color: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
         },
         {
             id: 'spelling',
-            icon: '⌨️',
+            icon: <Keyboard size={24} />,
             title: t('review.start.modes.spelling.title'),
             desc: t('review.start.modes.spelling.desc'),
             color: 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400'
         },
         {
             id: 'choice',
-            icon: '📝',
+            icon: <PenLine size={24} />,
             title: t('review.start.modes.choice.title'),
             desc: t('review.start.modes.choice.desc'),
             color: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
         },
         {
             id: 'dictation',
-            icon: '🎧',
+            icon: <Headphones size={24} />,
             title: t('review.start.modes.dictation.title'),
             desc: t('review.start.modes.dictation.desc'),
             color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'

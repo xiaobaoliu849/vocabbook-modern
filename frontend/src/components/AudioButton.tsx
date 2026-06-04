@@ -236,7 +236,7 @@ export default function AudioButton({
       )}
 
       {isPlaying && (
-        <span className="absolute inset-0 rounded-lg animate-ping bg-primary-400/20 pointer-times-none" />
+        <span className="absolute inset-0 rounded-lg animate-ping bg-primary-400/20 pointer-events-none" />
       )}
     </button>
   )

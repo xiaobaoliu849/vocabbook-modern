@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../context/ThemeContext'
 import { api, API_PATHS } from '../utils/api'
+import { AlertTriangle } from 'lucide-react'
 
 interface HeatmapData {
     [date: string]: number
@@ -15,6 +16,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
     const { t, i18n } = useTranslation()
     const [data, setData] = useState<HeatmapData>({})
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState('')
     const { isDark } = useTheme()
     const locale = (i18n.resolvedLanguage || i18n.language || 'en').startsWith('zh') ? 'zh-CN' : 'en-US'
     const monthFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { month: 'short' }), [locale])
@@ -30,11 +32,13 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
     }, [])
 
     const fetchHeatmapData = async () => {
+        setError('')
         try {
             const result = await api.get(API_PATHS.STATS_HEATMAP)
             setData(result.heatmap || {})
         } catch (error) {
             console.error('Failed to fetch heatmap data:', error)
+            setError('Failed to load heatmap data.')
         } finally {
             setLoading(false)
         }
@@ -186,6 +190,15 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
                     {t('heatmap.activeDaysLabel', 'Active days')} <span className="font-bold text-green-500">{activeDays}</span>
                 </div>
             </div>
+
+            {/* Error Message */}
+            {error && (
+                <div className="flex items-center gap-2 text-sm text-red-500 mt-2">
+                    <AlertTriangle size={14} />
+                    <span>{error}</span>
+                    <button onClick={() => { setError(''); fetchHeatmapData(); }} className="underline hover:no-underline">Retry</button>
+                </div>
+            )}
 
             {/* SVG Heatmap - 纯 SVG 实现，无 React 状态变化，无闪现 */}
             <div className="overflow-x-auto">

@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Trophy, Star, Dumbbell, BookOpen, Flame } from 'lucide-react'
 import AudioButton from '../AudioButton'
 import type { SessionSummaryData, WordRating } from './types'
 
@@ -86,11 +87,11 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
 
     // 评价等级
     const getGrade = () => {
-        if (stats.correctRate >= 90) return { emoji: '🏆', desc: t('review.summary.grades.excellent') }
-        if (stats.correctRate >= 75) return { emoji: '🌟', desc: t('review.summary.grades.great') }
-        if (stats.correctRate >= 60) return { emoji: '💪', desc: t('review.summary.grades.good') }
-        if (stats.correctRate >= 40) return { emoji: '📖', desc: t('review.summary.grades.keepGoing') }
-        return { emoji: '🔥', desc: t('review.summary.grades.needsWork') }
+        if (stats.correctRate >= 90) return { icon: <Trophy size={48} className="text-yellow-500" />, desc: t('review.summary.grades.excellent') }
+        if (stats.correctRate >= 75) return { icon: <Star size={48} className="text-yellow-400" />, desc: t('review.summary.grades.great') }
+        if (stats.correctRate >= 60) return { icon: <Dumbbell size={48} className="text-blue-500" />, desc: t('review.summary.grades.good') }
+        if (stats.correctRate >= 40) return { icon: <BookOpen size={48} className="text-green-500" />, desc: t('review.summary.grades.keepGoing') }
+        return { icon: <Flame size={48} className="text-orange-500" />, desc: t('review.summary.grades.needsWork') }
     }
 
     const grade = getGrade()
@@ -104,7 +105,7 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
         <div className="animate-fade-in max-w-3xl mx-auto py-6 space-y-6">
             {/* ===== 顶部总评 ===== */}
             <div className="glass-card p-8 text-center">
-                <div className="text-6xl mb-3">{grade.emoji}</div>
+                <div className="text-6xl mb-3">{grade.icon}</div>
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
                     {t('review.summary.completed', { mode: modeLabel })}
                 </h2>

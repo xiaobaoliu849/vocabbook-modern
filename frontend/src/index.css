@@ -32,6 +32,7 @@
   --animate-flip: flip 0.6s ease-in-out;
   --animate-shake: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
   --animate-pulse-slow: pulseSlow 8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-slide-in-right: slideInRight 0.3s ease-out;
 
   --backdrop-blur-xs: 2px;
 
@@ -125,6 +126,18 @@
       transform: translate3d(4px, 0, 0);
     }
   }
+
+  @keyframes slideInRight {
+    0% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+
+    100% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
 }
 
 /*
@@ -148,7 +161,7 @@
 
 /* Glassmorphism components */
 @utility glass-card {
-  @apply bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50;
+  @apply bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-white/20 dark:border-slate-700/50 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50;
 }
 
 @utility glass-sidebar {
@@ -191,6 +204,14 @@
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+@utility premium-gradient {
+  background: linear-gradient(135deg, #fbbf24, #f97316);
+}
+
+@utility avatar-gradient {
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600));
 }
 
 @utility flip-card {

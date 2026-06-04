@@ -8,6 +8,8 @@ import { X, Search, Heart, Loader2, Plus, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import { useToast } from '../context/ToastContext';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface Position {
     top: number;
@@ -16,6 +18,7 @@ interface Position {
 
 export default function DictionaryPopup() {
     const { t } = useTranslation();
+    const { toast } = useToast();
     const { matches } = useShortcuts();
     const [isVisible, setIsVisible] = useState(false);
     const [word, setWord] = useState('');
@@ -36,6 +39,11 @@ export default function DictionaryPopup() {
     const [aiContent, setAiContent] = useState('');
 
     const popupRef = useRef<HTMLDivElement>(null);
+    const trapRef = useFocusTrap(isVisible);
+    const setPopupRef = useCallback((node: HTMLDivElement | null) => {
+        popupRef.current = node;
+        (trapRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    }, [trapRef]);
 
     // Form drag state
     const [isDragging, setIsDragging] = useState(false);
@@ -79,7 +87,7 @@ export default function DictionaryPopup() {
             if (error instanceof ApiError && error.status === 409) {
                 return 'exist';
             }
-            if (!silent) alert(t('addWord.alerts.failed', '❌ Failed to add word'));
+            if (!silent) toast(t('addWord.alerts.failed', 'Failed to add word'), 'error');
             return 'error';
         }
     }, [notifyWordAdded, t]);
@@ -289,7 +297,9 @@ export default function DictionaryPopup() {
 
     return (
         <div
-            ref={popupRef}
+            ref={setPopupRef}
+            role="dialog"
+            aria-modal="true"
             data-selection-overlay="true"
             className="absolute z-[9999] w-[340px] bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700/60 flex flex-col overflow-hidden animate-scale-up"
             style={{

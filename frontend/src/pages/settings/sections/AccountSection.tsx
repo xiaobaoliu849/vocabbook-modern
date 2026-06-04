@@ -52,12 +52,7 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
                 <div className="flex items-start gap-5">
                     {/* Avatar */}
                     <div
-                        className="relative w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg shrink-0"
-                        style={{
-                            background: isPremium
-                                ? 'linear-gradient(135deg, #fbbf24, #f97316)'
-                                : 'linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600))'
-                        }}
+                        className={`relative w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg shrink-0 ${isPremium ? 'premium-gradient' : 'avatar-gradient'}`}
                     >
                         {initials}
                         {isPremium && (

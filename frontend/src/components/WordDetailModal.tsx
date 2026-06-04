@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import AudioButton from './AudioButton'
 import { X, Check, GripHorizontal, Sparkles } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { splitExamples, extractEnglish } from '../utils/textUtils'
+import { useFocusTrap } from '../hooks/useFocusTrap'
  
 interface WordDetailProps {
   word: any;
@@ -25,6 +26,11 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
    const { t } = useTranslation()
    const { matches } = useShortcuts()
    const modalRef = useRef<HTMLDivElement>(null)
+   const trapRef = useFocusTrap(true)
+   const setModalRef = useCallback((node: HTMLDivElement | null) => {
+     modalRef.current = node;
+     (trapRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+   }, [trapRef])
    const audioSrc = word.audio || undefined
    
    const [note, setNote] = useState(word.note || '')
@@ -190,8 +196,10 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
  
    return (
      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-sm animate-fade-in transition-all">
-       <div 
-         ref={modalRef} 
+       <div
+         ref={setModalRef}
+         role="dialog"
+         aria-modal="true"
          className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl shadow-blue-900/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-up ring-1 ring-slate-100 dark:ring-white/10"
          style={{ 
            transform: `translate(${position.x}px, ${position.y}px)`,
