@@ -1369,6 +1369,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         session_id: str = None,
         learning_context: str = "",
         enable_thinking: Optional[bool] = None,
+        attachments: Optional[List[Dict]] = None,
     ) -> Dict:
         """
         AI 对话练习 (optimized with EverMemOS official pattern)
@@ -1415,6 +1416,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         group_id=session_id,
                         group_name=session_id,
                         role="user",
+                        attachments=attachments,
+                        flush=True if attachments else False,
                     )
                     user_memory_saved = save_result is not None
                 else:
@@ -1493,6 +1496,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         session_id: str = None,
         learning_context: str = "",
         enable_thinking: Optional[bool] = None,
+        attachments: Optional[List[Dict]] = None,
     ):
         """
         AI 对话练习 (流式输出)
@@ -1529,6 +1533,8 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         group_id=session_id,
                         group_name=session_id,
                         role="user",
+                        attachments=attachments,
+                        flush=True if attachments else False,
                     )
                     user_memory_saved = save_result is not None
                 else:

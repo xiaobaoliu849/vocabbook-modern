@@ -311,6 +311,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     context_word: str = ""  # 当前学习的单词
     session_id: Optional[str] = None # Current chat session ID
+    attachments: Optional[List[dict]] = None  # [{type, uri, name, ext}] for mRAG dual-write
 
 
 class PronunciationRequest(BaseModel):
@@ -416,6 +417,7 @@ async def chat(
             session_id=request.session_id,
             learning_context=learning_context,
             enable_thinking=False if _is_enabled(x_ai_disable_thinking) else None,
+            attachments=request.attachments,
         )
         return {
             "response": result["text"],
@@ -474,6 +476,7 @@ async def chat_stream(
                 session_id=request.session_id,
                 learning_context=learning_context,
                 enable_thinking=False if _is_enabled(x_ai_disable_thinking) else None,
+                attachments=request.attachments,
             ),
             media_type="text/event-stream"
         )

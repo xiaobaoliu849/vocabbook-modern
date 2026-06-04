@@ -420,7 +420,15 @@
       "loadFailed": "图片加载失败，请换一张再试。",
       "removeImage": "移除图片",
       "attachImage": "添加图片",
-      "hint": "可直接粘贴图片或拖拽到输入框"
+      "hint": "可直接粘贴图片或拖拽到输入框",
+      "unsupportedType": "仅支持图片（JPG/PNG/GIF/WebP）和 PDF 文件。",
+      "maxAttachments": "最多可附加 {{count}} 个文件。",
+      "pdfTooLarge": "{{name}} 超过 20 MB。",
+      "imageTooLarge": "{{name}} 超过 10 MB。",
+      "uploading": "正在上传 {{count}} 个文件...",
+      "uploadFailed": "{{name}} 上传失败，请重试。",
+      "attachFile": "附加图片或 PDF",
+      "pdfHint": "PDF 内容将被索引，供后续会话召回。"
     },
     "errors": {
       "api": "API 错误：{{message}}",
@@ -851,9 +859,20 @@
     "exampleCount": "{{count}}句",
     "notes": "个人笔记",
     "saving": "保存中...",
+    "saved": "已保存",
     "notePlaceholder": "添加你的助记法、联想、心得... (自动保存)",
     "addedAt": "添加时间: {{date}}",
-    "reviewCount": "复习次数: {{count}}"
+    "reviewCount": "复习次数: {{count}}",
+    "mastered": "已掌握",
+    "reviews": "复习次数",
+    "sm2Interval": "复习间隔",
+    "sm2Stage": "SM-2 阶段",
+    "nextReview": "下次复习",
+    "notScheduled": "暂无计划",
+    "wordFamily": "同族派生词",
+    "chars": "字",
+    "inVocab": "已收藏",
+    "notInVocab": "未收藏"
   },
   "heatmap": {
     "title": "学习热力图",

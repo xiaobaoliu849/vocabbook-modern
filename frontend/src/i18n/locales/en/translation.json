@@ -412,7 +412,15 @@
       "loadFailed": "Failed to load image. Please try another file.",
       "removeImage": "Remove image",
       "attachImage": "Attach image",
-      "hint": "Paste or drag images into the composer"
+      "hint": "Paste or drag images into the composer",
+      "unsupportedType": "Only images (JPG/PNG/GIF/WebP) and PDF files are supported.",
+      "maxAttachments": "You can attach up to {{count}} files.",
+      "pdfTooLarge": "{{name}} is larger than 20 MB.",
+      "imageTooLarge": "{{name}} is larger than 10 MB.",
+      "uploading": "Uploading {{count}} file(s)...",
+      "uploadFailed": "Failed to upload {{name}}. Please try again.",
+      "attachFile": "Attach image or PDF",
+      "pdfHint": "PDF content will be indexed for future recall."
     },
     "errors": {
       "api": "API Error: {{message}}",
@@ -843,9 +851,20 @@
     "exampleCount": "{{count}} examples",
     "notes": "Personal notes",
     "saving": "Saving...",
+    "saved": "Saved",
     "notePlaceholder": "Add your mnemonics, associations, or reflections... (auto-saved)",
     "addedAt": "Added: {{date}}",
-    "reviewCount": "Reviews: {{count}}"
+    "reviewCount": "Reviews: {{count}}",
+    "mastered": "Mastered",
+    "reviews": "Reviews",
+    "sm2Interval": "Interval",
+    "sm2Stage": "SM-2 Stage",
+    "nextReview": "Next Review",
+    "notScheduled": "Not scheduled",
+    "wordFamily": "Word Family",
+    "chars": "chars",
+    "inVocab": "Collected",
+    "notInVocab": "Not collected"
   },
   "heatmap": {
     "title": "Study heatmap",

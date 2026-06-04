@@ -220,6 +220,9 @@ export const API_PATHS = {
     IMPORT_UPLOAD: '/api/import/upload',
     IMPORT_WORDS: '/api/import/words',
 
+    // Attachments
+    ATTACHMENTS_PRESIGN: '/api/attachments/presign',
+
     // Cloud Auth & Pay (Note: points to cloud server port 8001 by default unless configured)
     CLOUD_LOGIN: `${CLOUD_API_BASE_URL}/token`,
     CLOUD_REGISTER: `${CLOUD_API_BASE_URL}/register`,

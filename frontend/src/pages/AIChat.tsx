@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages, RotateCw, Search, BookOpen, MessageCircle } from 'lucide-react'
-import { API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
+import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages, RotateCw, Search, BookOpen, MessageCircle, FileText } from 'lucide-react'
+import { api, API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import EvermemLogo from '../assets/evermind-powered.svg'
 import { useAuth } from '../context/AuthContext'
@@ -48,19 +48,23 @@ interface Message {
     id: string
     role: 'user' | 'assistant'
     content: string
-    attachments?: ImageAttachment[]
+    attachments?: Attachment[]
     timestamp: number
     memoriesUsed?: number
     memorySaved?: boolean
     reasoningContent?: string
 }
 
-interface ImageAttachment {
+interface Attachment {
     id: string
     name: string
-    dataUrl: string
+    dataUrl?: string
     mediaType: string
     size: number
+    objectKey?: string
+    fileType?: 'image' | 'document'
+    ext?: string
+    file?: File
 }
 
 interface ChatSession {
@@ -129,7 +133,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     // Memory activity toast
     const [memoryToast, setMemoryToast] = useState<string | null>(null)
     const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({})
-    const [pendingImages, setPendingImages] = useState<ImageAttachment[]>([])
+    const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([])
     const [isDragOverComposer, setIsDragOverComposer] = useState(false)
     const [memoryPanelOpen, setMemoryPanelOpen] = useState(false)
     const [memoryOverview, setMemoryOverview] = useState<MemoryOverview | null>(null)
@@ -142,8 +146,9 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const memoryOverviewDirtyRef = useRef(false)
     const memoryOverviewRefreshTimerRef = useRef<number | null>(null)
 
-    const MAX_IMAGE_ATTACHMENTS = 3
-    const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024
+    const MAX_ATTACHMENTS = 3
+    const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+    const MAX_PDF_BYTES = 20 * 1024 * 1024
 
     const getCommonHeaders = useCallback(() => {
         const headers: Record<string, string> = {
@@ -417,17 +422,21 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             parts.push({ type: 'text', text: message.content })
         }
         for (const attachment of message.attachments) {
-            parts.push({
-                type: 'image_url',
-                image_url: {
-                    url: attachment.dataUrl
-                }
-            })
+            if (attachment.fileType === 'document') {
+                parts.push({ type: 'text', text: `[Attached PDF: ${attachment.name}]` })
+            } else {
+                parts.push({
+                    type: 'image_url',
+                    image_url: {
+                        url: attachment.dataUrl
+                    }
+                })
+            }
         }
         return parts.length > 0 ? parts : message.content
     }
 
-    const readImageFile = (file: File): Promise<ImageAttachment> => {
+    const readImageAsDataUrl = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader()
             reader.onload = () => {
@@ -436,58 +445,74 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                     reject(new Error('Failed to read image'))
                     return
                 }
-                resolve({
-                    id: generateId(),
-                    name: file.name,
-                    dataUrl: result,
-                    mediaType: file.type || 'image/png',
-                    size: file.size,
-                })
+                resolve(result)
             }
             reader.onerror = () => reject(new Error('Failed to read image'))
             reader.readAsDataURL(file)
         })
     }
 
-    const addImageFiles = async (files: File[]) => {
+    const addAttachmentFiles = async (files: File[]) => {
         if (files.length === 0) return
 
-        const imageFiles = files.filter(file => file.type.startsWith('image/'))
-        if (imageFiles.length !== files.length) {
-            window.alert(t('chat.attachments.onlyImages'))
-        }
-
-        const availableSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - pendingImages.length)
-        if (availableSlots <= 0) {
-            window.alert(t('chat.attachments.maxImages', { count: MAX_IMAGE_ATTACHMENTS }))
-            return
-        }
-
-        const nextFiles = imageFiles.slice(0, availableSlots)
-        if (imageFiles.length > availableSlots) {
-            window.alert(t('chat.attachments.firstImagesOnly', { count: availableSlots }))
-        }
-
-        try {
-            const oversized = nextFiles.find(file => file.size > MAX_IMAGE_SIZE_BYTES)
-            if (oversized) {
-                window.alert(t('chat.attachments.fileTooLarge', { name: oversized.name }))
-                return
+        const accepted: Attachment[] = []
+        for (const file of files) {
+            if (accepted.length + pendingAttachments.length >= MAX_ATTACHMENTS) {
+                window.alert(t('chat.attachments.maxAttachments', { count: MAX_ATTACHMENTS }))
+                break
             }
-
-            const attachments = await Promise.all(nextFiles.map(readImageFile))
-            setPendingImages(prev => [...prev, ...attachments])
-        } catch (error) {
-            console.error('Failed to load image attachments', error)
-            window.alert(t('chat.attachments.loadFailed'))
+            const isImage = file.type.startsWith('image/')
+            const isPdf = file.type === 'application/pdf'
+            if (!isImage && !isPdf) {
+                window.alert(t('chat.attachments.unsupportedType'))
+                continue
+            }
+            const limit = isPdf ? MAX_PDF_BYTES : MAX_IMAGE_BYTES
+            if (file.size > limit) {
+                const key = isPdf ? 'chat.attachments.pdfTooLarge' : 'chat.attachments.imageTooLarge'
+                window.alert(t(key, { name: file.name }))
+                continue
+            }
+            const att: Attachment = {
+                id: generateId(),
+                name: file.name,
+                mediaType: file.type,
+                size: file.size,
+                fileType: isPdf ? 'document' : 'image',
+                ext: (file.name.split('.').pop() || '').toLowerCase(),
+                file,
+            }
+            if (isImage) {
+                try {
+                    att.dataUrl = await readImageAsDataUrl(file)
+                } catch {
+                    window.alert(t('chat.attachments.loadFailed'))
+                    continue
+                }
+            }
+            accepted.push(att)
+        }
+        if (accepted.length > 0) {
+            setPendingAttachments(prev => [...prev, ...accepted])
         }
     }
 
-    const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const presignAttachment = async (att: Attachment): Promise<Attachment> => {
+        if (!att.file) throw new Error('no file reference')
+        const fd = new FormData()
+        fd.append('file', att.file, att.name)
+        const data = await api.upload<{ objectKey: string; fileType: string; fileName: string }>(
+            API_PATHS.ATTACHMENTS_PRESIGN,
+            fd,
+        )
+        return { ...att, objectKey: data.objectKey, fileType: data.fileType as 'image' | 'document' }
+    }
+
+    const handleAttachmentSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const inputElement = event.currentTarget
         const files = Array.from(event.target.files || [])
         try {
-            await addImageFiles(files)
+            await addAttachmentFiles(files)
         } finally {
             inputElement.value = ''
         }
@@ -495,22 +520,22 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
     const handleComposerPaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
         const clipboardFiles = Array.from(event.clipboardData?.files || [])
-        const imageFiles = clipboardFiles.filter(file => file.type.startsWith('image/'))
-        if (imageFiles.length === 0) return
+        const acceptedFiles = clipboardFiles.filter(file => file.type.startsWith('image/') || file.type === 'application/pdf')
+        if (acceptedFiles.length === 0) return
 
         event.preventDefault()
-        await addImageFiles(imageFiles)
+        await addAttachmentFiles(acceptedFiles)
     }
 
     const handleComposerDrop = async (event: React.DragEvent<HTMLDivElement>) => {
         event.preventDefault()
         setIsDragOverComposer(false)
         const droppedFiles = Array.from(event.dataTransfer?.files || [])
-        await addImageFiles(droppedFiles)
+        await addAttachmentFiles(droppedFiles)
     }
 
-    const removePendingImage = (attachmentId: string) => {
-        setPendingImages(prev => prev.filter(item => item.id !== attachmentId))
+    const removePendingAttachment = (attachmentId: string) => {
+        setPendingAttachments(prev => prev.filter(item => item.id !== attachmentId))
     }
 
     const getApiHeaders = useCallback(() => {
@@ -786,16 +811,41 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
 
     const handleSend = async () => {
-        if ((!input.trim() && pendingImages.length === 0) || loading || !activeSessionId || !isInitialized) return
+        if ((!input.trim() && pendingAttachments.length === 0) || loading || !activeSessionId || !isInitialized) return
 
         const targetSessionId = activeSessionId
         const userContent = input.trim()
         let botMsgId: string | null = null
-        const attachmentsToSend = pendingImages
+
+        // Presign all pending attachments to Evermind S3
+        let uploadedAttachments: Attachment[] = []
+        if (pendingAttachments.length > 0) {
+            try {
+                uploadedAttachments = await Promise.all(
+                    pendingAttachments.map(att => presignAttachment(att))
+                )
+            } catch (err) {
+                console.error('Presign upload failed', err)
+                window.alert(t('chat.attachments.uploadFailed', { name: pendingAttachments[0]?.name || '' }))
+                return
+            }
+        }
+
+        // Strip transient File objects before storing in session history
+        const attachmentsForStore: Attachment[] = uploadedAttachments.map(att => ({
+            id: att.id,
+            name: att.name,
+            dataUrl: att.dataUrl,
+            mediaType: att.mediaType,
+            size: att.size,
+            objectKey: att.objectKey,
+            fileType: att.fileType,
+            ext: att.ext,
+        }))
 
         // Auto-rename session if it's the first message
         if (activeSession && activeSession.messages.length === 0) {
-            const baseTitleSource = userContent || (attachmentsToSend.length > 0 ? t('chat.session.imageChat') : '')
+            const baseTitleSource = userContent || (attachmentsForStore.length > 0 ? t('chat.session.imageChat') : '')
             const baseTitle = baseTitleSource.length > 15 ? baseTitleSource.substring(0, 15) + '...' : baseTitleSource
             setSessions(prev => prev.map(s =>
                 s.id === targetSessionId ? { ...s, title: baseTitle } : s
@@ -806,7 +856,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             id: generateId(),
             role: 'user',
             content: userContent,
-            attachments: attachmentsToSend,
+            attachments: attachmentsForStore,
             timestamp: Date.now()
         }
 
@@ -823,7 +873,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         })
 
         setInput('')
-        setPendingImages([])
+        setPendingAttachments([])
         setLoading(true)
         isNearBottomRef.current = true
 
@@ -833,6 +883,11 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 content: buildMessagePayload(m)
             }))
             history.push({ role: userMsg.role, content: buildMessagePayload(userMsg) })
+
+            // Build mRAG attachment metadata for backend dual-write
+            const mragAttachments = uploadedAttachments
+                .filter(a => a.objectKey)
+                .map(a => ({ type: a.fileType, uri: a.objectKey, name: a.name, ext: a.ext }))
 
             botMsgId = generateId()
             const initialBotMsg: Message = {
@@ -859,7 +914,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 },
                 body: JSON.stringify({
                     messages: history,
-                    session_id: targetSessionId
+                    session_id: targetSessionId,
+                    ...(mragAttachments.length > 0 ? { attachments: mragAttachments } : {}),
                 })
             })
 
@@ -1696,11 +1752,21 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                                         : 'border-stone-200/50 bg-white dark:border-stone-700/50 dark:bg-stone-900/60'
                                                         }`}
                                                 >
-                                                    <img
-                                                        src={attachment.dataUrl}
-                                                        alt={attachment.name}
-                                                        className="block max-h-64 w-full object-cover"
-                                                    />
+                                                    {attachment.fileType === 'document' ? (
+                                                        <div className="flex items-center gap-3 p-3">
+                                                            <FileText className="h-8 w-8 flex-shrink-0 text-amber-600" />
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="truncate text-sm font-medium">{attachment.name}</div>
+                                                                <div className="text-xs opacity-60">{attachment.size ? `${(attachment.size / 1024).toFixed(0)} KB` : ''} · PDF</div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <img
+                                                            src={attachment.dataUrl}
+                                                            alt={attachment.name}
+                                                            className="block max-h-64 w-full object-cover"
+                                                        />
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
@@ -1793,10 +1859,10 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept="image/*"
+                            accept="image/*,application/pdf"
                             multiple
                             className="hidden"
-                            onChange={handleImageSelect}
+                            onChange={handleAttachmentSelect}
                         />
                         <div
                             className={`bg-white/60 dark:bg-stone-800/60 backdrop-blur-3xl rounded-[28px] shadow-[0_8px_32px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/60 dark:border-stone-700/60 p-2 flex flex-col relative focus-within:ring-2 focus-within:ring-amber-500/30 transition-all cursor-text group ${isDragOverComposer ? 'ring-2 ring-amber-500/40 bg-amber-50/30 dark:bg-amber-900/20' : ''}`}
@@ -1815,24 +1881,31 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                             }}
                             onDrop={handleComposerDrop}
                         >
-                            {pendingImages.length > 0 && (
+                            {pendingAttachments.length > 0 && (
                                 <div className="px-3 pt-2 pb-1">
                                     <div className="flex flex-wrap gap-2">
-                                        {pendingImages.map(attachment => (
+                                        {pendingAttachments.map(attachment => (
                                             <div
                                                 key={attachment.id}
                                                 className="group relative w-16 h-16 overflow-hidden rounded-2xl border border-white/60 dark:border-stone-700/60 bg-white/40 shadow-sm"
                                             >
-                                                <img
-                                                    src={attachment.dataUrl}
-                                                    alt={attachment.name}
-                                                    className="h-full w-full object-cover"
-                                                />
+                                                {attachment.fileType === 'image' ? (
+                                                    <img
+                                                        src={attachment.dataUrl}
+                                                        alt={attachment.name}
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="flex h-full w-full flex-col items-center justify-center bg-amber-50 dark:bg-amber-900/30 p-1">
+                                                        <FileText className="h-5 w-5 text-amber-600" />
+                                                        <span className="mt-0.5 truncate text-[8px] text-amber-700 dark:text-amber-400 max-w-full">{attachment.ext?.toUpperCase()}</span>
+                                                    </div>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={(e) => {
                                                         e.stopPropagation()
-                                                        removePendingImage(attachment.id)
+                                                        removePendingAttachment(attachment.id)
                                                     }}
                                                     className="absolute top-1 right-1 rounded-full bg-stone-900/70 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
                                                     title={t('chat.attachments.removeImage')}
@@ -1852,7 +1925,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                         fileInputRef.current?.click()
                                     }}
                                     className="mb-1 flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-2xl text-stone-400 transition-all hover:bg-white/50 dark:hover:bg-stone-700/50 hover:text-amber-600 dark:hover:text-amber-400 border border-transparent hover:border-white/60 dark:hover:border-stone-700/60"
-                                    title={t('chat.attachments.attachImage')}
+                                    title={t('chat.attachments.attachFile')}
                                 >
                                     <Paperclip size={20} />
                                 </button>
@@ -1874,7 +1947,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                 />
                                 <button
                                     onClick={handleSend}
-                                    disabled={(!input.trim() && pendingImages.length === 0) || loading || !activeSessionId || !isInitialized}
+                                    disabled={(!input.trim() && pendingAttachments.length === 0) || loading || !activeSessionId || !isInitialized}
                                     className="mb-1 flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-2xl bg-stone-900 dark:bg-stone-100 disabled:bg-stone-200 dark:disabled:bg-stone-800 disabled:text-stone-400 dark:disabled:text-stone-600 text-white dark:text-stone-900 transition-all shadow-lg hover:scale-[1.05] active:scale-[0.95] disabled:hover:scale-100 disabled:shadow-none"
                                 >
                                     {loading ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin opacity-50" /> : <Send size={18} className="translate-x-[1px]" />}

@@ -20,6 +20,7 @@ class DummyEverMemService:
         group_name: str = None,
         role: str = "user",
         refer_list=None,
+        **kwargs,
     ):
         self.add_calls.append(
             {

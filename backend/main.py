@@ -14,7 +14,7 @@ from starlette.responses import StreamingResponse
 # Add parent dir to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from routers import words, review, dictionary, stats, ai, tts, import_words
+from routers import words, review, dictionary, stats, ai, tts, import_words, attachments
 from models.database import DatabaseManager
 from services.request_metrics import (
     classify_request_bucket,
@@ -119,6 +119,7 @@ app.include_router(stats.router, prefix="/api/stats", tags=["Statistics"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 app.include_router(tts.router, prefix="/api/tts", tags=["TTS"])
 app.include_router(import_words.router, prefix="/api/import", tags=["Import"])
+app.include_router(attachments.router)
 
 
 @app.get("/")

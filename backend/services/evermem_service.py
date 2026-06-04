@@ -67,6 +67,7 @@ class EverMemService:
         role: str = "user",
         refer_list: Optional[List[str]] = None,
         async_mode: Optional[bool] = None,
+        attachments: Optional[List[Dict]] = None,
     ) -> Optional[Dict]:
         """
         Add a memory to EverMemOS via v1 API.
@@ -81,15 +82,33 @@ class EverMemService:
                   Use this for high-value data like review records to guarantee
                   the memory is fully written before returning.
           True  → explicitly request async (202 + task_id).
+
+        attachments:
+          Optional list of dicts aligned with official ContentItem schema:
+          [{"type": "image"|"document", "uri": "<objectKey>", "name": "...", "ext": "..."}]
+          When provided, message.content becomes a ContentItem array instead of a plain string.
         """
         if not self.api_key:
             logger.error("EverMemService: Missing API key. Cannot add memory.")
             return None
 
+        if attachments:
+            content_field: List[Dict] = [{"type": "text", "text": content}] if content else []
+            for a in attachments:
+                content_field.append({
+                    "type": a["type"],
+                    "uri": a["uri"],
+                    "name": a.get("name"),
+                    "ext": a.get("ext"),
+                })
+            message_content = content_field
+        else:
+            message_content = content
+
         message = {
             "role": role,
             "timestamp": self._now_ms(),
-            "content": content,
+            "content": message_content,
             "sender_id": sender or user_id,
             "sender_name": sender_name,
             "message_id": str(uuid.uuid4()),
@@ -761,6 +780,80 @@ class EverMemService:
             return resp.json()
         except Exception as e:
             logger.error(f"Failed to sign object upload in EverMemOS: {e}")
+            return None
+
+    async def presign_and_upload(
+        self,
+        file_bytes: bytes,
+        file_name: str,
+        file_type: str,
+        file_ext: str,
+    ) -> Optional[Dict]:
+        """
+        End-to-end: request a pre-signed S3 URL from Evermind, upload the file
+        binary to S3, then return {"objectKey", "fileType", "fileName"} on success.
+
+        upload_multimodal_data returns raw JSON (not unwrapped via _unwrap_v1_response),
+        so the object list lives at resp["result"]["data"]["objectList"][0].
+        """
+        if not self.api_key:
+            logger.error("EverMemService: Missing API key. Cannot presign_and_upload.")
+            return None
+
+        file_id = str(uuid.uuid4())
+        sign_resp = await self.upload_multimodal_data([{
+            "fileId": file_id,
+            "fileName": file_name,
+            "fileType": file_type,
+            "name": file_name,
+            "ext": file_ext,
+        }])
+        if not sign_resp:
+            logger.error("presign_and_upload: sign step returned None")
+            return None
+
+        try:
+            object_list = sign_resp["result"]["data"]["objectList"]
+            if not object_list:
+                logger.error(f"presign_and_upload: empty objectList in sign response: {sign_resp}")
+                return None
+            entry = object_list[0]
+            object_key = entry["objectKey"]
+            signed_info = entry.get("objectSignedInfo", {})
+            upload_url = signed_info.get("url")
+            fields = signed_info.get("fields")
+        except (KeyError, TypeError, IndexError) as e:
+            logger.error(f"presign_and_upload: failed to parse sign response: {e}")
+            return None
+
+        if not upload_url:
+            logger.error("presign_and_upload: no upload URL in signed info")
+            return None
+
+        def sync_upload():
+            if fields:
+                return httpx.post(
+                    upload_url,
+                    data=fields,
+                    files={"file": (file_name, file_bytes)},
+                    timeout=60.0,
+                )
+            return httpx.put(
+                upload_url,
+                content=file_bytes,
+                headers={"Content-Type": f"application/{file_ext}" if file_ext == "pdf" else f"image/{file_ext}"},
+                timeout=60.0,
+            )
+
+        try:
+            resp = await asyncio.to_thread(sync_upload)
+            if resp.status_code not in (200, 201, 204):
+                logger.error(f"presign_and_upload: S3 upload returned {resp.status_code}: {resp.text[:200]}")
+                return None
+            logger.debug(f"[EverMem presign] uploaded {file_type} '{file_name}' → {object_key}")
+            return {"objectKey": object_key, "fileType": file_type, "fileName": file_name}
+        except Exception as e:
+            logger.error(f"presign_and_upload: S3 upload failed: {e}")
             return None
 
     # ------------------------------------------------------------------
