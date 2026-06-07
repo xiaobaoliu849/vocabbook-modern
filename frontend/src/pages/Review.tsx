@@ -744,44 +744,54 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 {showBottomDock && (
                     <div className="flex-none h-16 flex items-center justify-center relative z-20">
                         {isFlipped ? (
-                            <div className="flex justify-center gap-3 w-full max-w-4xl animate-slide-up">
+                            <div className="flex justify-center gap-2 w-full max-w-4xl animate-slide-up">
                                 <button
                                     onClick={() => handleRating(1)}
-                                    className="flex-1 h-12 rounded-xl bg-red-100 hover:bg-red-200 
-                            dark:bg-red-900/30 dark:hover:bg-red-900/50
-                            text-red-700 dark:text-red-400 font-medium text-lg transition-all transform hover:scale-105"
+                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
+                                        bg-white dark:bg-[#1f1f1f] hover:bg-red-50 dark:hover:bg-red-900/20
+                                        hover:border-red-200 dark:hover:border-red-800
+                                        text-stone-600 dark:text-stone-400 hover:text-red-600 dark:hover:text-red-400
+                                        font-medium text-sm transition-all duration-150"
                                 >
                                     {t('review.rating.1')}
                                 </button>
                                 <button
                                     onClick={() => handleRating(2)}
-                                    className="flex-1 h-12 rounded-xl bg-orange-100 hover:bg-orange-200 
-                            dark:bg-orange-900/30 dark:hover:bg-orange-900/50
-                            text-orange-700 dark:text-orange-400 font-medium text-lg transition-all transform hover:scale-105"
+                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
+                                        bg-white dark:bg-[#1f1f1f] hover:bg-orange-50 dark:hover:bg-orange-900/20
+                                        hover:border-orange-200 dark:hover:border-orange-800
+                                        text-stone-600 dark:text-stone-400 hover:text-orange-600 dark:hover:text-orange-400
+                                        font-medium text-sm transition-all duration-150"
                                 >
                                     {t('review.rating.2')}
                                 </button>
                                 <button
                                     onClick={() => handleRating(3)}
-                                    className="flex-1 h-12 rounded-xl bg-yellow-100 hover:bg-yellow-200 
-                            dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50
-                            text-yellow-700 dark:text-yellow-400 font-medium text-lg transition-all transform hover:scale-105"
+                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
+                                        bg-white dark:bg-[#1f1f1f] hover:bg-amber-50 dark:hover:bg-amber-900/20
+                                        hover:border-amber-200 dark:hover:border-amber-800
+                                        text-stone-600 dark:text-stone-400 hover:text-amber-600 dark:hover:text-amber-400
+                                        font-medium text-sm transition-all duration-150"
                                 >
                                     {t('review.rating.3')}
                                 </button>
                                 <button
                                     onClick={() => handleRating(4)}
-                                    className="flex-1 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 
-                            dark:bg-blue-900/30 dark:hover:bg-blue-900/50
-                            text-blue-700 dark:text-blue-400 font-medium text-lg transition-all transform hover:scale-105"
+                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
+                                        bg-white dark:bg-[#1f1f1f] hover:bg-blue-50 dark:hover:bg-blue-900/20
+                                        hover:border-blue-200 dark:hover:border-blue-800
+                                        text-stone-600 dark:text-stone-400 hover:text-blue-600 dark:hover:text-blue-400
+                                        font-medium text-sm transition-all duration-150"
                                 >
                                     {t('review.rating.4')}
                                 </button>
                                 <button
                                     onClick={() => handleRating(5)}
-                                    className="flex-1 h-12 rounded-xl bg-green-100 hover:bg-green-200 
-                            dark:bg-green-900/30 dark:hover:bg-green-900/50
-                            text-green-700 dark:text-green-400 font-medium text-lg transition-all transform hover:scale-105"
+                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
+                                        bg-white dark:bg-[#1f1f1f] hover:bg-green-50 dark:hover:bg-green-900/20
+                                        hover:border-green-200 dark:hover:border-green-800
+                                        text-stone-600 dark:text-stone-400 hover:text-green-600 dark:hover:text-green-400
+                                        font-medium text-sm transition-all duration-150"
                                 >
                                     {t('review.rating.5')}
                                 </button>

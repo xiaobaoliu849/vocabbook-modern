@@ -397,6 +397,46 @@ async def log_session(
                         print(f"[EverMem Review] Stored review session summary user={evermem_user_id} group_id={review_group_id} reviewed={session.review_count} status={status}")
 
                 asyncio.create_task(_store_review_session())
+
+                foresight_group_id = f"{evermem_user_id}::foresight"
+                valid_until = (date.today() + timedelta(days=3)).isoformat()
+                foresight_content = (
+                    f"[FORESIGHT] Review reminder (valid until {valid_until}). "
+                    f"{focus_summary} "
+                    f"Suggested action: Practice these words in your next AI chat or review session."
+                )
+
+                async def _store_foresight_reminder():
+                    try:
+                        existing = await evermem.get_memories(
+                            user_id=evermem_user_id,
+                            group_ids=[foresight_group_id],
+                            memory_type="foresight",
+                            page_size=10,
+                        )
+                        if len(existing) >= 3:
+                            for old in existing[:-2]:
+                                mid = old.get("memory_id")
+                                if mid:
+                                    await evermem.delete_memories(memory_id=mid)
+
+                        result = await evermem.add_memory(
+                            content=foresight_content,
+                            user_id=evermem_user_id,
+                            sender="tutor_vocab",
+                            sender_name="VocabBook Tutor",
+                            flush=True,
+                            group_id=foresight_group_id,
+                            group_name=foresight_group_id,
+                            async_mode=False,
+                        )
+                        if result is not None:
+                            status = result.get("status", "unknown")
+                            print(f"[EverMem Foresight] Stored foresight user={evermem_user_id} group_id={foresight_group_id} status={status}")
+                    except Exception as exc:
+                        print(f"[EverMem Foresight] Failed to store foresight: {exc}")
+
+                asyncio.create_task(_store_foresight_reminder())
         elif evermem_enabled:
             print(
                 "[EverMem Review] Skipped review session "

@@ -456,3 +456,44 @@ def test_due_words_route_can_include_total_count(monkeypatch):
         "count": 1,
         "total_due": 7,
     }
+
+
+def test_get_due_words_replenishes_automatically():
+    temp_dir, db = _build_temp_db()
+    try:
+        from repositories.review_repository import ReviewRepository
+        repo = ReviewRepository(db)
+        
+        # Add 5 due words, 5 new words, and 5 difficult words
+        now_ts = time.time()
+        for i in range(5):
+            word_str = f"due{i}"
+            db.add_word({"word": word_str, "meaning": "test"})
+            db.execute("UPDATE words SET next_review_time = ?, review_count = 1 WHERE word = ?", (now_ts - 60, word_str))
+            
+        for i in range(5):
+            word_str = f"new{i}"
+            db.add_word({"word": word_str, "meaning": "test"})
+            db.execute("UPDATE words SET next_review_time = 0, review_count = 0 WHERE word = ?", (word_str,))
+            
+        for i in range(5):
+            word_str = f"diff{i}"
+            db.add_word({"word": word_str, "meaning": "test"})
+            db.execute("UPDATE words SET next_review_time = ?, review_count = 1, error_count = 2 WHERE word = ?", (now_ts + 3600, word_str))
+            
+        # If we request up to 20 words (which is default limit)
+        words, total_count = repo.get_due_words(limit=20)
+        
+        # The 5 due words + 5 new words + 5 difficult words = 15 words total
+        assert len(words) == 15
+        
+        # Verify the contents contain due, new, and diff words
+        word_names = [w["word"] for w in words]
+        for i in range(5):
+            assert f"due{i}" in word_names
+            assert f"new{i}" in word_names
+            assert f"diff{i}" in word_names
+            
+    finally:
+        db.close_connection()
+        temp_dir.cleanup()

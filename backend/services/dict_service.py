@@ -96,12 +96,26 @@ class DictService:
         
         aggregated = MultiDictService.aggregate_search(word, enabled_dicts=sources, youdao_result=youdao_result)
         
-        if not aggregated['primary']:
+        primary = aggregated.get('primary')
+        if not primary or primary.get('meaning') == '暂无释义' or not primary.get('meaning', '').strip():
+            # Trigger AI fallback if available
+            ai_result = DictService.search_word_ai_fallback(word)
+            if ai_result:
+                if primary:
+                    if not primary.get('phonetic'):
+                        primary['phonetic'] = ai_result.get('phonetic')
+                    if primary.get('meaning') == '暂无释义' or not primary.get('meaning', '').strip():
+                        primary['meaning'] = ai_result.get('meaning')
+                    if not primary.get('example'):
+                        primary['example'] = ai_result.get('example')
+                else:
+                    primary = ai_result
+                    aggregated['primary'] = primary
+
+        if not primary:
             return None
             
         # Merge best info into primary result
-        primary = aggregated['primary']
-        
         # Enrich phonetic if missing or better available
         best_phonetic = MultiDictService.get_best_phonetic(aggregated['sources'])
         if best_phonetic and (not primary.get('phonetic') or len(best_phonetic) > len(primary.get('phonetic', ''))):
@@ -224,3 +238,61 @@ class DictService:
         except Exception as e:
             print(f"Search error: {e}")
         return None
+
+    @staticmethod
+    def search_word_ai_fallback(word: str) -> Optional[dict]:
+        """Synchronous wrapper for AI dictionary fallback."""
+        import asyncio
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(DictService._search_word_ai_fallback_async(word))
+            loop.close()
+            return result
+        except Exception as e:
+            print(f"Sync wrapper for AI fallback failed: {e}")
+            return None
+
+    @staticmethod
+    async def _search_word_ai_fallback_async(word: str) -> Optional[dict]:
+        """Asynchronous AI dictionary fallback."""
+        from services.ai_service import AIService
+        ai = AIService()
+        if not ai.api_key:
+            return None
+        
+        prompt = f"""You are a dictionary engine. Please define the English word or term "{word}".
+Generate the output strictly in the following JSON format:
+{{
+    "phonetic": "ipa_phonetic",
+    "meaning": "part_of_speech. Chinese_meaning",
+    "example": "English example sentence.\\nChinese translation."
+}}
+Do not include any explanation or markdown code block formatting in your output."""
+        try:
+            response = await ai._call_llm([
+                {"role": "system", "content": "You are a professional dictionary assistant."},
+                {"role": "user", "content": prompt}
+            ], temperature=0.1)
+            
+            cleaned = response.strip()
+            if cleaned.startswith("```"):
+                cleaned = re.sub(r"^```(json)?\n", "", cleaned)
+                cleaned = re.sub(r"\n```$", "", cleaned).strip()
+                
+            import json
+            data = json.loads(cleaned)
+            return {
+                "word": word,
+                "phonetic": data.get("phonetic", ""),
+                "meaning": data.get("meaning", "暂无释义"),
+                "example": data.get("example", ""),
+                "roots": "",
+                "synonyms": "",
+                "tags": "",
+                "word_families": [],
+                "date": datetime.now().strftime('%Y-%m-%d'),
+            }
+        except Exception as e:
+            print(f"AI dictionary lookup failed for {word}: {e}")
+            return None

@@ -157,9 +157,9 @@ export default function StatisticsPage() {
 
 function StatCard({ label, value, color }: { label: string, value: ReactNode, color: string }) {
     return (
-        <div className="glass-card p-4 text-center hover:shadow-lg transition-shadow">
-            <div className={`text-2xl font-bold ${color}`}>{value}</div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">{label}</div>
+        <div className="glass-card p-4 rounded-xl hover:shadow-md transition-shadow">
+            <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
+            <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 font-medium">{label}</div>
         </div>
     )
 }

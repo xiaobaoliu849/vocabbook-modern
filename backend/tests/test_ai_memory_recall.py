@@ -118,7 +118,7 @@ def test_recall_questions_fall_back_to_recent_memories():
     assert result["memories_retrieved"] >= 1
     assert service.evermem_service.search_calls[0]["min_score"] == 0.15
     assert service.evermem_service.search_calls[0]["group_ids"] == ["session-1"]
-    assert service.evermem_service.search_calls[0]["retrieve_method"] == "rrf"
+    assert service.evermem_service.search_calls[0]["retrieve_method"] == "agentic"
     assert any(call["group_ids"] is None for call in service.evermem_service.search_calls)
     assert service.evermem_service.get_calls == [
         {"user_id": "cloud_demo", "group_ids": ["session-1"], "memory_type": "episodic_memory", "page_size": 60},

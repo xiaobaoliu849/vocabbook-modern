@@ -393,7 +393,10 @@
         "noRecent": "No recent memory records to show yet.",
         "reviewBucket": "Review",
         "chatBucket": "Chat",
-        "nextTitle": "Next Step Suggestions"
+        "nextTitle": "Next Step Suggestions",
+        "foresightTitle": "Upcoming Review Reminders",
+        "noForesight": "No upcoming reminders. Complete a review session to generate recommendations.",
+        "foresightDismiss": "Dismiss"
       },
       "toast": {
         "recalled": "Recalled {{count}} related memories",

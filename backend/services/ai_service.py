@@ -282,7 +282,7 @@ class AIService:
         """
         # Default provider is openai if not specified, but check env vars
         env_provider = os.environ.get("AI_PROVIDER", "openai")
-        self.provider = provider or env_provider
+        self.provider = (provider or env_provider).strip().lower()
 
         # Prioritize passed api_key, then check provider-specific env vars, then generic AI_API_KEY
         if api_key:
@@ -399,9 +399,12 @@ class AIService:
                 }
             }
         elif self.provider == "gemini":
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
             return {
                 "base_url": self.api_base or "https://generativelanguage.googleapis.com/v1beta",
-                "headers": {}
+                "headers": headers
             }
         elif self.provider == "ollama":
             return {
@@ -433,7 +436,7 @@ class AIService:
         config = self._get_client_config()
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            if self.provider in ["openai", "custom", "dashscope", "ollama"]:
+            if self.provider in ["openai", "custom", "dashscope", "ollama", "gemini"]:
                 try:
                     payload = {
                         "model": self.model,
@@ -482,7 +485,7 @@ class AIService:
         config = self._get_client_config()
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            if self.provider in ["openai", "custom", "dashscope", "ollama"]:
+            if self.provider in ["openai", "custom", "dashscope", "ollama", "gemini"]:
                 try:
                     payload = {
                         "model": self.model,
@@ -775,6 +778,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 "history": 2,
                 "foresight": 2,
                 "agent_case": 2,
+                "agent_skill": 2,
                 "profile": 3,
             }.get(memory_type, 2)
             return (priority, -score)
@@ -960,6 +964,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     "profile": 0,
                     "episodic_memory": 1,
                     "agent_case": 2,
+                    "agent_skill": 2,
                     "history": 2,
                     "recent_memory": 3,
                     "foresight": 4,
@@ -971,6 +976,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     "history": 1,
                     "recent_memory": 2,
                     "agent_case": 3,
+                    "agent_skill": 3,
                     "foresight": 3,
                     "profile": 4,
                 }.get(memory_type, 3)
@@ -982,6 +988,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     "recent_memory": 1,
                     "profile": 2,
                     "agent_case": 2,
+                    "agent_skill": 2,
                     "foresight": 3,
                 }.get(memory_type, 3)
             term_matches = int(item.get("term_matches", 0))
@@ -1221,16 +1228,16 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         pattern in user_msg.lower()
                         for pattern in self._MEMORY_GUIDANCE_PATTERNS
                     ) and not review_request:
-                        search_memory_types = ["episodic_memory", "profile", "agent_case"]
+                        search_memory_types = ["episodic_memory", "profile", "agent_case", "agent_skill", "foresight"]
                     else:
-                        search_memory_types = ["episodic_memory"]
+                        search_memory_types = ["episodic_memory", "agent_skill"]
                     found = await self.evermem_service.search_memories(
                         query=query,
                         user_id=self.evermem_user_id,
                         min_score=search_min_score,
                         group_ids=group_ids,
                         memory_types=search_memory_types,
-                        retrieve_method="rrf" if recall_request else "hybrid",
+                        retrieve_method="agentic" if recall_request else "hybrid",
                         top_k=8,
                     )
                     scoped_raw_count += len(found)

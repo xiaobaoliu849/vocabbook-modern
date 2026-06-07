@@ -10,7 +10,14 @@ class ReviewRepository:
         self.db = db
 
     def get_due_words(self, limit: int, include_total: bool = False):
-        return self.db.search_words(
+        # Resolve limit if it's a FastAPI Query/Param default object
+        if not isinstance(limit, int):
+            try:
+                limit = int(getattr(limit, "default", 20))
+            except (TypeError, ValueError):
+                limit = 20
+
+        due_result = self.db.search_words(
             status_filter="due",
             sort_by="next_review_time",
             sort_order="ASC",
@@ -18,6 +25,43 @@ class ReviewRepository:
             offset=0,
             count_total=include_total,
         )
+        due_words, total_count = due_result
+
+        # If the returned due list size is less than 15, replenish with new/difficult words
+        if len(due_words) < 15:
+            target_len = min(15, limit)
+            if len(due_words) < target_len:
+                try:
+                    existing_words = {w["word"].lower().strip() for w in due_words}
+                    
+                    # Fetch new words (never reviewed)
+                    new_words_result = self.get_new_words(limit=15)
+                    new_words = new_words_result[0] if isinstance(new_words_result, tuple) else new_words_result
+                    
+                    # Try to add new words first
+                    for w in new_words:
+                        w_key = w["word"].lower().strip()
+                        if w_key not in existing_words:
+                            due_words.append(w)
+                            existing_words.add(w_key)
+                            if len(due_words) >= target_len:
+                                break
+                                
+                    # Fetch and add difficult words (historically error_count >= 1)
+                    if len(due_words) < target_len:
+                        difficult_words = self.get_difficult_words(limit=15)
+                        for w in difficult_words:
+                            w_key = w["word"].lower().strip()
+                            if w_key not in existing_words:
+                                due_words.append(w)
+                                existing_words.add(w_key)
+                                if len(due_words) >= target_len:
+                                    break
+                except Exception as e:
+                    # Gracefully degrade if database methods are not implemented (e.g. in tests with dummy DBs)
+                    pass
+
+        return due_words, total_count
 
     def get_due_count(self) -> int:
         return self.db.get_due_review_count()

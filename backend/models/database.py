@@ -376,6 +376,19 @@ class DatabaseManager:
             self._ensure_chat_message_schema(cursor)
             self._migrate_legacy_chat_messages(cursor)
 
+            # --- Migrate orphan words (next_review_time = 0) ---
+            # Words added before this fix had nrt=0 and were permanently excluded from the
+            # due-review query (which requires nrt > 0).  Set them to the current timestamp
+            # so they appear in the review queue immediately.
+            cursor.execute("SELECT COUNT(*) FROM words WHERE next_review_time = 0 OR next_review_time IS NULL")
+            orphan_count = cursor.fetchone()[0]
+            if orphan_count > 0:
+                print(f"[Migration] Setting {orphan_count} orphan words (nrt=0) to due-now so they enter the review queue.")
+                cursor.execute(
+                    "UPDATE words SET next_review_time = ? WHERE next_review_time = 0 OR next_review_time IS NULL",
+                    (time.time(),)
+                )
+
             conn.commit()
         except Exception as e:
             print(f"Schema update error: {e}")
@@ -440,6 +453,9 @@ class DatabaseManager:
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
+            # Set next_review_time to now so the word enters the review queue immediately.
+            # Previously this was hardcoded to 0, which caused new words to be permanently
+            # excluded from the due-review filter (next_review_time > 0 AND <= now).
             cursor.execute('''
                 INSERT INTO words (word, phonetic, meaning, example, context_en, context_cn, roots, synonyms, tags, date_added, next_review_time)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -454,7 +470,7 @@ class DatabaseManager:
                 data.get('synonyms', ''),
                 data.get('tags', ''),
                 data.get('date', datetime.now().strftime('%Y-%m-%d')),
-                0
+                time.time()  # immediately due for first review
             ))
             conn.commit()
             return True
@@ -730,12 +746,13 @@ class DatabaseManager:
         return {row[0]: row[1] for row in rows}
 
     def get_due_review_count(self) -> int:
-        """Return how many words are currently due for review."""
+        """Return how many words are currently due for review (including unstarted new words)."""
         conn = self.get_connection()
         cursor = conn.cursor()
         now_ts = time.time()
+        # Include words with nrt=0 (never reviewed / pre-migration orphans) as a safety net.
         cursor.execute(
-            'SELECT COUNT(*) FROM words WHERE next_review_time > 0 AND next_review_time <= ?',
+            'SELECT COUNT(*) FROM words WHERE next_review_time = 0 OR (next_review_time > 0 AND next_review_time <= ?)',
             (now_ts,),
         )
         row = cursor.fetchone()
@@ -770,13 +787,20 @@ class DatabaseManager:
         cursor.execute('SELECT COUNT(*) FROM words WHERE mastered = 1')
         mastered = cursor.fetchone()[0]
 
-        # 今日待复习数量
+        # 今日待复习数量（包括 nrt=0 的新词，与复习队列逻辑一致）
         now_ts = time.time()
-        cursor.execute('SELECT COUNT(*) FROM words WHERE next_review_time > 0 AND next_review_time <= ?', (now_ts,))
+        cursor.execute(
+            'SELECT COUNT(*) FROM words WHERE next_review_time = 0 OR (next_review_time > 0 AND next_review_time <= ?)',
+            (now_ts,)
+        )
         due_today = cursor.fetchone()[0]
 
-        # 学习中的单词
-        learning = total - mastered
+        # 新单词 (未开始复习)
+        cursor.execute('SELECT COUNT(*) FROM words WHERE review_count = 0 AND mastered = 0')
+        new_words = cursor.fetchone()[0]
+
+        # 学习中的单词 (已开始复习但未掌握)
+        learning = total - mastered - new_words
 
         # --- 新增统计逻辑 ---
         today_str = datetime.now().strftime('%Y-%m-%d')
@@ -813,6 +837,7 @@ class DatabaseManager:
             'total': total,
             'mastered': mastered,
             'learning': learning,
+            'new': new_words,
             'due_today': due_today,
             'reviewed_today': reviewed_today,
             'streak_days': streak_days
@@ -1278,8 +1303,8 @@ class DatabaseManager:
         if status_filter:
             now_ts = time.time()
             if status_filter == "due":
-                # 待复习：已进入复习流程且到期（不再被 mastered 状态排除）
-                conditions.append("next_review_time > 0 AND next_review_time <= ?")
+                # 待复习：到期的单词，以及 nrt=0 的新词（安全兜底，正常流程下新词入库即设为 now）
+                conditions.append("(next_review_time = 0 OR (next_review_time > 0 AND next_review_time <= ?))")
                 params.append(now_ts)
             elif status_filter == "new":
                 # 新单词：next_review_time = 0

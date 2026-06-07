@@ -98,6 +98,11 @@ interface MemoryOverview {
             is_due: boolean
         }>
     }
+    foresights?: Array<{
+        content: string
+        timestamp?: string
+        memory_id?: string
+    }>
     suggestions: string[]
 }
 
@@ -192,11 +197,11 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         }
         let activeModel = modelsMap[currentProvider] || localStorage.getItem('ai_model') || ''
 
-        // Auto-migrate legacy models to qwen-flash-latest immediately on load
-        if (currentProvider === 'dashscope' && (activeModel === 'qwen-plus' || activeModel === 'qwen3.5-flash' || !activeModel) && !localStorage.getItem('qwen_flash_latest_migrated')) {
-            activeModel = 'qwen-flash-latest'
+        // Auto-migrate legacy models to qwen-flash immediately on load
+        if (currentProvider === 'dashscope' && (activeModel === 'qwen-plus' || activeModel === 'qwen3.5-flash' || activeModel === 'qwen-flash-latest' || !activeModel) && !localStorage.getItem('qwen_flash_migrated_v2')) {
+            activeModel = 'qwen-flash'
             modelsMap[currentProvider] = activeModel
-            localStorage.setItem('qwen_flash_latest_migrated', 'true')
+            localStorage.setItem('qwen_flash_migrated_v2', 'true')
             localStorage.setItem('ai_models_map', JSON.stringify(modelsMap))
             localStorage.setItem('ai_model', activeModel)
         }
@@ -822,6 +827,19 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         setInput(t('chat.memory.panel.practicePrompt', { words: words.join(', ') }))
         setMemoryPanelOpen(false)
         setTimeout(() => inputRef.current?.focus(), 0)
+    }
+
+    const dismissForesight = async (memoryId: string) => {
+        try {
+            await fetch(`${API_BASE_URL}${API_PATHS.AI_FORESIGHT_DISMISS(memoryId)}`, {
+                method: 'DELETE',
+                headers: getApiHeaders(),
+            })
+            memoryOverviewDirtyRef.current = true
+            void loadMemoryOverview({ force: true, silent: true })
+        } catch (err) {
+            console.error('Failed to dismiss foresight', err)
+        }
     }
 
 
@@ -1602,6 +1620,38 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                             {t('chat.memory.panel.practiceAction')}
                                         </button>
                                     </div>
+
+                                    {(memoryOverview?.foresights?.length ?? 0) > 0 && (
+                                        <div className="rounded-2xl border border-blue-200/30 bg-blue-500/5 p-5 shadow-sm">
+                                            <p className="text-xs font-bold text-blue-500 dark:text-blue-400 uppercase tracking-widest mb-4">
+                                                {t('chat.memory.panel.foresightTitle')}
+                                            </p>
+                                            <div className="space-y-3">
+                                                {(memoryOverview?.foresights || []).map((fs, index) => (
+                                                    <div key={fs.memory_id || index} className="relative pl-4 border-l-2 border-blue-500/20 pr-6">
+                                                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
+                                                            {fs.content}
+                                                        </p>
+                                                        {fs.timestamp && (
+                                                            <span className="text-[10px] font-bold text-slate-400 mt-1 block">
+                                                                {formatMemoryTimestamp(fs.timestamp)}
+                                                            </span>
+                                                        )}
+                                                        {fs.memory_id && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => dismissForesight(fs.memory_id!)}
+                                                                className="absolute top-0 right-0 rounded-lg p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-all"
+                                                                title={t('chat.memory.panel.foresightDismiss')}
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="rounded-2xl border border-slate-200/30 bg-white/40 dark:bg-slate-800/40 p-5 shadow-sm">
                                         <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">

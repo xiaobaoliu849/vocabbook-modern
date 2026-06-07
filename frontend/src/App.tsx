@@ -99,8 +99,8 @@ function AppContent() {
         setCurrentPage={setCurrentPage}
         onNavigateToSettings={handleNavigateToSettings}
       />
-      <main className="flex-1 overflow-auto">
-        <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      <main className="flex-1 overflow-auto bg-[var(--bg-primary)]">
+        <div className="p-6 lg:p-8 max-w-5xl mx-auto">
           {shouldRenderPage('add') && (
             <div className={getPageClassName('add')}>
               <Suspense fallback={<PageFallback />}>

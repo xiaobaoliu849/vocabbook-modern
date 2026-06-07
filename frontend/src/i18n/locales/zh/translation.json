@@ -401,7 +401,10 @@
         "noRecent": "最近还没有可展示的记忆记录。",
         "reviewBucket": "复习",
         "chatBucket": "对话",
-        "nextTitle": "下一步建议"
+        "nextTitle": "下一步建议",
+        "foresightTitle": "即将到来的复习提醒",
+        "noForesight": "暂无提醒。完成一次复习后会自动生成建议。",
+        "foresightDismiss": "忽略"
       },
       "toast": {
         "recalled": "回忆了 {{count}} 条相关记忆",

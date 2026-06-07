@@ -213,6 +213,9 @@ class EverMemService:
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
         top_k: int = 10,
+        current_time: Optional[str] = None,
+        radius: Optional[float] = None,
+        include_original_data: Optional[bool] = None,
     ) -> List[Dict]:
         """
         Search for relevant memories in EverMemOS (v1 API).
@@ -251,6 +254,12 @@ class EverMemService:
         }
         if memory_types:
             body["memory_types"] = memory_types
+        if current_time:
+            body["current_time"] = current_time
+        if radius is not None:
+            body["radius"] = radius
+        if include_original_data is not None:
+            body["include_original_data"] = include_original_data
 
         def sync_search():
             return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
@@ -336,6 +345,7 @@ class EverMemService:
                         "score": score,
                         "group_id": mem.get("group_id"),
                         "timestamp": mem.get("timestamp"),
+                        "memory_id": mem.get("memory_id") or mem.get("id"),
                     })
 
             return extracted_memories
@@ -355,6 +365,9 @@ class EverMemService:
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
         page_size: int = 100,
+        page: Optional[int] = None,
+        rank_by: Optional[str] = None,
+        rank_order: Optional[str] = None,
     ) -> List[Dict]:
         """
         Get memories by type from EverMemOS (v1 API).
@@ -391,6 +404,12 @@ class EverMemService:
             "filters": filters,
             "page_size": min(page_size, 100),
         }
+        if page is not None:
+            body["page"] = page
+        if rank_by is not None:
+            body["rank_by"] = rank_by
+        if rank_order is not None:
+            body["rank_order"] = rank_order
 
         def sync_get():
             return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
@@ -406,7 +425,7 @@ class EverMemService:
             if not isinstance(data, dict):
                 return []
 
-            # v1 get returns typed arrays: episodes[], profiles[], agent_cases[], agent_skills[]
+            # v1 get returns typed arrays: episodes[], profiles[], agent_cases[], agent_skills[], foresights[]
             # Map memory_type to the expected response key
             type_to_key = {
                 "episodic_memory": "episodes",
@@ -414,6 +433,7 @@ class EverMemService:
                 "agent_case": "agent_cases",
                 "agent_skill": "agent_skills",
                 "event_log": "episodes",  # event_log may come back as episodes
+                "foresight": "foresights",
             }
             response_key = type_to_key.get(memory_type, "episodes")
             memories_list = data.get(response_key, [])
@@ -490,6 +510,7 @@ class EverMemService:
                         "type": mem.get("type", mem.get("memory_type", memory_type)),
                         "group_id": mem.get("group_id"),
                         "timestamp": mem.get("timestamp"),
+                        "memory_id": mem.get("memory_id") or mem.get("id"),
                         "role": mem.get("role"),
                         "sender_name": mem.get("sender_name"),
                     })

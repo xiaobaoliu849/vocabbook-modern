@@ -72,8 +72,8 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
     const currentLanguage = ((i18n.resolvedLanguage || i18n.language || 'en').split('-')[0]) as 'en' | 'zh'
     const isPremium = user?.tier === 'premium'
     const buttonLabel = user ? user.email.split('@')[0] : t('sidebar.loginRegister', 'Login / Sign Up')
-    const labelClass = `overflow-hidden whitespace-nowrap text-sm font-bold transition-[max-width,opacity,margin] duration-200 ease-out ${
-        isCollapsed ? 'ml-0 max-w-0 opacity-0' : 'ml-3 max-w-[10rem] opacity-100'
+    const labelClass = `overflow-hidden whitespace-nowrap text-[13px] font-medium transition-[max-width,opacity,margin] duration-200 ease-out ${
+        isCollapsed ? 'ml-0 max-w-0 opacity-0' : 'ml-2.5 max-w-[10rem] opacity-100'
     }`
     const handleOpenAuth = () => {
         setShowDropdown(false)
@@ -95,11 +95,13 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
             <button
                 ref={buttonRef}
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="group flex h-14 w-full items-center overflow-hidden rounded-xl border border-transparent px-2.5 text-slate-700 transition-[background-color,border-color,color,box-shadow] duration-200 hover:border-slate-100 hover:bg-white hover:shadow-md dark:text-slate-200 dark:hover:border-slate-700 dark:hover:bg-slate-800"
+                className="group flex h-11 w-full items-center overflow-hidden rounded-lg
+                    px-2 text-stone-700 transition-colors duration-150
+                    hover:bg-stone-100 dark:text-stone-200 dark:hover:bg-stone-800"
                 title={isCollapsed ? (user?.email || t('sidebar.loginRegister', 'Login / Sign Up')) : buttonLabel}
             >
                 <div
-                    className={`relative h-9 w-9 shrink-0 rounded-xl text-sm font-bold text-white shadow-sm flex items-center justify-center ${isPremium ? 'premium-gradient' : 'avatar-gradient'}`}
+                    className={`relative h-7 w-7 shrink-0 rounded-lg text-xs font-bold text-white flex items-center justify-center ${isPremium ? 'premium-gradient' : 'avatar-gradient'}`}
                 >
                     {user ? initials : <UserIcon size={18} />}
                     {isPremium && (
@@ -109,7 +111,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
                     )}
                 </div>
 
-                <span className={`${labelClass} text-slate-700 group-hover:text-primary-600 dark:text-slate-200 dark:group-hover:text-primary-400`}>
+                <span className={`${labelClass} text-stone-700 dark:text-stone-200`}>
                     {buttonLabel}
                 </span>
             </button>
@@ -117,7 +119,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
             {showDropdown && createPortal(
                 <div
                     ref={dropdownRef}
-                    className="fixed w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-xl ring-1 ring-slate-200/50 dark:ring-slate-800 overflow-hidden animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 z-[9999]"
+                    className="fixed w-72 bg-white dark:bg-[#252525] rounded-xl shadow-lg ring-1 ring-stone-200/60 dark:ring-stone-800 overflow-hidden z-[9999]"
                     style={{ bottom: dropdownStyle.bottom, left: dropdownStyle.left }}
                 >
                     <div className={`p-4 ${user && isPremium ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20' : 'bg-gradient-to-br from-slate-50 to-primary-50/50 dark:from-slate-900 dark:to-slate-900'}`}>
@@ -284,75 +286,92 @@ export default function Sidebar({ currentPage, setCurrentPage, onNavigateToSetti
     }
 
     const navItems = [
-        { id: 'add' as Page, icon: <Home size={22} />, label: t('sidebar.add', 'Vocabulary Hub'), tooltip: t('sidebar.addTooltip', 'Search and add new words'), badge: 0 },
-        { id: 'list' as Page, icon: <BookOpen size={22} />, label: t('sidebar.list', 'Word List'), tooltip: t('sidebar.listTooltip', 'Manage saved words'), badge: 0 },
-        { id: 'review' as Page, icon: <Brain size={22} />, label: t('sidebar.review', 'Smart Review'), tooltip: t('sidebar.reviewTooltip', 'Review with the SM-2 algorithm'), badge: dueCount },
-        { id: 'chat' as Page, icon: <Bot size={22} />, label: t('sidebar.chat', 'AI Partner'), tooltip: t('sidebar.chatTooltip', 'Conversation practice with long-term memory'), badge: 0 },
-        { id: 'stats' as Page, icon: <BarChart2 size={22} />, label: t('sidebar.stats', 'Statistics'), tooltip: t('sidebar.statsTooltip', 'View learning progress and heatmap'), badge: 0 },
+        { id: 'add' as Page, icon: <Home size={18} />, label: t('sidebar.add', 'Vocabulary Hub'), tooltip: t('sidebar.addTooltip', 'Search and add new words'), badge: 0 },
+        { id: 'list' as Page, icon: <BookOpen size={18} />, label: t('sidebar.list', 'Word List'), tooltip: t('sidebar.listTooltip', 'Manage saved words'), badge: 0 },
+        { id: 'review' as Page, icon: <Brain size={18} />, label: t('sidebar.review', 'Smart Review'), tooltip: t('sidebar.reviewTooltip', 'Review with the SM-2 algorithm'), badge: dueCount },
+        { id: 'chat' as Page, icon: <Bot size={18} />, label: t('sidebar.chat', 'AI Partner'), tooltip: t('sidebar.chatTooltip', 'Conversation practice with long-term memory'), badge: 0 },
+        { id: 'stats' as Page, icon: <BarChart2 size={18} />, label: t('sidebar.stats', 'Statistics'), tooltip: t('sidebar.statsTooltip', 'View learning progress and heatmap'), badge: 0 },
     ]
 
     return (
         <aside
-            className={`glass-sidebar relative z-50 flex shrink-0 flex-col bg-white/80 transition-[width] duration-300 dark:bg-slate-900/80 ${isCollapsed ? 'w-20' : 'w-60'}`}
+            className={`glass-sidebar relative z-50 flex shrink-0 flex-col transition-[width] duration-300 ease-in-out ${isCollapsed ? 'w-[60px]' : 'w-56'}`}
         >
-            {/* Header with Logo and Collapse Button */}
-            <div className="h-16 flex items-center gap-3 px-4 shrink-0">
+            {/* Header: Logo + Collapse toggle */}
+            <div className="h-14 flex items-center shrink-0 px-3 gap-2">
+                {/* Collapse toggle */}
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
-                    className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                    className="w-8 h-8 shrink-0 flex items-center justify-center rounded-md
+                        text-stone-400 hover:text-stone-700 dark:hover:text-stone-200
+                        hover:bg-stone-100 dark:hover:bg-stone-800
+                        transition-colors duration-150"
+                    title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                 >
-                    {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
                 </button>
 
-                {/* Logo - hidden when collapsed */}
-                <h1
-                    className={`font-bold text-lg bg-linear-to-r from-primary-600 to-accent-500 
-                         bg-clip-text text-transparent whitespace-nowrap transition-all duration-300 flex-1 min-w-0
-                         ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}
+                {/* App name — plain, typographic, no gradient */}
+                <span
+                    className={`font-semibold text-sm text-stone-800 dark:text-stone-100
+                        whitespace-nowrap transition-all duration-200 overflow-hidden
+                        ${isCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[10rem]'}`}
                 >
                     {t('app.brand', 'Smart VocabBook')}
-                </h1>
+                </span>
             </div>
 
+            {/* Divider */}
+            <div className="mx-3 border-t border-stone-200/80 dark:border-stone-800/60" />
+
             {/* Navigation */}
-            <nav className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-2 space-y-1.5">
+            <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3 space-y-1">
                 {navItems.map((item) => (
                     <button
                         key={item.id}
                         onClick={() => setCurrentPage(item.id)}
-                        className={`nav-item w-full overflow-hidden group ${isPageActive(item.id) ? 'active' : ''}`}
+                        className={`nav-item w-full overflow-hidden ${isPageActive(item.id) ? 'active' : ''}`}
                         title={isCollapsed ? item.tooltip : ''}
                     >
-                        <span className="shrink-0 relative">
+                        {/* Icon */}
+                        <span className="shrink-0 relative flex items-center justify-center">
                             {item.icon}
+                            {/* Badge dot when collapsed */}
                             {item.badge > 0 && isCollapsed && (
-                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 
-                                    bg-red-500 text-white text-xs font-medium rounded-full 
-                                    flex items-center justify-center shadow-sm border border-white dark:border-slate-900">
-                                    {item.badge > 99 ? '99+' : item.badge}
-                                </span>
+                                <span className="absolute -top-0.5 -right-0.5 w-2 h-2
+                                    bg-red-400 rounded-full border-2 border-stone-50 dark:border-[#191919]" />
                             )}
                         </span>
+
+                        {/* Label — CSS transition, not conditional render, for smooth slide */}
                         <span
-                            className={`flex-1 min-w-0 whitespace-nowrap transition-all duration-300 ml-3 text-left
-                                ${isCollapsed ? 'opacity-0 w-0 ml-0' : 'opacity-100 w-auto'}`}
+                            className={`flex-1 min-w-0 text-left text-sm whitespace-nowrap
+                                transition-[opacity,max-width,margin] duration-300 ease-in-out
+                                ${isCollapsed ? 'opacity-0 max-w-0 overflow-hidden ml-0' : 'opacity-100 max-w-[12rem] ml-0'}`}
                         >
                             {item.label}
                         </span>
-                        {item.badge > 0 && !isCollapsed && (
-                            <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-medium rounded-full">
+
+                        {/* Badge count (expanded) */}
+                        {item.badge > 0 && (
+                            <span
+                                className={`text-[11px] font-semibold px-1.5 py-0.5
+                                    bg-stone-200/80 dark:bg-stone-700
+                                    text-stone-600 dark:text-stone-300
+                                    rounded tabular-nums
+                                    transition-[opacity,max-width] duration-300
+                                    ${isCollapsed ? 'opacity-0 max-w-0 overflow-hidden' : 'opacity-100 max-w-[4rem] ml-auto'}`}
+                            >
                                 {item.badge > 99 ? '99+' : item.badge}
                             </span>
-                        )}
-                        {isPageActive(item.id) && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-500 rounded-r-full" />
                         )}
                     </button>
                 ))}
             </nav>
 
-            {/* Footer Section */}
-            <div className="shrink-0 p-3 pb-4">
+            {/* Footer: User avatar */}
+            <div className="shrink-0 px-2 pb-3">
+                <div className="border-t border-stone-200/80 dark:border-stone-800/60 mb-2" />
                 <UserAvatarDropdown onNavigateToSettings={onNavigateToSettings} isCollapsed={isCollapsed} />
             </div>
         </aside>

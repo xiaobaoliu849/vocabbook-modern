@@ -222,11 +222,11 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             </div>
 
             {/* Search Box */}
-            <div className="glass-card p-6 md:p-8 rounded-3xl bg-gradient-to-br from-amber-50/50 to-rose-50/50 dark:from-amber-900/10 dark:to-rose-900/10 border-amber-100/50 dark:border-amber-700/20 shadow-xl shadow-amber-500/5 transition-all">
-                <div className="flex gap-4">
-                    <div className="relative flex-1 group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <Search className="h-5 w-5 text-amber-500/70 dark:text-amber-400/70" />
+            <div className="glass-card p-5 rounded-xl">
+                <div className="flex gap-3">
+                    <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <Search className="h-4 w-4 text-stone-400" />
                         </div>
                         <input
                             type="text"
@@ -234,14 +234,14 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                             onChange={(e) => setSearchWord(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                             placeholder={t('addWord.searchPlaceholder')}
-                            className="input-field w-full pl-11 text-lg rounded-2xl border-amber-200/50 focus:border-amber-400 focus:ring-amber-400/20 dark:bg-slate-800/80 dark:border-slate-700 shadow-inner bg-white/80"
+                            className="input-field pl-10 text-base"
                             autoFocus
                         />
                     </div>
                     <button
                         onClick={() => handleSearch()}
                         disabled={isSearching}
-                        className="btn-primary px-8 flex items-center gap-2 rounded-2xl shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all font-bold"
+                        className="btn-primary flex items-center gap-2 px-5 text-sm"
                     >
                         {isSearching ? (
                             <Loader2 className="w-5 h-5 animate-spin" />
@@ -253,22 +253,22 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                 </div>
 
                 {/* Options */}
-                <div className="mt-5 flex gap-6 text-sm text-slate-600 dark:text-slate-400 justify-center sm:justify-start">
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none hover:text-amber-600 dark:hover:text-amber-400 transition-colors">
+                <div className="mt-4 flex gap-5 text-sm text-stone-500 dark:text-stone-400">
+                    <label className="flex items-center gap-2 cursor-pointer select-none hover:text-stone-700 dark:hover:text-stone-200 transition-colors">
                         <input
                             type="checkbox"
                             checked={autoPlay}
                             onChange={e => setAutoPlay(e.target.checked)}
-                            className="rounded-md border-amber-300 text-amber-500 focus:ring-amber-500/30 w-4 h-4 transition-all"
+                            className="rounded border-stone-300 text-stone-700 focus:ring-stone-400/30 w-3.5 h-3.5"
                         />
                         {t('addWord.autoPlay')}
                     </label>
-                    <label className="flex items-center gap-2.5 cursor-pointer select-none hover:text-rose-600 dark:hover:text-rose-400 transition-colors">
+                    <label className="flex items-center gap-2 cursor-pointer select-none hover:text-stone-700 dark:hover:text-stone-200 transition-colors">
                         <input
                             type="checkbox"
                             checked={autoSave}
                             onChange={e => setAutoSave(e.target.checked)}
-                            className="rounded-md border-rose-300 text-rose-500 focus:ring-rose-500/30 w-4 h-4 transition-all"
+                            className="rounded border-stone-300 text-stone-700 focus:ring-stone-400/30 w-3.5 h-3.5"
                         />
                         {t('addWord.autoSave')}
                     </label>
@@ -514,27 +514,27 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
 
             {/* Quick Tips */}
             {!searchResult && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                    <div className="glass-card p-6 md:p-8 rounded-3xl text-center flex flex-col items-center gap-3 bg-gradient-to-b from-white to-blue-50/50 hover:to-blue-100/50 transition-all border-blue-100/50 dark:from-slate-800 dark:to-slate-800/80 dark:border-slate-700 shadow-sm hover:shadow-md hover:-translate-y-1">
-                        <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-inner mb-2">
-                            <Search size={32} strokeWidth={1.5} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                    <div className="glass-card p-5 rounded-xl flex flex-col gap-3 hover:shadow-md transition-shadow">
+                        <div className="w-9 h-9 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-500">
+                            <Search size={18} strokeWidth={1.5} />
                         </div>
-                        <h3 className="font-extrabold text-xl text-slate-800 dark:text-slate-200 tracking-tight">{t('addWord.quickTips.search.title')}</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">{t('addWord.quickTips.search.desc')}</p>
+                        <h3 className="font-semibold text-stone-800 dark:text-stone-100 text-sm">{t('addWord.quickTips.search.title')}</h3>
+                        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">{t('addWord.quickTips.search.desc')}</p>
                     </div>
-                    <div className="glass-card p-6 md:p-8 rounded-3xl text-center flex flex-col items-center gap-3 bg-gradient-to-b from-white to-amber-50/50 hover:to-amber-100/50 transition-all border-amber-100/50 dark:from-slate-800 dark:to-slate-800/80 dark:border-slate-700 shadow-sm hover:shadow-md hover:-translate-y-1">
-                        <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-inner mb-2">
-                            <Zap size={32} strokeWidth={1.5} />
+                    <div className="glass-card p-5 rounded-xl flex flex-col gap-3 hover:shadow-md transition-shadow">
+                        <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                            <Zap size={18} strokeWidth={1.5} />
                         </div>
-                        <h3 className="font-extrabold text-xl text-slate-800 dark:text-slate-200 tracking-tight">{t('addWord.quickTips.ai.title')}</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">{t('addWord.quickTips.ai.desc')}</p>
+                        <h3 className="font-semibold text-stone-800 dark:text-stone-100 text-sm">{t('addWord.quickTips.ai.title')}</h3>
+                        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">{t('addWord.quickTips.ai.desc')}</p>
                     </div>
-                    <div className="glass-card p-6 md:p-8 rounded-3xl text-center flex flex-col items-center gap-3 bg-gradient-to-b from-white to-rose-50/50 hover:to-rose-100/50 transition-all border-rose-100/50 dark:from-slate-800 dark:to-slate-800/80 dark:border-slate-700 shadow-sm hover:shadow-md hover:-translate-y-1">
-                        <div className="w-16 h-16 rounded-full bg-rose-100 dark:bg-rose-900/40 flex items-center justify-center text-rose-600 dark:text-rose-400 shadow-inner mb-2">
-                            <Keyboard size={32} strokeWidth={1.5} />
+                    <div className="glass-card p-5 rounded-xl flex flex-col gap-3 hover:shadow-md transition-shadow">
+                        <div className="w-9 h-9 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-500">
+                            <Keyboard size={18} strokeWidth={1.5} />
                         </div>
-                        <h3 className="font-extrabold text-xl text-slate-800 dark:text-slate-200 tracking-tight">{t('addWord.quickTips.shortcuts.title')}</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">{t('addWord.quickTips.shortcuts.desc')}</p>
+                        <h3 className="font-semibold text-stone-800 dark:text-stone-100 text-sm">{t('addWord.quickTips.shortcuts.title')}</h3>
+                        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">{t('addWord.quickTips.shortcuts.desc')}</p>
                     </div>
                 </div>
             )}

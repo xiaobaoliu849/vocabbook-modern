@@ -1,9 +1,9 @@
 """
- Batch Import API Router
- 批量导入单词
- """
+Batch Import API Router
+批量导入单词
+"""
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from datetime import datetime
 from services.blocking_io import run_db_blocking, run_io_blocking
@@ -43,8 +43,6 @@ def lookup_word(word: str) -> Optional[dict]:
     except Exception as e:
         print(f"Lookup failed for '{word}': {e}")
         return None
-
-
 
 
 @router.post("/upload", response_model=ImportResult)
@@ -96,7 +94,7 @@ async def import_word_list(request: ImportWordsRequest):
     if not request.words:
         raise HTTPException(status_code=400, detail="No words provided")
     
-    entries = [{"word": w.strip()} for w in request.words if w.strip()]
+    entries = [{"word": w} for w in request.words if w.strip()]
     return await process_import(entries, request.auto_lookup, request.tag)
 
 
@@ -113,7 +111,11 @@ async def process_import(entries: List[dict], auto_lookup: bool, tag: str) -> Im
     }
     
     for entry in entries:
-        word = entry["word"]
+        if not entry.get("word"):
+            continue
+        word = entry["word"].strip()
+        if not word:
+            continue
         
         # 检查是否已存在
         existing = await run_db_blocking(db.get_word, word)

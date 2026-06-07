@@ -608,8 +608,64 @@ async def get_memory_overview(
 
     response["profile_facts"] = profile_facts
     response["recent_memories"] = recent_memories
+
+    foresight_group_id = f"{owner_key}::foresight"
+    foresights: list[dict[str, Any]] = []
+    try:
+        raw_foresights = await service.get_memories(
+            user_id=owner_key,
+            group_ids=[foresight_group_id],
+            memory_type="foresight",
+            page_size=5,
+        )
+        for fs in raw_foresights:
+            raw_content = str(fs.get("raw_content") or fs.get("content", ""))
+            display = _normalize_memory_line(raw_content)
+            if not display:
+                continue
+            valid_match = re.search(r"valid until (\d{4}-\d{2}-\d{2})", raw_content)
+            if valid_match:
+                try:
+                    from datetime import date as _date
+                    expiry = _date.fromisoformat(valid_match.group(1))
+                    if expiry < _date.today():
+                        continue
+                except ValueError:
+                    pass
+            foresights.append({
+                "content": display,
+                "timestamp": fs.get("timestamp"),
+                "memory_id": fs.get("memory_id"),
+            })
+            if len(foresights) >= 3:
+                break
+    except Exception:
+        pass
+
+    response["foresights"] = foresights
     response["suggestions"] = _build_memory_suggestions(learning_focus, profile_facts)
     return response
+
+
+@router.delete("/foresights/{memory_id}")
+async def dismiss_foresight(
+    memory_id: str,
+    x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    authorization: Optional[str] = Header(None),
+):
+    """Dismiss a specific foresight reminder."""
+    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+        authorization=authorization,
+        x_evermem_enabled=x_evermem_enabled,
+        x_evermem_url=x_evermem_url,
+        x_evermem_key=x_evermem_key,
+    )
+    if not evermem_enabled or not service:
+        raise HTTPException(status_code=400, detail="EverMemOS not enabled")
+    success = await service.delete_memories(memory_id=memory_id)
+    return {"success": success}
 
 
 @router.get("/evermem-settings")
