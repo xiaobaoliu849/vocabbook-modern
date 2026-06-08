@@ -5,6 +5,9 @@ import time
 import threading
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class _DatabaseLocal(threading.local):
@@ -327,29 +330,29 @@ class DatabaseManager:
             columns = [info[1] for info in cursor.fetchall()]
 
             if 'roots' not in columns:
-                print("Adding 'roots' column to words table...")
+                logger.info("Adding 'roots' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN roots TEXT")
 
             if 'synonyms' not in columns:
-                print("Adding 'synonyms' column to words table...")
+                logger.info("Adding 'synonyms' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN synonyms TEXT")
 
             if 'tags' not in columns:
-                print("Adding 'tags' column to words table...")
+                logger.info("Adding 'tags' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN tags TEXT")
 
             if 'error_count' not in columns:
-                print("Adding 'error_count' column to words table...")
+                logger.error("Adding 'error_count' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN error_count INTEGER DEFAULT 0")
 
             if 'note' not in columns:
-                print("Adding 'note' column to words table...")
+                logger.info("Adding 'note' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN note TEXT")
 
             cursor.execute("PRAGMA table_info(review_history)")
             review_history_columns = [info[1] for info in cursor.fetchall()]
             if 'reviewed_at' not in review_history_columns:
-                print("Adding 'reviewed_at' column to review_history table...")
+                logger.info("Adding 'reviewed_at' column to review_history table...")
                 cursor.execute("ALTER TABLE review_history ADD COLUMN reviewed_at REAL")
                 cursor.execute(
                     """
@@ -366,11 +369,11 @@ class DatabaseManager:
             cursor.execute("PRAGMA table_info(chat_sessions)")
             chat_columns = [info[1] for info in cursor.fetchall()]
             if 'owner_key' not in chat_columns:
-                print("Adding 'owner_key' column to chat_sessions table...")
+                logger.info("Adding 'owner_key' column to chat_sessions table...")
                 cursor.execute("ALTER TABLE chat_sessions ADD COLUMN owner_key TEXT DEFAULT 'guest'")
                 cursor.execute("UPDATE chat_sessions SET owner_key = 'guest' WHERE owner_key IS NULL OR owner_key = ''")
             if 'message_count' not in chat_columns:
-                print("Adding 'message_count' column to chat_sessions table...")
+                logger.info("Adding 'message_count' column to chat_sessions table...")
                 cursor.execute("ALTER TABLE chat_sessions ADD COLUMN message_count INTEGER DEFAULT 0")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner ON chat_sessions(owner_key)")
             self._ensure_chat_message_schema(cursor)
@@ -383,7 +386,7 @@ class DatabaseManager:
             cursor.execute("SELECT COUNT(*) FROM words WHERE next_review_time = 0 OR next_review_time IS NULL")
             orphan_count = cursor.fetchone()[0]
             if orphan_count > 0:
-                print(f"[Migration] Setting {orphan_count} orphan words (nrt=0) to due-now so they enter the review queue.")
+                logger.warning(f"[Migration] Setting {orphan_count} orphan words (nrt=0) to due-now so they enter the review queue.")
                 cursor.execute(
                     "UPDATE words SET next_review_time = ? WHERE next_review_time = 0 OR next_review_time IS NULL",
                     (time.time(),)
@@ -391,7 +394,7 @@ class DatabaseManager:
 
             conn.commit()
         except Exception as e:
-            print(f"Schema update error: {e}")
+            logger.error(f"Schema update error: {e}")
         # 注意：不再关闭连接，使用长连接
 
     def migrate_from_json(self):
@@ -407,7 +410,7 @@ class DatabaseManager:
         if cursor.fetchone()[0] > 0:
             return # Already has data, skip migration
 
-        print("Migrating data from JSON to SQLite...")
+        logger.info("Migrating data from JSON to SQLite...")
         try:
             with open(self.json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -434,16 +437,16 @@ class DatabaseManager:
                         item.get('stage', 0)
                     ))
                 except Exception as e:
-                    print(f"Skipping error word {item.get('word')}: {e}")
+                    logger.error(f"Skipping error word {item.get('word')}: {e}")
             
             conn.commit()
-            print(f"Migration complete. {len(data)} words imported.")
+            logger.info(f"Migration complete. {len(data)} words imported.")
 
             # Optional: Rename json file to backup
             # os.rename(self.json_path, self.json_path + ".bak")
 
         except Exception as e:
-            print(f"Migration failed: {e}")
+            logger.error(f"Migration failed: {e}")
         # 注意：不再关闭连接，使用长连接
 
     # --- CRUD Operations ---
@@ -630,7 +633,7 @@ class DatabaseManager:
             conn.commit()
             return cursor.rowcount > 0
         except sqlite3.Error as e:
-            print(f"Update word error: {e}")
+            logger.error(f"Update word error: {e}")
             return False
 
     def delete_word(self, word):
@@ -938,7 +941,7 @@ class DatabaseManager:
             
             conn.commit()
         except Exception as e:
-            print(f"Log study session error: {e}")
+            logger.error(f"Log study session error: {e}")
 
     def get_total_study_time(self):
         """Get total study time in seconds across all history."""
@@ -962,7 +965,7 @@ class DatabaseManager:
             conn.commit()
             return cursor.lastrowid
         except Exception as e:
-            print(f"Add translation error: {e}")
+            logger.error(f"Add translation error: {e}")
             return None
 
     def find_translation(self, source_text, source_lang, target_lang):
@@ -1077,7 +1080,7 @@ class DatabaseManager:
             conn.commit()
             return True
         except Exception as e:
-            print(f"Save chat session error: {e}")
+            logger.error(f"Save chat session error: {e}")
             return False
 
     def get_all_chat_sessions(self, owner_key=None):
@@ -1189,7 +1192,7 @@ class DatabaseManager:
             conn.commit()
             return True
         except Exception as e:
-            print(f"Add word family error: {e}")
+            logger.error(f"Add word family error: {e}")
             return False
 
     def add_word_families_batch(self, root, root_meaning, words):
@@ -1205,7 +1208,7 @@ class DatabaseManager:
             conn.commit()
             return True
         except Exception as e:
-            print(f"Add word families batch error: {e}")
+            logger.error(f"Add word families batch error: {e}")
             return False
 
     def get_word_family(self, word):
@@ -1418,7 +1421,7 @@ class DatabaseManager:
             ''', (word.lower(), source, data_json, time.time()))
             conn.commit()
         except Exception as e:
-            print(f"Set dict cache error: {e}")
+            logger.error(f"Set dict cache error: {e}")
 
     def clear_expired_dict_cache(self, ttl=86400):
         """

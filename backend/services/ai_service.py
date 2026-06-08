@@ -11,6 +11,9 @@ from typing import List, Dict, Optional, Tuple
 import httpx
 from services.evermem_service import EverMemService
 from services.recall import RecallEngine
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AIService:
@@ -229,10 +232,10 @@ class AIService:
                     data = response.json()
                     return data.get("choices", [{}])[0].get("message", {}).get("content", "")
                 except Exception as e:
-                    print(f"LLM API Error: {e}")
+                    logger.error(f"LLM API Error: {e}")
                     if 'response' in locals():
-                        print(f"Response status: {response.status_code}")
-                        print(f"Response content: {response.text}")
+                        logger.debug(f"Response status: {response.status_code}")
+                        logger.debug(f"Response content: {response.text}")
                     return ""
                 
             elif self.provider == "anthropic":
@@ -293,7 +296,7 @@ class AIService:
                                 except json.JSONDecodeError:
                                     continue
                 except Exception as e:
-                    print(f"LLM Stream API Error: {e}")
+                    logger.error(f"LLM Stream API Error: {e}")
                     yield {"type": "token", "content": f"对话失败，API报错：{str(e)}。请检查模型配置或 API Key。"}
             
             # Streaming for anthropic is not fully implemented here as dashscope/openai/ollama are primary
@@ -347,7 +350,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             
             return sentences[:count]
         except Exception as e:
-            print(f"Generate sentences error: {e}")
+            logger.error(f"Generate sentences error: {e}")
             return []
     
     async def generate_memory_tips(self, word: str, meaning: str = "") -> Dict:
@@ -400,7 +403,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 "story": ""
             }
         except Exception as e:
-            print(f"Generate memory tips error: {e}")
+            logger.error(f"Generate memory tips error: {e}")
             return {}
 
     @staticmethod
@@ -565,7 +568,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             )
             return result is not None
         except Exception as e:
-            print(f"[EverMem] Failed to finalize memory turn: {e}")
+            logger.error(f"[EverMem] Failed to finalize memory turn: {e}")
             return False
 
     async def _retrieve_relevant_memories(self, user_msg: str, session_id: Optional[str] = None) -> List[Dict]:
@@ -578,7 +581,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return []
 
         recall_request = self._is_memory_recall_request(user_msg)
-        print(
+        logger.debug(
             f"[EverMem Recall Version] version={self._RECALL_DEBUG_VERSION} "
             f"recall_request={recall_request} session_id={session_id}"
         )
@@ -632,7 +635,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     scoped_raw_count += len(found)
                     scoped_collected.extend(found)
                 except Exception as e:
-                    print(f"[EverMem] Failed to retrieve memories for query '{query}': {e}")
+                    logger.error(f"[EverMem] Failed to retrieve memories for query '{query}': {e}")
 
             if recall_request:
                 user_event_logs: List[Dict] = []
@@ -659,7 +662,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                                 "timestamp": profile.get("timestamp"),
                             })
                     except Exception as e:
-                        print(f"[EverMem] Failed to retrieve profiles: {e}")
+                        logger.error(f"[EverMem] Failed to retrieve profiles: {e}")
                 try:
                     # v1 API: event_log is merged into episodic_memory.
                     # We pull recent episodic memories here to use as a fallback
@@ -711,12 +714,12 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                             "timestamp": event.get("timestamp"),
                         })
                     if review_request:
-                        print(
+                        logger.debug(
                             f"[EverMem Review Recall] scope={group_ids or 'ALL'} "
                             f"review_like_events={review_like_events}"
                         )
                 except Exception as e:
-                    print(f"[EverMem] Failed to retrieve episodic memories: {e}")
+                    logger.error(f"[EverMem] Failed to retrieve episodic memories: {e}")
 
             raw_collected_count += scoped_raw_count
 
@@ -728,14 +731,14 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     f"scope={group_ids or 'ALL'} raw={scoped_raw_count} deduped={len(finalized)} "
                     f"results={self._summarize_memories_for_log(finalized)}"
                 )
-                print(
+                logger.debug(
                     f"[EverMem Recall Scope] version={self._RECALL_DEBUG_VERSION} "
                     f"scope={group_ids or 'ALL'} search_plus_get={scoped_raw_count} "
                     f"scoped_collected={len(scoped_collected)} user_event_logs={len(user_event_logs)} "
                     f"finalized={len(finalized)}"
                 )
                 if finalized:
-                    print(
+                    logger.debug(
                         f"[EverMem Recall Debug] queries={queries} scopes={debug_parts}"
                     )
                     return finalized
@@ -743,7 +746,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 collected.extend(scoped_collected)
 
         if recall_request:
-            print(f"[EverMem Recall Debug] queries={queries} scopes={debug_parts}")
+            logger.debug(f"[EverMem Recall Debug] queries={queries} scopes={debug_parts}")
             return []
 
         deduped: List[Dict] = []
@@ -817,7 +820,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     )
                     user_memory_saved = save_result is not None
                 else:
-                    print(f"[EverMem] Skipped saving low-signal user message: '{last_user_msg}'")
+                    logger.warning(f"[EverMem] Skipped saving low-signal user message: '{last_user_msg}'")
 
                 # Step 2: Retrieve context (skip only for trivial messages)
                 if self._should_retrieve_memory(last_user_msg):
@@ -841,13 +844,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                                     "不要先讲泛化画像，也不要泛泛地说你没有记录，"
                                     "除非上面的长期记忆确实为空。"
                                 )
-                        print(
+                        logger.debug(
                             f"[EverMem] Injected {memories_retrieved} memories "
                             f"(recall_request={self._is_memory_recall_request(last_user_msg)}): "
                             f"{self._summarize_memories_for_log(memories)}"
                         )
                 else:
-                    print(f"[EverMem] Skipped retrieval for low-value message: '{last_user_msg}'")
+                    logger.warning(f"[EverMem] Skipped retrieval for low-value message: '{last_user_msg}'")
 
         if context_word:
             system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
@@ -868,7 +871,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
             finalized = await self._finalize_memory_turn(response, session_id=session_id, user_msg=last_user_msg)
             if finalized:
-                print(f"[EverMem] Finalized memory turn for session {session_id or 'ALL'}")
+                logger.info(f"[EverMem] Finalized memory turn for session {session_id or 'ALL'}")
             memory_saved = user_memory_saved and finalized
 
             return {
@@ -878,7 +881,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             }
 
         except Exception as e:
-            print(f"Chat error: {e}")
+            logger.error(f"Chat error: {e}")
             return {
                 "text": "Sorry, I encountered an error. Please try again.",
                 "memories_retrieved": 0,
@@ -934,7 +937,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     )
                     user_memory_saved = save_result is not None
                 else:
-                    print(f"[EverMem Stream] Skipped saving low-signal user message: '{last_user_msg}'")
+                    logger.warning(f"[EverMem Stream] Skipped saving low-signal user message: '{last_user_msg}'")
 
                 # Step 2: Retrieve context
                 if self._should_retrieve_memory(last_user_msg):
@@ -958,13 +961,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                                     "不要先讲泛化画像，也不要泛泛地说你没有记录，"
                                     "除非上面的长期记忆确实为空。"
                                 )
-                        print(
+                        logger.debug(
                             f"[EverMem Stream] Injected {memories_retrieved} memories "
                             f"(recall_request={self._is_memory_recall_request(last_user_msg)}): "
                             f"{self._summarize_memories_for_log(memories)}"
                         )
                 else:
-                    print(f"[EverMem Stream] Skipped retrieval for low-value message: '{last_user_msg}'")
+                    logger.warning(f"[EverMem Stream] Skipped retrieval for low-value message: '{last_user_msg}'")
 
         if context_word:
             system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
@@ -997,14 +1000,14 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
             finalized = await self._finalize_memory_turn(full_response, session_id=session_id, user_msg=last_user_msg)
             if finalized:
-                print(f"[EverMem Stream] Finalized memory turn for session {session_id or 'ALL'}")
+                logger.info(f"[EverMem Stream] Finalized memory turn for session {session_id or 'ALL'}")
             memory_saved = user_memory_saved and finalized
 
             # Yield final metadata
             yield f"data: {json.dumps({'type': 'done', 'memories_retrieved': memories_retrieved, 'memory_saved': memory_saved})}\n\n"
 
         except Exception as e:
-            print(f"Chat stream error: {e}")
+            logger.error(f"Chat stream error: {e}")
             error_msg = "Sorry, I encountered an error."
             yield f"data: {json.dumps({'type': 'token', 'content': error_msg})}\n\n"
             yield f"data: {json.dumps({'type': 'done', 'memories_retrieved': memories_retrieved, 'memory_saved': memory_saved})}\n\n"
@@ -1103,7 +1106,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
             return cleaned, ""
             
         except Exception as e:
-            print(f"Translate error: {e}")
+            logger.error(f"Translate error: {e}")
             return "翻译失败，请稍后重试。", ""
 
     async def test_connection(self) -> Dict:

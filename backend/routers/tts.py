@@ -8,6 +8,9 @@ import re
 from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import FileResponse
 import edge_tts
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -103,9 +106,9 @@ async def text_to_speech(
         cleaned_text = clean_text_for_tts(text)
         voice = detect_voice(cleaned_text)
         
-        print(f"[TTS] Original text length: {len(text)}")
-        print(f"[TTS] Cleaned text: {cleaned_text[:100]}...")
-        print(f"[TTS] Voice: {voice}")
+        logger.debug(f"[TTS] Original text length: {len(text)}")
+        logger.debug(f"[TTS] Cleaned text: {cleaned_text[:100]}...")
+        logger.debug(f"[TTS] Voice: {voice}")
         
         if not cleaned_text:
             raise HTTPException(status_code=400, detail="No valid text found")
@@ -128,7 +131,7 @@ async def text_to_speech(
         
         # 如果文件已存在，直接返回缓存
         if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
-            print(f"[TTS] Cache hit: {filename}")
+            logger.debug(f"[TTS] Cache hit: {filename}")
             return FileResponse(
                 filepath,
                 media_type="audio/mpeg",
@@ -139,7 +142,7 @@ async def text_to_speech(
                 }
             )
         
-        print(f"[TTS] Generating audio for: {cleaned_text}")
+        logger.debug(f"[TTS] Generating audio for: {cleaned_text}")
         
         # 使用 Edge-TTS 生成音频
         communicate = edge_tts.Communicate(cleaned_text, voice, rate=RATE)
@@ -148,7 +151,7 @@ async def text_to_speech(
         if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
             raise HTTPException(status_code=500, detail="Failed to generate audio")
         
-        print(f"[TTS] Generated: {filename}")
+        logger.debug(f"[TTS] Generated: {filename}")
         
         return FileResponse(
             filepath,
@@ -162,7 +165,7 @@ async def text_to_speech(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[TTS] Error: {str(e)}")
+        logger.error(f"[TTS] Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"TTS generation failed: {str(e)}")
 
 @router.get("/voices")

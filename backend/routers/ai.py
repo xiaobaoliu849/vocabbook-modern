@@ -15,6 +15,9 @@ from pydantic import BaseModel
 from repositories.chat_repository import ChatSessionRepository
 from repositories.review_repository import ReviewRepository
 from services.blocking_io import run_db_blocking, run_io_blocking
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -76,7 +79,7 @@ def _prime_evermem_runtime(
         key=x_evermem_key,
     )
     if evermem_requested and not service:
-        print(
+        logger.debug(
             "[EverMem AI] Runtime unavailable "
             f"requested={evermem_requested} enabled={evermem_enabled} "
             f"has_auth={authed} has_key={bool((x_evermem_key or '').strip())}"

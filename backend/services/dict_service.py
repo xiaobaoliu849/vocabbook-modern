@@ -8,6 +8,9 @@ import time
 from .tag_service import TagService
 from .word_family_service import WordFamilyService
 from .multi_dict_service import get_session, MultiDictService, clean_chinese_text, _clean_dict_entry
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # 内存缓存用于词典查询 (最多 500 个词，5分钟过期)
@@ -60,7 +63,7 @@ class DictService:
             if generate_div:
                 return generate_div.get_text().strip()
         except Exception as e:
-            print(f"Translation error: {e}")
+            logger.error(f"Translation error: {e}")
         return None
 
     @staticmethod
@@ -236,7 +239,7 @@ class DictService:
                     "date": datetime.now().strftime('%Y-%m-%d'),
                 }
         except Exception as e:
-            print(f"Search error: {e}")
+            logger.error(f"Search error: {e}")
         return None
 
     @staticmethod
@@ -250,7 +253,7 @@ class DictService:
             loop.close()
             return result
         except Exception as e:
-            print(f"Sync wrapper for AI fallback failed: {e}")
+            logger.error(f"Sync wrapper for AI fallback failed: {e}")
             return None
 
     @staticmethod
@@ -294,5 +297,5 @@ Do not include any explanation or markdown code block formatting in your output.
                 "date": datetime.now().strftime('%Y-%m-%d'),
             }
         except Exception as e:
-            print(f"AI dictionary lookup failed for {word}: {e}")
+            logger.error(f"AI dictionary lookup failed for {word}: {e}")
             return None

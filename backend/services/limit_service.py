@@ -4,6 +4,9 @@ import httpx
 from datetime import datetime
 from models.database import DatabaseManager
 from services.blocking_io import run_db_blocking
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LimitException(Exception):
     def __init__(self, message: str, required_tier: str):
@@ -87,7 +90,7 @@ class LimitService:
                         user_data = resp.json()
                         tier = user_data.get('tier', 'free')
             except Exception as e:
-                print(f"Failed to check user tier: {e}")
+                logger.error(f"Failed to check user tier: {e}")
                 # Fallback to free tier on error
                 
         # 2. Premium users have no limits

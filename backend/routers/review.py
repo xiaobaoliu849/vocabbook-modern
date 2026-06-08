@@ -15,6 +15,9 @@ import re
 from repositories.review_repository import ReviewRepository
 from services.blocking_io import run_db_blocking
 from services.multi_dict_service import clean_chinese_text
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -142,7 +145,7 @@ def _prime_evermem_runtime(
         key=x_evermem_key,
     )
     if evermem_requested and not service:
-        print(
+        logger.debug(
             "[EverMem Review] Runtime unavailable "
             f"requested={evermem_requested} enabled={evermem_enabled} "
             f"has_auth={authed} has_key={bool((x_evermem_key or '').strip())}"
@@ -323,16 +326,16 @@ async def submit_review(
                 )
                 if result is not None:
                     status = result.get("status", "unknown")
-                    print(f"[EverMem Review] Stored review record user={evermem_user_id} group_id={review_group_id} word={review.word} quality={review.quality} status={status}")
+                    logger.debug(f"[EverMem Review] Stored review record user={evermem_user_id} group_id={review_group_id} word={review.word} quality={review.quality} status={status}")
 
             asyncio.create_task(_store_review_record())
         elif evermem_enabled:
-            print(
+            logger.warning(
                 "[EverMem Review] Skipped review record "
                 f"user_id={evermem_user_id} service_available={bool(evermem)}"
             )
     except Exception as e:
-        print(f"[EverMem] Failed to store review record: {e}")
+        logger.error(f"[EverMem] Failed to store review record: {e}")
     
     return {
         "message": "Review submitted",
@@ -394,7 +397,7 @@ async def log_session(
                     )
                     if result is not None:
                         status = result.get("status", "unknown")
-                        print(f"[EverMem Review] Stored review session summary user={evermem_user_id} group_id={review_group_id} reviewed={session.review_count} status={status}")
+                        logger.debug(f"[EverMem Review] Stored review session summary user={evermem_user_id} group_id={review_group_id} reviewed={session.review_count} status={status}")
 
                 asyncio.create_task(_store_review_session())
 
@@ -432,18 +435,18 @@ async def log_session(
                         )
                         if result is not None:
                             status = result.get("status", "unknown")
-                            print(f"[EverMem Foresight] Stored foresight user={evermem_user_id} group_id={foresight_group_id} status={status}")
+                            logger.debug(f"[EverMem Foresight] Stored foresight user={evermem_user_id} group_id={foresight_group_id} status={status}")
                     except Exception as exc:
-                        print(f"[EverMem Foresight] Failed to store foresight: {exc}")
+                        logger.error(f"[EverMem Foresight] Failed to store foresight: {exc}")
 
                 asyncio.create_task(_store_foresight_reminder())
         elif evermem_enabled:
-            print(
+            logger.warning(
                 "[EverMem Review] Skipped review session "
                 f"user_id={evermem_user_id} service_available={bool(evermem)}"
             )
     except Exception as e:
-        print(f"[EverMem] Failed to store review session summary: {e}")
+        logger.error(f"[EverMem] Failed to store review session summary: {e}")
     
     return {
         "message": "Session logged",

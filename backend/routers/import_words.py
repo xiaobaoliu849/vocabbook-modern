@@ -8,6 +8,9 @@ from pydantic import BaseModel
 from datetime import datetime
 from services.blocking_io import run_db_blocking, run_io_blocking
 from utils.import_utils import parse_txt_content, parse_csv_content
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -41,7 +44,7 @@ def lookup_word(word: str) -> Optional[dict]:
         result = DictService.search_word(word, sources=["youdao"])
         return result
     except Exception as e:
-        print(f"Lookup failed for '{word}': {e}")
+        logger.error(f"Lookup failed for '{word}': {e}")
         return None
 
 

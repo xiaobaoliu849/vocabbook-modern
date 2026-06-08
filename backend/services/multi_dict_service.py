@@ -8,6 +8,9 @@ import requests
 import json
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, wait
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # 全局共享 Session，复用 TCP 连接，提升性能
@@ -51,7 +54,7 @@ def get_db_manager():
                 from ..config import DB_PATH
             _db_manager = DatabaseManager(db_path=DB_PATH)
         except Exception as e:
-            print(f"Failed to init DB manager for cache: {e}")
+            logger.error(f"Failed to init DB manager for cache: {e}")
             return None
     return _db_manager
 
@@ -152,7 +155,7 @@ class MultiDictService:
                     cls._update_memory_cache(word, source, result)
                     return result
             except Exception as e:
-                print(f"DB cache read error: {e}")
+                logger.error(f"DB cache read error: {e}")
 
         return None
 
@@ -171,7 +174,7 @@ class MultiDictService:
             try:
                 db.set_dict_cache(word, source, result)
             except Exception as e:
-                print(f"DB cache write error: {e}")
+                logger.error(f"DB cache write error: {e}")
 
     @classmethod
     def _update_memory_cache(cls, word, source, result):
@@ -268,7 +271,7 @@ class MultiDictService:
             return result
 
         except Exception as e:
-            print(f"Cambridge search error: {e}")
+            logger.error(f"Cambridge search error: {e}")
             return None
 
     @staticmethod
@@ -332,7 +335,7 @@ class MultiDictService:
             return result
 
         except Exception as e:
-            print(f"Bing search error: {e}")
+            logger.error(f"Bing search error: {e}")
             return None
 
     @staticmethod
@@ -393,7 +396,7 @@ class MultiDictService:
             return result
 
         except Exception as e:
-            print(f"Free Dictionary search error: {e}")
+            logger.error(f"Free Dictionary search error: {e}")
             return None
 
     @staticmethod
@@ -442,12 +445,12 @@ class MultiDictService:
                     if result:
                         results["sources"][source] = result
                 except Exception as e:
-                    print(f"Dict {source} error: {e}")
+                    logger.error(f"Dict {source} error: {e}")
             
             for future in not_done:
                 source = tasks[future]
                 future.cancel()
-                print(f"Dict {source} timed out after {MultiDictService._aggregate_timeout}s")
+                logger.warning(f"Dict {source} timed out after {MultiDictService._aggregate_timeout}s")
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
 

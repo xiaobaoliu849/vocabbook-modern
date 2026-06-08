@@ -10,6 +10,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import StreamingResponse
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Add parent dir to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -38,13 +41,13 @@ async def lifespan(app: FastAPI):
     db = DatabaseManager(db_path=db_path)
     # Release the startup thread's connection so runtime DB work can be centralized.
     db.close_connection()
-    print(f"[VocabBook] API started with database: {db_path}")
+    logger.info(f"[VocabBook] API started with database: {db_path}")
     yield
     # Shutdown
     if db:
         db.close_connection()
     shutdown_blocking_executors()
-    print("[VocabBook] API shutdown")
+    logger.info("[VocabBook] API shutdown")
 
 
 app = FastAPI(
