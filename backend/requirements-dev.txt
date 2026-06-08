@@ -4,5 +4,7 @@
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 
-# Optional: EverOS SDK (enables full EverMem-related tests)
-everos>=0.4.0
+# Optional: EverOS Cloud SDK (enables full EverMem Cloud API tests).
+# NOTE: the official Cloud SDK was renamed from `everos` → `everos-cloud`
+# when the OSS local-first variant took the `everos` name on PyPI.
+everos-cloud>=0.4.0
