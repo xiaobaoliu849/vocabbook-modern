@@ -10,262 +10,33 @@ import datetime
 from typing import List, Dict, Optional, Tuple
 import httpx
 from services.evermem_service import EverMemService
+from services.recall import RecallEngine
 
 
 class AIService:
     """AI 服务封装，支持多 Provider 切换"""
-    _RECALL_DEBUG_VERSION = "2026-03-15-recall-v5"
-    _RECALL_HINT_PATTERNS = (
-        "remember",
-        "remind me",
-        "what did we talk",
-        "what did i tell",
-        "what do you remember",
-        "do you remember",
-        "previous chat",
-        "last time",
-        "earlier",
-        "before",
-        "mentioned before",
-        "还记得",
-        "记得我",
-        "记不记得",
-        "之前说",
-        "之前聊",
-        "上次说",
-        "上次聊",
-        "刚才说",
-        "前面说",
-        "我说过",
-        "我们聊过",
-    )
-    _IDENTITY_RECALL_PATTERNS = (
-        "what is my name",
-        "what's my name",
-        "who am i",
-        "do you know who i am",
-        "do you remember who i am",
-        "my name",
-        "我的名字",
-        "我叫什么",
-        "你知道我是谁",
-        "你记得我是谁",
-        "我是谁",
-    )
-    _REVIEW_RECALL_PATTERNS = (
-        "weak on",
-        "weak words",
-        "often forget",
-        "forget often",
-        "difficult words",
-        "review words",
-        "which words am i still weak on",
-        "which words do i often forget",
-        "哪些词还不熟",
-        "哪些词不牢",
-        "薄弱词",
-        "容易忘",
-        "总忘",
-        "复习得不好",
-    )
-    _RECALL_TERM_EXPANSIONS = {
-        "march 15": ("march 15", "march 15th", "3.15", "315", "消费者权益", "consumer rights"),
-        "3.15": ("march 15", "march 15th", "3.15", "315", "消费者权益", "consumer rights"),
-        "suancai": ("suancai", "酸菜", "pickled vegetable", "pickled vegetables"),
-        "pickled vegetable": ("suancai", "酸菜", "pickled vegetable", "pickled vegetables"),
-        "pickled vegetables": ("suancai", "酸菜", "pickled vegetable", "pickled vegetables"),
-        "ham sausage": ("ham sausage", "ham sausages", "sausage", "sausages", "火腿肠"),
-        "ham sausages": ("ham sausage", "ham sausages", "sausage", "sausages", "火腿肠"),
-        "sausage": ("ham sausage", "ham sausages", "sausage", "sausages", "火腿肠"),
-        "sausages": ("ham sausage", "ham sausages", "sausage", "sausages", "火腿肠"),
-    }
-    _ASSISTANT_SUMMARY_PATTERNS = (
-        "assistant responded",
-        "assistant confirmed",
-        "assistant provided",
-        "assistant invited",
-        "assistant clarified",
-        "assistant's ",
-        "assistant ",
-        "the assistant ",
-        "助理",
-        "助手",
-    )
-    _QUESTION_EVENT_PATTERNS = (
-        "the user asked",
-        "the user wondered",
-        "the user questioned",
-        "the user inquired",
-        "asked what",
-        "asked whether",
-        "asked if",
-        "asked who",
-        "asked when",
-        "asked where",
-        "asked why",
-        "asked how",
-        "asked about",
-    )
-    _ASSISTANT_EVENT_PATTERNS = (
-        "the assistant ",
-        "assistant said",
-        "assistant asked",
-        "assistant provided",
-        "assistant complimented",
-        "assistant explained",
-        "assistant noted",
-        "assistant suggested",
-        "assistant stated",
-        "assistant invited",
-        "assistant responded",
-        "assistant clarified",
-    )
-    _USER_FACT_PATTERNS = (
-        "the user said",
-        "the user mentioned",
-        "the user remembered",
-        "the user recalled",
-        "the user told",
-        "the user shared",
-        "the user noted",
-        "the user explained",
-    )
-    _IDENTITY_MEMORY_PATTERNS = (
-        "xiao bao",
-        "my name is",
-        "the user's name",
-        "the user said their name",
-        "the user introduced themselves",
-        "who they were",
-        "who the user was",
-        "remember me",
-        "know who i am",
-        "know who they are",
-        "dota",
-    )
-    _REVIEW_MEMORY_PATTERNS = (
-        "[review_record]",
-        "[review_session]",
-        "current weaker review words",
-        "current weak review words",
-        "review session completed",
-        "this word is still weak",
-        "weak for the user",
-        "this word seems reasonably stable",
-        "difficult words tracked",
-        "reviewed words",
-        "reviewed the word",
-        "reviewed word",
-        "reviewed a word",
-        "completed a review session",
-        "rated it",
-        "rated the word",
-        "rating:",
-        "next review",
-        "difficulty signal",
-        "复习单词",
-        "当前难度信号",
-        "评分:",
-        "下次复习",
-        "mistakes=",
-        "ease=",
-        "due now",
-    )
-    _NEGATIVE_IDENTITY_PATTERNS = (
-        "does not know or has not revealed their own name",
-        "do not know their name",
-        "does not know their name",
-        "has not revealed their own name",
-        "has not revealed their name",
-        "uncertainty about self-identity",
-        "lack of prior disclosure",
-    )
-    _RECALL_STOPWORDS = {
-        "what",
-        "did",
-        "tell",
-        "you",
-        "about",
-        "that",
-        "remember",
-        "remembered",
-        "earlier",
-        "before",
-        "when",
-        "talked",
-        "talking",
-        "issue",
-        "issues",
-        "only",
-        "mentioned",
-        "mention",
-        "said",
-        "saying",
-        "recall",
-        "recalled",
-        "conversation",
-        "conversations",
-        "chat",
-        "chats",
-        "march",
-        "last",
-        "time",
-        "previous",
-        "history",
-        "records",
-        "which",
-        "words",
-        "word",
-        "weak",
-        "still",
-        "often",
-        "forget",
-        "forgot",
-        "difficult",
-        "review",
-    }
-    _MEMORY_GUIDANCE_PATTERNS = (
-        "help me",
-        "suggest",
-        "recommend",
-        "plan",
-        "goal",
-        "next step",
-        "improve",
-        "practice",
-        "review",
-        "weak",
-        "forget",
-        "habit",
-        "schedule",
-        "preference",
-        "based on",
-        "according to",
-        "帮我",
-        "建议",
-        "推荐",
-        "计划",
-        "目标",
-        "下一步",
-        "提高",
-        "练习",
-        "复习",
-        "薄弱",
-        "容易忘",
-        "习惯",
-        "偏好",
-    )
-    _PERSONAL_CONTEXT_PATTERNS = (
-        " my ",
-        " i ",
-        " i'm ",
-        " i am ",
-        " me ",
-        " for me ",
-        "我的",
-        "我",
-    )
-    
+    # Recall / classification / scoring logic has been extracted to
+    # ``services.recall.RecallEngine``. Class-level ``_FOO`` aliases
+    # keep legacy callers (including internal call sites in this
+    # file) working. New recall helpers go on RecallEngine, not here.
+    _recall = RecallEngine()
+
+    _RECALL_DEBUG_VERSION = RecallEngine.RECALL_DEBUG_VERSION
+    _RECALL_HINT_PATTERNS = RecallEngine.RECALL_HINT_PATTERNS
+    _IDENTITY_RECALL_PATTERNS = RecallEngine.IDENTITY_RECALL_PATTERNS
+    _REVIEW_RECALL_PATTERNS = RecallEngine.REVIEW_RECALL_PATTERNS
+    _RECALL_TERM_EXPANSIONS = RecallEngine.RECALL_TERM_EXPANSIONS
+    _ASSISTANT_SUMMARY_PATTERNS = RecallEngine.ASSISTANT_SUMMARY_PATTERNS
+    _QUESTION_EVENT_PATTERNS = RecallEngine.QUESTION_EVENT_PATTERNS
+    _ASSISTANT_EVENT_PATTERNS = RecallEngine.ASSISTANT_EVENT_PATTERNS
+    _USER_FACT_PATTERNS = RecallEngine.USER_FACT_PATTERNS
+    _IDENTITY_MEMORY_PATTERNS = RecallEngine.IDENTITY_MEMORY_PATTERNS
+    _REVIEW_MEMORY_PATTERNS = RecallEngine.REVIEW_MEMORY_PATTERNS
+    _NEGATIVE_IDENTITY_PATTERNS = RecallEngine.NEGATIVE_IDENTITY_PATTERNS
+    _RECALL_STOPWORDS = RecallEngine.RECALL_STOPWORDS
+    _MEMORY_GUIDANCE_PATTERNS = RecallEngine.MEMORY_GUIDANCE_PATTERNS
+    _PERSONAL_CONTEXT_PATTERNS = RecallEngine.PERSONAL_CONTEXT_PATTERNS
+    _SKIP_PATTERNS = RecallEngine.SKIP_PATTERNS
     def __init__(self, provider: str = None, api_key: str = None, model: str = None, api_base: str = None,
                  evermem_enabled: bool = False, evermem_url: str = None, evermem_key: str = None,
                  evermem_user_id: str = "guest", evermem_service: Optional[EverMemService] = None):
@@ -631,472 +402,130 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         except Exception as e:
             print(f"Generate memory tips error: {e}")
             return {}
-            
-    # Lightweight skip-list for trivial messages that don't need memory retrieval
-    _SKIP_PATTERNS = {
-        # Greetings
-        "你好", "hello", "hi", "hey", "嗨", "哈喽", "早上好", "晚上好", "下午好",
-        # Acknowledgments
-        "好的", "ok", "okay", "嗯", "嗯嗯", "好", "行", "可以", "明白", "了解",
-        "谢谢", "thanks", "thank you", "thx", "感谢", "多谢",
-        # Reactions
-        "哈哈", "哈哈哈", "lol", "😂", "👍", "666", "厉害", "不错",
-        "太棒了", "棒", "nice", "great", "cool", "wow",
-        # Farewells
-        "再见", "拜拜", "bye", "晚安", "good night",
-    }
 
     @staticmethod
     def _normalize_memory_content(content: str) -> str:
-        return re.sub(r"^\[[^\]]+\]\s*", "", str(content or "")).strip()
+        return RecallEngine.normalize_memory_content(content)
 
-    @staticmethod
-    def _extract_recall_search_terms(user_msg: str) -> List[str]:
-        msg = user_msg.strip().lower()
-        if not msg:
-            return []
 
-        terms = set()
-        for phrase, expansions in AIService._RECALL_TERM_EXPANSIONS.items():
-            if phrase in msg:
-                terms.update(expansions)
+    def _extract_recall_search_terms(self, user_msg: str) -> List[str]:
+        return self._recall.extract_recall_search_terms(user_msg)
 
-        for token in re.findall(r"[a-z0-9\.]{3,}", msg):
-            if token in AIService._RECALL_STOPWORDS:
-                continue
-            terms.add(token)
 
-        for token in re.findall(r"[\u4e00-\u9fff]{1,6}", user_msg):
-            if token not in {"之前", "记得", "前面", "刚才", "上次"}:
-                terms.add(token)
+    def _build_recall_search_queries(self, user_msg: str) -> List[str]:
+        return self._recall.build_recall_search_queries(user_msg)
 
-        return sorted(terms, key=len, reverse=True)
 
-    @staticmethod
-    def _build_recall_search_queries(user_msg: str) -> List[str]:
-        terms = AIService._extract_recall_search_terms(user_msg)
-        queries: List[str] = []
+    def _count_recall_term_matches(self, content: str, user_msg: str) -> int:
+        return self._recall.count_recall_term_matches(content, user_msg)
 
-        normalized_original = user_msg.strip()
-        if normalized_original:
-            queries.append(normalized_original)
 
-        if AIService._is_review_recall_request(user_msg):
-            queries.extend([
-                "weak words difficult words review words often forget",
-                "current weaker review words",
-                "this word is still weak",
-                "review session completed",
-            ])
+    def _looks_like_assistant_summary(self, content: str) -> bool:
+        return self._recall.looks_like_assistant_summary(content)
 
-        focused_terms = [term for term in terms if len(term) >= 5 or re.search(r"[\u4e00-\u9fff]", term)]
-        if focused_terms:
-            queries.append(" ".join(focused_terms[:6]))
-        elif any(pattern in normalized_original.lower() for pattern in AIService._IDENTITY_RECALL_PATTERNS):
-            queries.extend([
-                "what is my name",
-                "who am i",
-                "remember me",
-                "my name identity",
-            ])
 
-        queries.extend(focused_terms[:4])
+    def _looks_like_question_event(self, content: str) -> bool:
+        return self._recall.looks_like_question_event(content)
 
-        deduped_queries: List[str] = []
-        seen = set()
-        for query in queries:
-            normalized = query.strip().lower()
-            if not normalized or normalized in seen:
-                continue
-            seen.add(normalized)
-            deduped_queries.append(query.strip())
-        return deduped_queries
 
-    @staticmethod
-    def _count_recall_term_matches(content: str, user_msg: str) -> int:
-        normalized_content = AIService._normalize_memory_content(content).lower()
-        terms = AIService._extract_recall_search_terms(user_msg)
-        return sum(1 for term in terms if term.lower() in normalized_content)
+    def _looks_like_assistant_event(self, content: str) -> bool:
+        return self._recall.looks_like_assistant_event(content)
 
-    @staticmethod
-    def _looks_like_assistant_summary(content: str) -> bool:
-        normalized = AIService._normalize_memory_content(content).lower()
-        return any(pattern in normalized for pattern in AIService._ASSISTANT_SUMMARY_PATTERNS)
 
-    @staticmethod
-    def _looks_like_question_event(content: str) -> bool:
-        normalized = AIService._normalize_memory_content(content).lower()
-        return any(pattern in normalized for pattern in AIService._QUESTION_EVENT_PATTERNS)
+    def _looks_like_user_fact(self, content: str) -> bool:
+        return self._recall.looks_like_user_fact(content)
 
-    @staticmethod
-    def _looks_like_assistant_event(content: str) -> bool:
-        normalized = AIService._normalize_memory_content(content).lower()
-        return any(pattern in normalized for pattern in AIService._ASSISTANT_EVENT_PATTERNS)
 
-    @staticmethod
-    def _looks_like_user_fact(content: str) -> bool:
-        normalized = AIService._normalize_memory_content(content).lower()
-        return any(pattern in normalized for pattern in AIService._USER_FACT_PATTERNS)
+    def _looks_like_identity_memory(self, content: str) -> bool:
+        return self._recall.looks_like_identity_memory(content)
 
-    @staticmethod
-    def _looks_like_identity_memory(content: str) -> bool:
-        normalized = AIService._normalize_memory_content(content).lower()
-        return any(pattern in normalized for pattern in AIService._IDENTITY_MEMORY_PATTERNS)
 
-    @staticmethod
-    def _looks_like_negative_identity_memory(content: str) -> bool:
-        normalized = AIService._normalize_memory_content(content).lower()
-        return any(pattern in normalized for pattern in AIService._NEGATIVE_IDENTITY_PATTERNS)
+    def _looks_like_negative_identity_memory(self, content: str) -> bool:
+        return self._recall.looks_like_negative_identity_memory(content)
 
-    @staticmethod
-    def _looks_like_review_memory(content: str) -> bool:
-        normalized = AIService._normalize_memory_content(content).lower()
-        return any(pattern in normalized for pattern in AIService._REVIEW_MEMORY_PATTERNS)
+
+    def _looks_like_review_memory(self, content: str) -> bool:
+        return self._recall.looks_like_review_memory(content)
+
 
     @staticmethod
     def _review_memory_text(memory: Dict) -> str:
-        return str(memory.get("raw_content") or memory.get("content", "")).strip()
+        return RecallEngine.review_memory_text(memory)
+
 
     @staticmethod
     def _format_memory_context(memories: List[Dict], prefer_recent: bool = False) -> str:
-        """
-        Format retrieved memories into a compact, high-signal block for the model.
-        We keep only the most relevant snippets and cap length to reduce prompt dilution.
-        """
-        if not memories:
-            return ""
+        return RecallEngine.format_memory_context(memories, prefer_recent=prefer_recent)
 
-        def memory_rank(item: Dict) -> tuple[int, float]:
-            memory_type = str(item.get("type", ""))
-            score = float(item.get("score", 0.0))
-            if not prefer_recent:
-                return (0, -score)
-
-            priority = {
-                "episodic_memory": 0,
-                "recent_memory": 1,
-                "history": 2,
-                "foresight": 2,
-                "agent_case": 2,
-                "agent_skill": 2,
-                "profile": 3,
-            }.get(memory_type, 2)
-            return (priority, -score)
-
-        ranked_memories = sorted(memories, key=memory_rank)[:5]
-
-        lines = []
-        for index, memory in enumerate(ranked_memories, start=1):
-            score = float(memory.get("score", 0.0))
-            content = str(memory.get("content", "")).strip()
-            if not content:
-                continue
-            if len(content) > 220:
-                content = f"{content[:217].rstrip()}..."
-            lines.append(f"{index}. (score={score:.2f}) {content}")
-
-        return "\n".join(lines)
 
     @staticmethod
     def _summarize_memories_for_log(memories: List[Dict], limit: int = 5) -> str:
-        if not memories:
-            return "[]"
+        return RecallEngine.summarize_memories_for_log(memories, limit=limit)
 
-        parts = []
-        for memory in memories[:limit]:
-            memory_type = str(memory.get("type", "unknown"))
-            score = float(memory.get("score", 0.0))
-            content = str(memory.get("content", "")).strip().replace("\n", " ")
-            if len(content) > 120:
-                content = f"{content[:117].rstrip()}..."
-            parts.append(f"{memory_type}@{score:.2f}: {content}")
-        return " | ".join(parts)
 
     def _should_skip_memory(self, user_msg: str) -> bool:
-        """
-        Lightweight local check to skip memory retrieval for trivial messages.
-        Zero LLM cost. Returns True if retrieval should be skipped.
-        """
-        msg = user_msg.strip().lower().rstrip("!！~.。？?")
-        # Very short messages are almost always trivial
-        if len(msg) <= 2:
-            return True
-        # Check against known trivial patterns
-        if msg in self._SKIP_PATTERNS:
-            return True
-        return False
+        return self._recall.should_skip_memory(user_msg)
+
 
     def _should_store_user_memory(self, user_msg: str) -> bool:
-        """
-        Store only messages that are likely to contribute useful long-term context.
-        This intentionally excludes trivial acknowledgements and explicit recall
-        questions, which tend to create noisy event logs.
-        """
-        normalized = re.sub(r"\s+", " ", str(user_msg or "").strip())
-        if not normalized:
-            return False
-        if self._should_skip_memory(normalized):
-            return False
-        if self._is_memory_recall_request(normalized):
-            return False
+        return self._recall.should_store_user_memory(user_msg)
 
-        ascii_tokens = re.findall(r"[a-zA-Z0-9']+", normalized)
-        chinese_chars = re.findall(r"[\u4e00-\u9fff]", normalized)
-        has_enough_length = len(normalized) >= 8
-        has_multiple_tokens = len(ascii_tokens) >= 3 or len(chinese_chars) >= 4
-        return has_enough_length or has_multiple_tokens
 
     def _should_store_assistant_memory(self, assistant_text: str, user_msg: Optional[str] = None) -> bool:
-        """
-        Avoid storing low-signal assistant turns when the paired user turn was
-        not important enough to keep.
-        """
-        content = str(assistant_text or "").strip()
-        if not content or content == "Sorry, I encountered an error. Please try again.":
-            return False
-        if user_msg is not None and not self._should_store_user_memory(user_msg):
-            return False
+        return self._recall.should_store_assistant_memory(assistant_text, user_msg=user_msg)
 
-        normalized = re.sub(r"\s+", " ", content)
-        if len(normalized) < 24 and "\n" not in normalized:
-            return False
-        return True
 
     def _should_retrieve_memory(self, user_msg: str) -> bool:
-        """
-        Retrieve long-term memory only when it is likely to help.
-        Recall questions always qualify; ordinary chat needs a stronger signal.
-        """
-        normalized = re.sub(r"\s+", " ", str(user_msg or "").strip())
-        if not normalized:
-            return False
-        if self._should_skip_memory(normalized):
-            return False
-        if self._is_memory_recall_request(normalized):
-            return True
-        if not self._should_store_user_memory(normalized):
-            return False
+        return self._recall.should_retrieve_memory(user_msg)
 
-        lowered = f" {normalized.lower()} "
-        has_guidance_signal = any(pattern in lowered or pattern in normalized for pattern in self._MEMORY_GUIDANCE_PATTERNS)
-        has_personal_context = any(pattern in lowered for pattern in self._PERSONAL_CONTEXT_PATTERNS[:6]) or any(
-            pattern in normalized for pattern in self._PERSONAL_CONTEXT_PATTERNS[6:]
-        )
-        asks_question = "?" in normalized or "？" in normalized
-        return has_guidance_signal and (has_personal_context or asks_question)
 
     def _is_memory_recall_request(self, user_msg: str) -> bool:
-        """Detect prompts that explicitly ask the assistant to recall prior facts."""
-        msg = user_msg.strip().lower()
-        if not msg:
-            return False
-        return (
-            any(pattern in msg for pattern in self._RECALL_HINT_PATTERNS)
-            or self._looks_like_personal_fact_recall_request(msg)
-            or self._is_identity_recall_request(user_msg)
-            or self._is_review_recall_request(user_msg)
-        )
+        return self._recall.is_memory_recall_request(user_msg)
+
 
     @staticmethod
     def _looks_like_personal_fact_recall_request(msg: str) -> bool:
-        """Catch factual self-referential recall questions like 'What is my favorite fruit?'."""
-        normalized = re.sub(r"\s+", " ", msg.strip().lower())
-        if not normalized:
-            return False
+        return RecallEngine.looks_like_personal_fact_recall_request(msg)
 
-        personal_fact_patterns = (
-            r"^(what)\s+(is|was)\s+my\s+",
-            r"^(what's)\s+my\s+",
-            r"^(when)\s+(do|did)\s+i\s+",
-            r"^(where)\s+(do|did)\s+i\s+",
-            r"^(what)\s+(do|did)\s+i\s+",
-            r"^(which)\s+\w+\s+(do|did)\s+i\s+",
-        )
-        return any(re.match(pattern, normalized) for pattern in personal_fact_patterns)
 
     def _is_identity_recall_request(self, user_msg: str) -> bool:
-        msg = user_msg.strip().lower()
-        if not msg:
-            return False
-        return any(pattern in msg for pattern in self._IDENTITY_RECALL_PATTERNS)
+        return self._recall.is_identity_recall_request(user_msg)
+
 
     @staticmethod
     def _is_review_recall_request(user_msg: str) -> bool:
-        msg = user_msg.strip().lower()
-        if not msg:
-            return False
-        return any(pattern in msg for pattern in AIService._REVIEW_RECALL_PATTERNS)
+        return RecallEngine.is_review_recall_request(user_msg)
 
-    def _build_memory_group_ids(self, session_id: Optional[str], recall_request: bool) -> Optional[List[str]]:
-        if not session_id:
-            return None
-        if recall_request:
-            return [session_id]
-        return [session_id]
+
+    @staticmethod
+    def _build_memory_group_ids(session_id: Optional[str], recall_request: bool) -> Optional[List[str]]:
+        return RecallEngine.build_memory_group_ids(session_id, recall_request)
+
 
     def _review_group_ids(self, weeks: int = 4) -> Optional[List[str]]:
-        """Return group_ids for the last *weeks* ISO weeks of review data.
+        return RecallEngine.review_group_ids(self.evermem_user_id, weeks=weeks)
 
-        Mirrors ``_review_group_ids_recent`` in review.py so the AI recall
-        search targets the same weekly-scoped groups that review records
-        are written into.
-        """
-        if not self.evermem_user_id:
-            return None
-        today = datetime.date.today()
-        group_ids: List[str] = []
-        for offset in range(weeks):
-            target = today - datetime.timedelta(weeks=offset)
-            iso = target.isocalendar()
-            tag = f"{iso.year}-W{iso.week:02d}"
-            group_ids.append(f"{self.evermem_user_id}::review::{tag}")
-        return group_ids if group_ids else None
 
     def _rank_recall_memories(self, memories: List[Dict], user_msg: str) -> List[Dict]:
-        identity_request = self._is_identity_recall_request(user_msg)
-        review_request = self._is_review_recall_request(user_msg)
+        return self._recall.rank_recall_memories(memories, user_msg)
 
-        def sort_key(item: Dict) -> tuple[int, int, float]:
-            memory_type = str(item.get("type", ""))
-            if identity_request:
-                # Profile facts first, then episodic evidence, agent cases last.
-                priority = {
-                    "profile": 0,
-                    "episodic_memory": 1,
-                    "agent_case": 2,
-                    "agent_skill": 2,
-                    "history": 2,
-                    "recent_memory": 3,
-                    "foresight": 4,
-                }.get(memory_type, 3)
-            elif review_request:
-                # Episodic memories carry review records; profile less relevant.
-                priority = {
-                    "episodic_memory": 0,
-                    "history": 1,
-                    "recent_memory": 2,
-                    "agent_case": 3,
-                    "agent_skill": 3,
-                    "foresight": 3,
-                    "profile": 4,
-                }.get(memory_type, 3)
-            else:
-                # General recall: episodic first, profile second (has user prefs).
-                priority = {
-                    "episodic_memory": 0,
-                    "history": 1,
-                    "recent_memory": 1,
-                    "profile": 2,
-                    "agent_case": 2,
-                    "agent_skill": 2,
-                    "foresight": 3,
-                }.get(memory_type, 3)
-            term_matches = int(item.get("term_matches", 0))
-            score = float(item.get("score", 0.0))
-            return (priority, -term_matches, -score)
-
-        return sorted(memories, key=sort_key)
 
     def _finalize_recall_memories(self, memories: List[Dict], user_msg: str) -> List[Dict]:
-        identity_request = self._is_identity_recall_request(user_msg)
-        review_request = self._is_review_recall_request(user_msg)
-        deduped: List[Dict] = []
-        seen = set()
-        for memory in memories:
-            content = str(memory.get("content", "")).strip()
-            normalized_content = self._normalize_memory_content(content)
-            if not normalized_content or normalized_content in seen:
-                continue
-            seen.add(normalized_content)
-            enriched = dict(memory)
-            enriched["term_matches"] = self._count_recall_term_matches(content, user_msg)
-            deduped.append(enriched)
+        return self._recall.finalize_recall_memories(memories, user_msg)
 
-        if not identity_request:
-            non_profile_memories = [memory for memory in deduped if str(memory.get("type", "")) != "profile"]
-            if non_profile_memories:
-                deduped = non_profile_memories
-
-        strongly_matching = [memory for memory in deduped if int(memory.get("term_matches", 0)) >= 1]
-        if strongly_matching:
-            deduped = strongly_matching
-        elif deduped and not identity_request:
-            return []
-
-        user_like_memories = [
-            memory for memory in deduped
-            if not self._looks_like_assistant_summary(str(memory.get("content", "")))
-        ]
-        if user_like_memories:
-            deduped = user_like_memories
-
-        if identity_request:
-            profile_memories = [
-                memory for memory in deduped
-                if str(memory.get("type", "")) == "profile"
-                and not self._looks_like_negative_identity_memory(str(memory.get("content", "")))
-            ]
-            if profile_memories:
-                deduped = profile_memories
-            else:
-                identity_memories = [
-                    memory for memory in deduped
-                    if self._looks_like_identity_memory(str(memory.get("content", "")))
-                    and not self._looks_like_negative_identity_memory(str(memory.get("content", "")))
-                ]
-                if identity_memories:
-                    deduped = identity_memories
-                else:
-                    return []
-        elif review_request:
-            review_memories = [
-                memory for memory in deduped
-                if self._looks_like_review_memory(str(memory.get("content", "")))
-            ]
-            if review_memories:
-                deduped = review_memories
-            else:
-                return []
-
-        return self._rank_recall_memories(deduped, user_msg)
 
     def _score_event_log_memory(self, content: str, user_msg: str, timestamp: Optional[str] = None) -> float:
-        score = 2.0 + self._count_recall_term_matches(content, user_msg) * 1.5
-        if timestamp:
-            try:
-                parsed = datetime.datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
-                age_days = max(0.0, (datetime.datetime.now(datetime.timezone.utc) - parsed).total_seconds() / 86400)
-                score += max(0.0, 1.0 - min(age_days, 30.0) / 30.0)
-            except Exception:
-                pass
-        return score
+        return self._recall.score_event_log_memory(content, user_msg, timestamp)
+
 
     def _score_review_memory(self, content: str, user_msg: str, timestamp: Optional[str] = None) -> float:
-        score = 4.0 + self._count_recall_term_matches(content, user_msg)
-        if self._looks_like_review_memory(content):
-            score += 2.5
-        if timestamp:
-            try:
-                parsed = datetime.datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
-                age_days = max(0.0, (datetime.datetime.now(datetime.timezone.utc) - parsed).total_seconds() / 86400)
-                score += max(0.0, 1.0 - min(age_days, 14.0) / 14.0)
-            except Exception:
-                pass
-        return score
+        return self._recall.score_review_memory(content, user_msg, timestamp)
+
 
     @staticmethod
     def _sort_memories_by_timestamp(memories: List[Dict]) -> List[Dict]:
-        def sort_key(item: Dict) -> float:
-            timestamp = item.get("timestamp")
-            if not timestamp:
-                return float("-inf")
-            try:
-                parsed = datetime.datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
-                return parsed.timestamp()
-            except Exception:
-                return float("-inf")
+        return RecallEngine.sort_memories_by_timestamp(memories)
 
-        return sorted(memories, key=sort_key, reverse=True)
 
     def _build_recent_session_fallback_memories(
         self,
@@ -1104,50 +533,10 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         user_msg: str,
         limit: int = 3,
     ) -> List[Dict]:
-        """
-        When the user asks a vague follow-up inside the same live session,
-        recent user event logs are more useful than returning nothing.
-        """
-        fallback_candidates: List[Dict] = []
-        normalized_user_msg = self._normalize_memory_content(user_msg).lower()
-        review_request = self._is_review_recall_request(user_msg)
+        return self._recall.build_recent_session_fallback_memories(
+            event_logs, user_msg, limit=limit
+        )
 
-        for event in self._sort_memories_by_timestamp(event_logs):
-            content = str(event.get("content", "")).strip()
-            review_content = self._review_memory_text(event)
-            if not content:
-                continue
-            normalized_content = self._normalize_memory_content(content).lower()
-            if normalized_content == normalized_user_msg:
-                continue
-            if self._should_skip_memory(content):
-                continue
-            if self._looks_like_assistant_summary(content):
-                continue
-            if self._looks_like_question_event(content):
-                continue
-            if self._looks_like_assistant_event(content):
-                continue
-            if review_request and not self._looks_like_review_memory(review_content):
-                continue
-            display_content = review_content if review_request else content
-            fallback_candidates.append({
-                "content": f"[事件记录] {display_content}",
-                "type": "event_log",
-                "score": (
-                    self._score_review_memory(display_content, user_msg, event.get("timestamp"))
-                    if review_request
-                    else self._score_event_log_memory(content, user_msg, event.get("timestamp"))
-                    + (1.5 if self._looks_like_user_fact(content) else 0.0)
-                ),
-                "group_id": event.get("group_id"),
-                "timestamp": event.get("timestamp"),
-                "term_matches": self._count_recall_term_matches(display_content, user_msg),
-            })
-            if len(fallback_candidates) >= limit:
-                break
-
-        return fallback_candidates
 
     async def _finalize_memory_turn(self, assistant_text: str, session_id: Optional[str], user_msg: Optional[str] = None) -> bool:
         """
