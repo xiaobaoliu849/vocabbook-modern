@@ -3,9 +3,17 @@ import json
 import os
 import time
 import threading
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Optional
 import logging
+
+from repositories.words_repo import WordsRepository
+from repositories.reviews_repo import ReviewsRepository
+from repositories.chat_repo import ChatRepository
+from repositories.cache_repo import CacheRepository
+from repositories.translations_repo import TranslationsRepository
+from repositories.families_repo import FamiliesRepository
+from repositories.limits_repo import LimitsRepository
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +24,7 @@ class _DatabaseLocal(threading.local):
     def __init__(self) -> None:
         super().__init__()
         self.connection: Optional[sqlite3.Connection] = None
+
 
 class DatabaseManager:
     """
@@ -30,12 +39,24 @@ class DatabaseManager:
     def __init__(self, db_path="vocab.db", json_path="vocab.json"):
         self.db_path = db_path
         self.json_path = json_path
-        self._local = _DatabaseLocal()  # 线程本地存储
-        self._lock = threading.Lock()     # 用于初始化时的锁
+        self._local = _DatabaseLocal()
+        self._lock = threading.Lock()
+
+        self.words = WordsRepository(self)
+        self.reviews = ReviewsRepository(self)
+        self.chat = ChatRepository(self)
+        self.cache = CacheRepository(self)
+        self.translations = TranslationsRepository(self)
+        self.families = FamiliesRepository(self)
+        self.limits = LimitsRepository(self)
 
         self.init_db()
         self.check_schema_updates()
         self.migrate_from_json()
+
+    # ------------------------------------------------------------------
+    # Connection management
+    # ------------------------------------------------------------------
 
     def get_connection(self):
         """
@@ -45,10 +66,9 @@ class DatabaseManager:
         conn = self._local.connection
 
         if conn is None:
-            # 当前线程没有连接，创建新连接
             conn = sqlite3.connect(self.db_path, check_same_thread=False)
-            conn.execute("PRAGMA journal_mode=WAL")  # 使用 WAL 模式提升并发性能
-            conn.execute("PRAGMA synchronous=NORMAL")  # 平衡性能和安全
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
             self._local.connection = conn
 
         return conn
@@ -75,7 +95,6 @@ class DatabaseManager:
                 return cursor.fetchall()
             return None
         except sqlite3.Error as e:
-            # 连接可能已损坏，尝试重新连接
             if "database is locked" in str(e) or "disk I/O error" in str(e):
                 self.close_connection()
                 conn = self.get_connection()
@@ -100,92 +119,15 @@ class DatabaseManager:
             conn.rollback()
             raise
 
-    @staticmethod
-    def _serialize_chat_message(message: Any) -> str:
-        return json.dumps(message, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-    @staticmethod
-    def _deserialize_chat_message(payload: str) -> Any:
-        return json.loads(payload)
-
-    def _ensure_chat_message_schema(self, cursor: sqlite3.Cursor) -> None:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS chat_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT NOT NULL,
-                owner_key TEXT DEFAULT 'guest',
-                sequence INTEGER NOT NULL,
-                message_json TEXT NOT NULL,
-                created_at REAL,
-                UNIQUE(session_id, sequence)
-            )
-            """
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_chat_messages_session_sequence "
-            "ON chat_messages(session_id, sequence)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_chat_messages_owner_session "
-            "ON chat_messages(owner_key, session_id)"
-        )
-
-    def _migrate_legacy_chat_messages(self, cursor: sqlite3.Cursor) -> None:
-        cursor.execute(
-            "SELECT id, owner_key, messages, COALESCE(created_at, updated_at, 0) FROM chat_sessions"
-        )
-        sessions = cursor.fetchall()
-        for session_id, owner_key, legacy_messages, created_at in sessions:
-            cursor.execute(
-                "SELECT COUNT(*) FROM chat_messages WHERE session_id = ?",
-                (session_id,),
-            )
-            message_count = int(cursor.fetchone()[0] or 0)
-
-            parsed_messages: list[Any] = []
-            if legacy_messages:
-                try:
-                    parsed = json.loads(legacy_messages)
-                    if isinstance(parsed, list):
-                        parsed_messages = parsed
-                except json.JSONDecodeError:
-                    parsed_messages = []
-
-            if message_count == 0 and parsed_messages:
-                for sequence, message in enumerate(parsed_messages):
-                    cursor.execute(
-                        """
-                        INSERT OR REPLACE INTO chat_messages (
-                            session_id, owner_key, sequence, message_json, created_at
-                        ) VALUES (?, ?, ?, ?, ?)
-                        """,
-                        (
-                            session_id,
-                            owner_key or "guest",
-                            sequence,
-                            self._serialize_chat_message(message),
-                            created_at,
-                        ),
-                    )
-                message_count = len(parsed_messages)
-
-            cursor.execute(
-                """
-                UPDATE chat_sessions
-                SET message_count = ?, messages = ?
-                WHERE id = ?
-                """,
-                (message_count, "[]", session_id),
-            )
+    # ------------------------------------------------------------------
+    # Schema DDL & migrations
+    # ------------------------------------------------------------------
 
     def init_db(self):
         """Initialize the database tables."""
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        # Main words table
-        # We pre-add SM-2 algorithm fields (easiness, interval, repetitions) for Step 2
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS words (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -193,72 +135,62 @@ class DatabaseManager:
                 phonetic TEXT,
                 meaning TEXT,
                 example TEXT,
-                roots TEXT,          -- New: Root/Affix
-                synonyms TEXT,       -- New: Synonyms
+                roots TEXT,
+                synonyms TEXT,
                 context_en TEXT,
                 context_cn TEXT,
                 date_added TEXT,
-
                 next_review_time REAL DEFAULT 0,
                 review_count INTEGER DEFAULT 0,
-                mastered INTEGER DEFAULT 0,  -- 0: Learning, 1: Mastered
-                error_count INTEGER DEFAULT 0, -- New: For tracking difficult words
-
-                -- Fields for Old Logic (Stage) and Future SM-2
-                stage INTEGER DEFAULT 0,      -- Currently used for "1,2,4,7..." logic
-                easiness REAL DEFAULT 2.5,    -- For SM-2
-                interval INTEGER DEFAULT 0,   -- For SM-2
-                repetitions INTEGER DEFAULT 0, -- For SM-2
-                tags TEXT                      -- New: Exam tags (CET4, GRE, etc.)
+                mastered INTEGER DEFAULT 0,
+                error_count INTEGER DEFAULT 0,
+                stage INTEGER DEFAULT 0,
+                easiness REAL DEFAULT 2.5,
+                interval INTEGER DEFAULT 0,
+                repetitions INTEGER DEFAULT 0,
+                tags TEXT
             )
         ''')
 
-        # History table for Heatmap (Step 3 preparation)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS review_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 word_id INTEGER,
-                review_date TEXT,  -- YYYY-MM-DD
-                reviewed_at REAL,  -- Unix timestamp for precise review ordering
-                rating INTEGER,    -- 0=Forgot, 1=Remembered (Simple) / 1-5 (SM-2)
+                review_date TEXT,
+                reviewed_at REAL,
+                rating INTEGER,
                 FOREIGN KEY(word_id) REFERENCES words(id)
             )
         ''')
 
-        # Word families table for derivative words (派生词群组)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS word_families (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                root TEXT NOT NULL,           -- 词根 (e.g., "creat")
-                root_meaning TEXT,            -- 词根释义 (e.g., "创造")
-                word TEXT NOT NULL,           -- 单词 (e.g., "create")
+                root TEXT NOT NULL,
+                root_meaning TEXT,
+                word TEXT NOT NULL,
                 UNIQUE(root, word)
             )
         ''')
 
-        # Study Statistics table (Step 4: Review Timer & Stats)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS study_stats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT UNIQUE NOT NULL,    -- YYYY-MM-DD
-                total_duration INTEGER DEFAULT 0, -- Seconds
+                date TEXT UNIQUE NOT NULL,
+                total_duration INTEGER DEFAULT 0,
                 review_count INTEGER DEFAULT 0
             )
         ''')
 
-        # Create indexes for frequently queried columns to improve performance
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_word ON words(word)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_next_review_time ON words(next_review_time)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_mastered ON words(mastered)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_stage ON words(stage)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_word_id ON review_history(word_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_review_date ON review_history(review_date)')
-        # Older DBs may have review_history without reviewed_at yet.
-        # check_schema_updates() adds the column first, then creates this index.
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_word_families_root ON word_families(root)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_word_families_word ON word_families(word)')
 
-        # Dictionary cache table (持久化词典查询缓存)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS dict_cache (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -272,7 +204,6 @@ class DatabaseManager:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_dict_cache_word ON dict_cache(word)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_dict_cache_created ON dict_cache(created_at)')
 
-        # Translation history table (New Feature)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS translations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -285,7 +216,6 @@ class DatabaseManager:
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_translations_created ON translations(created_at)')
 
-        # AI Chat Sessions table (Persistent Chat History)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chat_sessions (
                 id TEXT PRIMARY KEY,
@@ -298,15 +228,13 @@ class DatabaseManager:
             )
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_updated ON chat_sessions(updated_at)')
-        # Backward compatibility: old DBs may have chat_sessions without owner_key.
-        # check_schema_updates() will add the column and create index afterward.
         cursor.execute("PRAGMA table_info(chat_sessions)")
         chat_columns = [info[1] for info in cursor.fetchall()]
         if 'owner_key' in chat_columns:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner ON chat_sessions(owner_key)')
-        self._ensure_chat_message_schema(cursor)
-        
-        # User Limits table
+
+        self.chat.ensure_schema(cursor)
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_limits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -317,7 +245,6 @@ class DatabaseManager:
         ''')
 
         conn.commit()
-        # 注意：不再关闭连接，使用长连接
 
     def check_schema_updates(self):
         """Check and update database schema for new columns."""
@@ -325,7 +252,6 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         try:
-            # Check if 'roots' column exists
             cursor.execute("PRAGMA table_info(words)")
             columns = [info[1] for info in cursor.fetchall()]
 
@@ -365,7 +291,6 @@ class DatabaseManager:
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_review_date ON review_history(review_date)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_reviewed_at ON review_history(reviewed_at)')
 
-            # Ensure chat_sessions has owner_key for per-user isolation
             cursor.execute("PRAGMA table_info(chat_sessions)")
             chat_columns = [info[1] for info in cursor.fetchall()]
             if 'owner_key' not in chat_columns:
@@ -376,13 +301,10 @@ class DatabaseManager:
                 logger.info("Adding 'message_count' column to chat_sessions table...")
                 cursor.execute("ALTER TABLE chat_sessions ADD COLUMN message_count INTEGER DEFAULT 0")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner ON chat_sessions(owner_key)")
-            self._ensure_chat_message_schema(cursor)
-            self._migrate_legacy_chat_messages(cursor)
 
-            # --- Migrate orphan words (next_review_time = 0) ---
-            # Words added before this fix had nrt=0 and were permanently excluded from the
-            # due-review query (which requires nrt > 0).  Set them to the current timestamp
-            # so they appear in the review queue immediately.
+            self.chat.ensure_schema(cursor)
+            self.chat.migrate_legacy(cursor)
+
             cursor.execute("SELECT COUNT(*) FROM words WHERE next_review_time = 0 OR next_review_time IS NULL")
             orphan_count = cursor.fetchone()[0]
             if orphan_count > 0:
@@ -395,7 +317,6 @@ class DatabaseManager:
             conn.commit()
         except Exception as e:
             logger.error(f"Schema update error: {e}")
-        # 注意：不再关闭连接，使用长连接
 
     def migrate_from_json(self):
         """Migrate data from vocab.json if DB is empty."""
@@ -404,23 +325,22 @@ class DatabaseManager:
 
         conn = self.get_connection()
         cursor = conn.cursor()
-        
-        # Check if DB is empty
+
         cursor.execute('SELECT count(*) FROM words')
         if cursor.fetchone()[0] > 0:
-            return # Already has data, skip migration
+            return
 
         logger.info("Migrating data from JSON to SQLite...")
         try:
             with open(self.json_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                
+
             for item in data:
                 try:
                     cursor.execute('''
                         INSERT OR IGNORE INTO words (
-                            word, phonetic, meaning, example, 
-                            context_en, context_cn, date_added, 
+                            word, phonetic, meaning, example,
+                            context_en, context_cn, date_added,
                             next_review_time, review_count, mastered, stage
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
@@ -438,1029 +358,62 @@ class DatabaseManager:
                     ))
                 except Exception as e:
                     logger.error(f"Skipping error word {item.get('word')}: {e}")
-            
+
             conn.commit()
             logger.info(f"Migration complete. {len(data)} words imported.")
 
-            # Optional: Rename json file to backup
-            # os.rename(self.json_path, self.json_path + ".bak")
-
         except Exception as e:
             logger.error(f"Migration failed: {e}")
-        # 注意：不再关闭连接，使用长连接
 
-    # --- CRUD Operations ---
-
-    def add_word(self, data):
-        """Add a new word dictionary."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        try:
-            # Set next_review_time to now so the word enters the review queue immediately.
-            # Previously this was hardcoded to 0, which caused new words to be permanently
-            # excluded from the due-review filter (next_review_time > 0 AND <= now).
-            cursor.execute('''
-                INSERT INTO words (word, phonetic, meaning, example, context_en, context_cn, roots, synonyms, tags, date_added, next_review_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                data['word'],
-                data.get('phonetic', ''),
-                data.get('meaning', ''),
-                data.get('example', ''),
-                data.get('context_en', ''),
-                data.get('context_cn', ''),
-                data.get('roots', ''),
-                data.get('synonyms', ''),
-                data.get('tags', ''),
-                data.get('date', datetime.now().strftime('%Y-%m-%d')),
-                time.time()  # immediately due for first review
-            ))
-            conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False # Already exists
-
-    def get_word(self, word):
-        """Get a single word as dict."""
-        conn = self.get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM words WHERE word = ?', (word,))
-        row = cursor.fetchone()
-        if row:
-            d = dict(row)
-            d['mastered'] = bool(d['mastered'])
-            d['date'] = d['date_added']
-            # Ensure text fields are not None
-            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note']:
-                if d.get(key) is None:
-                    d[key] = ""
-            return d
-        return None
-
-    def get_all_words(self):
-        """Get all words as list of dicts."""
-        conn = self.get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM words ORDER BY next_review_time ASC')
-        rows = cursor.fetchall()
-
-        result = []
-        for row in rows:
-            d = dict(row)
-            d['mastered'] = bool(d['mastered'])
-            d['date'] = d['date_added']
-            # Ensure text fields are not None
-            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note']:
-                if d.get(key) is None:
-                    d[key] = ""
-            result.append(d)
-        return result
-
-    def get_words_for_list(self, keyword=None, tag=None, page=1, page_size=20):
-        """
-        Optimized query for word list display.
-        Only fetches fields needed for list view, reducing data transfer.
-        Returns: { 'words': [...], 'total': int }
-        """
-        conn = self.get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        # 只选择列表显示必需的字段 (不包括 example, context_en, context_cn 等大字段)
-        select_fields = '''
-            id, word, phonetic, meaning, mastered, next_review_time, 
-            tags, date_added, review_count
-        '''
-        
-        where_clauses = []
-        params = []
-        
-        if keyword:
-            where_clauses.append("(word LIKE ? OR meaning LIKE ?)")
-            params.extend([f"%{keyword}%", f"%{keyword}%"])
-        
-        if tag:
-            where_clauses.append("tags LIKE ?")
-            params.append(f"%{tag}%")
-        
-        where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
-        
-        # 获取总数
-        count_sql = f"SELECT COUNT(*) FROM words WHERE {where_sql}"
-        cursor.execute(count_sql, tuple(params))
-        total = cursor.fetchone()[0]
-        
-        # 获取分页数据
-        offset = (page - 1) * page_size
-        data_sql = f'''
-            SELECT {select_fields} 
-            FROM words 
-            WHERE {where_sql} 
-            ORDER BY next_review_time ASC 
-            LIMIT ? OFFSET ?
-        '''
-        cursor.execute(data_sql, tuple(params) + (page_size, offset))
-        rows = cursor.fetchall()
-        
-        result = []
-        for row in rows:
-            d = dict(row)
-            d['mastered'] = bool(d.get('mastered', 0))
-            d['date'] = d.get('date_added', '')
-            # 确保必要字段不为 None
-            for key in ['phonetic', 'meaning', 'tags']:
-                if d.get(key) is None:
-                    d[key] = ""
-            result.append(d)
-        
-        return {'words': result, 'total': total}
-
-    def get_all_tags(self):
-        """Get all unique tags from the database."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT tags FROM words WHERE tags IS NOT NULL AND tags != ""')
-        rows = cursor.fetchall()
-        tags_set = set()
-        for row in rows:
-            if row[0]:
-                for tag in row[0].split(','):
-                    tag = tag.strip()
-                    if tag:
-                        tags_set.add(tag)
-        return sorted(list(tags_set))
-
-    def update_context(self, word, en, cn):
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('UPDATE words SET context_en = ?, context_cn = ? WHERE word = ?', (en, cn, word))
-        conn.commit()
-
-    def update_word(self, word, update_data):
-        """
-        Generic method to update word fields.
-        update_data: dict of {column: value}
-        """
-        if not update_data:
-            return False
-            
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        # Filter valid columns to prevent SQL injection
-        valid_columns = {
-            'phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'note',
-            'roots', 'synonyms', 'tags', 'mastered', 'stage'
-        }
-        
-        set_clauses = []
-        params = []
-        for col, val in update_data.items():
-            if col in valid_columns:
-                set_clauses.append(f"{col} = ?")
-                params.append(val)
-        
-        if not set_clauses:
-            return False
-            
-        sql = f"UPDATE words SET {', '.join(set_clauses)} WHERE word = ?"
-        params.append(word)
-        
-        try:
-            cursor.execute(sql, tuple(params))
-            conn.commit()
-            return cursor.rowcount > 0
-        except sqlite3.Error as e:
-            logger.error(f"Update word error: {e}")
-            return False
-
-    def delete_word(self, word):
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM words WHERE word = ?', (word,))
-        conn.commit()
-
-    def mark_word_mastered(self, word):
-        """Mark a word as mastered."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('UPDATE words SET mastered = 1 WHERE word = ?', (word,))
-        conn.commit()
-
-    def update_review_status(self, word, stage, next_time, mastered, review_count_inc=True):
-        """Update fields after a review."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        sql = '''
-            UPDATE words 
-            SET stage = ?, next_review_time = ?, mastered = ?
-        '''
-        params = [stage, next_time, 1 if mastered else 0]
-        
-        if review_count_inc:
-            sql += ', review_count = review_count + 1'
-            
-        sql += ' WHERE word = ?'
-        params.append(word)
-        
-        cursor.execute(sql, tuple(params))
-        
-        # Log history (For Step 3 Heatmap)
-        today = datetime.now().strftime('%Y-%m-%d')
-        reviewed_at = time.time()
-        # Get word ID first
-        cursor.execute('SELECT id FROM words WHERE word = ?', (word,))
-        res = cursor.fetchone()
-        if res:
-            wid = res[0]
-            # Simple rating for now: 1 if stage increased (remembered), 0 if reset (forgot)
-            # This is an approximation since we don't pass the explicit "ok/fail" bool here but derive from stage
-            # Actually, let's just log it.
-            cursor.execute(
-                'INSERT INTO review_history (word_id, review_date, reviewed_at, rating) VALUES (?, ?, ?, ?)',
-                (wid, today, reviewed_at, 1),
-            )
-
-        conn.commit()
-
-    def update_sm2_status(self, word, easiness, interval, repetitions, next_time, rating):
-        """Update fields after a review using SM-2 algorithm."""
-        # 判断是否掌握 (例如间隔超过 180 天或重复次数超过 7 次，可自定义)
-        # 这里为了保持与旧逻辑一致，暂时不自动设为 mastered，除非间隔极大
-        mastered = 1 if interval > 180 else 0
-
-        # Keep difficult-word signal dynamic:
-        # - rating <= 2: increase difficulty score
-        # - rating >= 4: decrease difficulty score (with floor at 0)
-        # - rating == 3: keep unchanged
-        error_delta = 1 if rating <= 2 else (-1 if rating >= 4 else 0)
-        reviewed_at = time.time()
-        today = datetime.fromtimestamp(reviewed_at).strftime('%Y-%m-%d')
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        try:
-            cursor.execute(
-                '''
-                UPDATE words
-                SET easiness = ?, interval = ?, repetitions = ?, next_review_time = ?,
-                    mastered = ?, review_count = review_count + 1,
-                    error_count = MAX(0, error_count + ?)
-                WHERE word = ?
-                ''',
-                (easiness, interval, repetitions, next_time, mastered, error_delta, word),
-            )
-
-            cursor.execute('SELECT id FROM words WHERE word = ?', (word,))
-            res = cursor.fetchone()
-            if res:
-                cursor.execute(
-                    '''
-                    INSERT INTO review_history (word_id, review_date, reviewed_at, rating)
-                    VALUES (?, ?, ?, ?)
-                    ''',
-                    (res[0], today, reviewed_at, rating),
-                )
-
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-
-    def get_review_heatmap_data(self):
-        """获取过去一年的复习热力图数据 {date: count}"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        # 获取一年前的日期
-        one_year_ago = (datetime.now() - timedelta(days=366)).strftime('%Y-%m-%d')
-
-        cursor.execute('''
-            SELECT review_date, COUNT(*)
-            FROM review_history
-            WHERE review_date >= ?
-            GROUP BY review_date
-        ''', (one_year_ago,))
-
-        rows = cursor.fetchall()
-        return {row[0]: row[1] for row in rows}
-
-    def get_due_review_count(self) -> int:
-        """Return how many words are currently due for review (including unstarted new words)."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        now_ts = time.time()
-        # Include words with nrt=0 (never reviewed / pre-migration orphans) as a safety net.
-        cursor.execute(
-            'SELECT COUNT(*) FROM words WHERE next_review_time = 0 OR (next_review_time > 0 AND next_review_time <= ?)',
-            (now_ts,),
-        )
-        row = cursor.fetchone()
-        return int(row[0] or 0) if row else 0
-
-    def get_word_review_history(self, word_id):
-        """Get review history for a specific word"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            '''
-            SELECT review_date, rating, reviewed_at
-            FROM review_history
-            WHERE word_id = ?
-            ORDER BY COALESCE(reviewed_at, CAST(strftime('%s', review_date || ' 00:00:00') AS REAL)) ASC, id ASC
-            ''',
-            (word_id,),
-        )
-        rows = cursor.fetchall()
-        return rows
-
-    def get_statistics(self):
-        """获取学习统计信息"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        # 总单词数
-        cursor.execute('SELECT COUNT(*) FROM words')
-        total = cursor.fetchone()[0]
-
-        # 已掌握数量
-        cursor.execute('SELECT COUNT(*) FROM words WHERE mastered = 1')
-        mastered = cursor.fetchone()[0]
-
-        # 今日待复习数量（包括 nrt=0 的新词，与复习队列逻辑一致）
-        now_ts = time.time()
-        cursor.execute(
-            'SELECT COUNT(*) FROM words WHERE next_review_time = 0 OR (next_review_time > 0 AND next_review_time <= ?)',
-            (now_ts,)
-        )
-        due_today = cursor.fetchone()[0]
-
-        # 新单词 (未开始复习)
-        cursor.execute('SELECT COUNT(*) FROM words WHERE review_count = 0 AND mastered = 0')
-        new_words = cursor.fetchone()[0]
-
-        # 学习中的单词 (已开始复习但未掌握)
-        learning = total - mastered - new_words
-
-        # --- 新增统计逻辑 ---
-        today_str = datetime.now().strftime('%Y-%m-%d')
-
-        # 1. 今日已复习单词数 (去重)
-        cursor.execute('SELECT COUNT(DISTINCT word_id) FROM review_history WHERE review_date = ?', (today_str,))
-        reviewed_today = cursor.fetchone()[0]
-
-        # 2. 连续坚持天数 (Streak)
-        cursor.execute('SELECT DISTINCT review_date FROM review_history ORDER BY review_date DESC')
-        dates = [row[0] for row in cursor.fetchall()]
-
-        streak_days = 0
-        if dates:
-            # 检查最新的日期是否是今天或昨天
-            latest_date = datetime.strptime(dates[0], '%Y-%m-%d').date()
-            today_date = datetime.now().date()
-            
-            if latest_date == today_date or latest_date == (today_date - timedelta(days=1)):
-                streak_days = 1
-                current_check = latest_date
-                
-                for i in range(1, len(dates)):
-                    prev_date = datetime.strptime(dates[i], '%Y-%m-%d').date()
-                    if (current_check - prev_date).days == 1:
-                        streak_days += 1
-                        current_check = prev_date
-                    else:
-                        break
-            else:
-                streak_days = 0 # 断签超过1天
-
-        return {
-            'total': total,
-            'mastered': mastered,
-            'learning': learning,
-            'new': new_words,
-            'due_today': due_today,
-            'reviewed_today': reviewed_today,
-            'streak_days': streak_days
-        }
-
-    def get_learning_focus_summary(self, limit: int = 5) -> Dict[str, Any]:
-        """
-        Return a compact summary of the learner's current weak / due words.
-        This is intended for AI personalization, not for UI tables.
-        """
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        now_ts = time.time()
-
-        cursor.execute(
-            '''
-            SELECT
-                word,
-                meaning,
-                error_count,
-                easiness,
-                repetitions,
-                next_review_time,
-                review_count
-            FROM words
-            WHERE review_count > 0
-              AND (
-                    error_count > 0
-                    OR easiness < 2.2
-                    OR (next_review_time > 0 AND next_review_time <= ?)
-                  )
-            ORDER BY
-                CASE WHEN error_count > 0 THEN 0 ELSE 1 END ASC,
-                error_count DESC,
-                easiness ASC,
-                CASE WHEN next_review_time > 0 AND next_review_time <= ? THEN 0 ELSE 1 END ASC,
-                next_review_time ASC,
-                review_count DESC
-            LIMIT ?
-            ''',
-            (now_ts, now_ts, limit),
-        )
-
-        rows = cursor.fetchall()
-        weak_words: List[Dict[str, Any]] = []
-        for row in rows:
-            word, meaning, error_count, easiness, repetitions, next_review_time, review_count = row
-            weak_words.append({
-                "word": word,
-                "meaning": meaning or "",
-                "error_count": int(error_count or 0),
-                "easiness": float(easiness or 2.5),
-                "repetitions": int(repetitions or 0),
-                "next_review_time": float(next_review_time or 0),
-                "review_count": int(review_count or 0),
-                "is_due": bool(next_review_time and next_review_time <= now_ts),
-            })
-
-        cursor.execute(
-            'SELECT COUNT(*) FROM words WHERE next_review_time > 0 AND next_review_time <= ?',
-            (now_ts,),
-        )
-        due_count = int(cursor.fetchone()[0] or 0)
-
-        cursor.execute(
-            'SELECT COUNT(*) FROM words WHERE error_count > 0'
-        )
-        difficult_count = int(cursor.fetchone()[0] or 0)
-
-        return {
-            "weak_words": weak_words,
-            "due_count": due_count,
-            "difficult_count": difficult_count,
-        }
-
-    def log_study_session(self, duration_seconds, review_count=0):
-        """Log a study session duration."""
-        if duration_seconds <= 0: return
-        
-        today = datetime.now().strftime('%Y-%m-%d')
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        try:
-            # Upsert using SQLite syntax (INSERT OR IGNORE then UPDATE, or newer ON CONFLICT)
-            # Standard way: Try update, if 0 rows, insert
-            cursor.execute('''
-                UPDATE study_stats 
-                SET total_duration = total_duration + ?, review_count = review_count + ?
-                WHERE date = ?
-            ''', (duration_seconds, review_count, today))
-            
-            if cursor.rowcount == 0:
-                cursor.execute('''
-                    INSERT INTO study_stats (date, total_duration, review_count)
-                    VALUES (?, ?, ?)
-                ''', (today, duration_seconds, review_count))
-            
-            conn.commit()
-        except Exception as e:
-            logger.error(f"Log study session error: {e}")
-
-    def get_total_study_time(self):
-        """Get total study time in seconds across all history."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT SUM(total_duration) FROM study_stats")
-        res = cursor.fetchone()
-        return res[0] if res and res[0] else 0
-
-    # --- Translation History Operations (New) ---
-
-    def add_translation(self, source_text, target_text, source_lang, target_lang):
-        """Add a translation record."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute('''
-                INSERT INTO translations (source_text, target_text, source_lang, target_lang, created_at)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (source_text, target_text, source_lang, target_lang, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-            conn.commit()
-            return cursor.lastrowid
-        except Exception as e:
-            logger.error(f"Add translation error: {e}")
-            return None
-
-    def find_translation(self, source_text, source_lang, target_lang):
-        """Find the latest exact-match translation to avoid duplicate work."""
-        conn = self.get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM translations
-            WHERE source_text = ? AND source_lang = ? AND target_lang = ?
-            ORDER BY datetime(created_at) DESC, id DESC
-            LIMIT 1
-        ''', (source_text, source_lang, target_lang))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-
-    def get_translations(self, limit=20, offset=0):
-        """Get translation history."""
-        conn = self.get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT * FROM translations 
-            ORDER BY created_at DESC 
-            LIMIT ? OFFSET ?
-        ''', (limit, offset))
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-
-    def delete_translation(self, translation_id):
-        """Delete a translation record."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM translations WHERE id = ?', (translation_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-
-    # --- Chat Sessions Operations (Persistent AI Chat) ---
-
-    def save_chat_session(self, session_data, owner_key='guest'):
-        """Persist chat sessions using append-oriented message rows plus a light session summary."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        resolved_owner_key = session_data.get('owner_key') or owner_key or 'guest'
-        try:
-            serialized_messages = [
-                self._serialize_chat_message(message)
-                for message in session_data.get('messages', [])
-            ]
-            cursor.execute(
-                "SELECT message_json FROM chat_messages WHERE session_id = ? ORDER BY sequence ASC",
-                (session_data['id'],),
-            )
-            existing_messages = [row[0] for row in cursor.fetchall()]
-
-            rewrite_required = (
-                len(serialized_messages) < len(existing_messages)
-                or serialized_messages[:len(existing_messages)] != existing_messages
-            )
-
-            if rewrite_required:
-                cursor.execute(
-                    "DELETE FROM chat_messages WHERE session_id = ?",
-                    (session_data['id'],),
-                )
-                existing_messages = []
-            else:
-                cursor.execute(
-                    "UPDATE chat_messages SET owner_key = ? WHERE session_id = ?",
-                    (resolved_owner_key, session_data['id']),
-                )
-
-            start_index = len(existing_messages)
-            for sequence, payload in enumerate(serialized_messages[start_index:], start=start_index):
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO chat_messages (
-                        session_id, owner_key, sequence, message_json, created_at
-                    ) VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (
-                        session_data['id'],
-                        resolved_owner_key,
-                        sequence,
-                        payload,
-                        session_data['createdAt'],
-                    ),
-                )
-
-            cursor.execute(
-                """
-                INSERT INTO chat_sessions (id, owner_key, title, messages, message_count, updated_at, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    owner_key = excluded.owner_key,
-                    title = excluded.title,
-                    messages = excluded.messages,
-                    message_count = excluded.message_count,
-                    updated_at = excluded.updated_at,
-                    created_at = excluded.created_at
-                """,
-                (
-                    session_data['id'],
-                    resolved_owner_key,
-                    session_data['title'],
-                    "[]",
-                    len(serialized_messages),
-                    session_data['updatedAt'],
-                    session_data['createdAt'],
-                ),
-            )
-            conn.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Save chat session error: {e}")
-            return False
-
-    def get_all_chat_sessions(self, owner_key=None):
-        """Retrieve all chat sessions and hydrate their ordered message rows."""
-        conn = self.get_connection()
-        original_row_factory = conn.row_factory
-        try:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            if owner_key is None:
-                cursor.execute('SELECT * FROM chat_sessions ORDER BY updated_at DESC')
-            else:
-                cursor.execute('SELECT * FROM chat_sessions WHERE owner_key = ? ORDER BY updated_at DESC', (owner_key,))
-            rows = cursor.fetchall()
-
-            session_ids = [row["id"] for row in rows]
-            message_map = {session_id: [] for session_id in session_ids}
-
-            if session_ids:
-                placeholders = ",".join("?" for _ in session_ids)
-                cursor.execute(
-                    f"""
-                    SELECT session_id, sequence, message_json
-                    FROM chat_messages
-                    WHERE session_id IN ({placeholders})
-                    ORDER BY session_id ASC, sequence ASC
-                    """,
-                    session_ids,
-                )
-                for message_row in cursor.fetchall():
-                    try:
-                        payload = self._deserialize_chat_message(message_row["message_json"])
-                    except json.JSONDecodeError:
-                        continue
-                    message_map.setdefault(message_row["session_id"], []).append(payload)
-
-            result = []
-            for row in rows:
-                d = dict(row)
-                messages = message_map.get(d['id'], [])
-                if not messages and d.get('messages'):
-                    try:
-                        legacy = json.loads(d['messages'])
-                        if isinstance(legacy, list):
-                            messages = legacy
-                    except json.JSONDecodeError:
-                        messages = []
-
-                result.append({
-                    'id': d['id'],
-                    'title': d['title'],
-                    'messages': messages,
-                    'updatedAt': d['updated_at'],
-                    'createdAt': d['created_at'],
-                })
-            return result
-        finally:
-            conn.row_factory = original_row_factory
-
-    def delete_chat_session(self, session_id, owner_key=None):
-        """Delete a chat session."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        if owner_key is None:
-            cursor.execute('DELETE FROM chat_messages WHERE session_id = ?', (session_id,))
-            cursor.execute('DELETE FROM chat_sessions WHERE id = ?', (session_id,))
-        else:
-            cursor.execute(
-                """
-                DELETE FROM chat_messages
-                WHERE session_id = ?
-                  AND session_id IN (
-                      SELECT id FROM chat_sessions WHERE id = ? AND owner_key = ?
-                  )
-                """,
-                (session_id, session_id, owner_key),
-            )
-            cursor.execute('DELETE FROM chat_sessions WHERE id = ? AND owner_key = ?', (session_id, owner_key))
-        conn.commit()
-        return cursor.rowcount > 0
-
-    def clear_all_chat_sessions(self, owner_key=None):
-        """Delete all chat sessions."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        if owner_key is None:
-            cursor.execute('DELETE FROM chat_messages')
-            cursor.execute('DELETE FROM chat_sessions')
-        else:
-            cursor.execute(
-                'DELETE FROM chat_messages WHERE session_id IN (SELECT id FROM chat_sessions WHERE owner_key = ?)',
-                (owner_key,),
-            )
-            cursor.execute('DELETE FROM chat_sessions WHERE owner_key = ?', (owner_key,))
-        conn.commit()
-        return cursor.rowcount > 0
-
-    # --- Word Family Operations (派生词群组) ---
-
-    def add_word_family(self, root, root_meaning, word):
-        """Add a word to a word family."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute('''
-                INSERT OR IGNORE INTO word_families (root, root_meaning, word)
-                VALUES (?, ?, ?)
-            ''', (root.lower(), root_meaning, word.lower()))
-            conn.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Add word family error: {e}")
-            return False
-
-    def add_word_families_batch(self, root, root_meaning, words):
-        """Add multiple words to a word family."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        try:
-            for word in words:
-                cursor.execute('''
-                    INSERT OR IGNORE INTO word_families (root, root_meaning, word)
-                    VALUES (?, ?, ?)
-                ''', (root.lower(), root_meaning, word.lower()))
-            conn.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Add word families batch error: {e}")
-            return False
-
-    def get_word_family(self, word):
-        """Get all words in the same family as the given word."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        # First find the root(s) for this word
-        cursor.execute('SELECT DISTINCT root, root_meaning FROM word_families WHERE word = ?', (word.lower(),))
-        roots = cursor.fetchall()
-
-        if not roots:
-            return []
-
-        # Get all words that share these roots
-        result = []
-        for root, root_meaning in roots:
-            cursor.execute('''
-                SELECT wf.word,
-                       CASE WHEN w.word IS NOT NULL THEN 1 ELSE 0 END as in_vocab
-                FROM word_families wf
-                LEFT JOIN words w ON LOWER(w.word) = wf.word
-                WHERE wf.root = ?
-                ORDER BY wf.word
-            ''', (root,))
-            family_words = cursor.fetchall()
-            result.append({
-                'root': root,
-                'root_meaning': root_meaning,
-                'words': [{'word': w[0], 'in_vocab': bool(w[1])} for w in family_words if w[0] != word.lower()]
-            })
-
-        return result
-
-    def get_roots_for_word(self, word):
-        """Get the roots associated with a word."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT root, root_meaning FROM word_families WHERE word = ?', (word.lower(),))
-        rows = cursor.fetchall()
-        return [{'root': r[0], 'meaning': r[1]} for r in rows]
-
-    # --- 搜索与分页 (性能优化) ---
-
-    def search_words(
-        self,
-        keyword="",
-        tag_filter="",
-        mastered_filter=None,
-        status_filter=None,
-        sort_by="next_review_time",
-        sort_order="ASC",
-        limit=50,
-        offset=0,
-        count_total=True,
-    ):
-        """
-        在数据库层进行搜索和过滤，避免内存中遍历全部单词。
-
-        Args:
-            keyword: 搜索关键词（匹配 word 或 meaning）
-            tag_filter: 标签过滤（如 "CET4", "GRE"）
-            mastered_filter: 掌握状态过滤 (True/False/None)
-            status_filter: 复习状态过滤 ("due"=待复习, "new"=新单词, "learning"=学习中, None=全部)
-            sort_by: 排序字段
-            sort_order: 排序方向 (ASC/DESC)
-            limit: 返回数量限制
-            offset: 偏移量（用于分页）
-
-        Returns:
-            (list[dict], Optional[int]): (单词列表, 总匹配数量)
-        """
-        conn = self.get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-
-        # 构建 WHERE 子句
-        conditions = []
-        params = []
-
-        if keyword:
-            conditions.append("(word LIKE ? OR meaning LIKE ?)")
-            like_pattern = f"%{keyword}%"
-            params.extend([like_pattern, like_pattern])
-
-        if tag_filter:
-            conditions.append("tags LIKE ?")
-            params.append(f"%{tag_filter}%")
-
-        if mastered_filter is not None:
-            conditions.append("mastered = ?")
-            params.append(1 if mastered_filter else 0)
-
-        # 复习状态过滤（基于 next_review_time）
-        if status_filter:
-            now_ts = time.time()
-            if status_filter == "due":
-                # 待复习：到期的单词，以及 nrt=0 的新词（安全兜底，正常流程下新词入库即设为 now）
-                conditions.append("(next_review_time = 0 OR (next_review_time > 0 AND next_review_time <= ?))")
-                params.append(now_ts)
-            elif status_filter == "new":
-                # 新单词：next_review_time = 0
-                conditions.append("next_review_time = 0")
-            elif status_filter == "learning":
-                # 学习中：未掌握 且 next_review_time > 当前时间
-                conditions.append("mastered = 0 AND next_review_time > ?")
-                params.append(now_ts)
-
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-
-        # 验证排序字段（防止 SQL 注入）
-        valid_sort_fields = {"word", "next_review_time", "date_added", "review_count", "mastered", "easiness", "interval"}
-        if sort_by not in valid_sort_fields:
-            sort_by = "next_review_time"
-        if sort_order.upper() not in ("ASC", "DESC"):
-            sort_order = "ASC"
-
-        total_count = None
-        if count_total:
-            count_sql = f"SELECT COUNT(*) FROM words WHERE {where_clause}"
-            cursor.execute(count_sql, params)
-            total_count = cursor.fetchone()[0]
-
-        # 查询数据
-        query_sql = f"""
-            SELECT * FROM words
-            WHERE {where_clause}
-            ORDER BY {sort_by} {sort_order}
-            LIMIT ? OFFSET ?
-        """
-        cursor.execute(query_sql, params + [limit, offset])
-        rows = cursor.fetchall()
-
-        result = []
-        for row in rows:
-            d = dict(row)
-            d['mastered'] = bool(d['mastered'])
-            d['date'] = d['date_added']
-            # Ensure text fields are not None
-            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note']:
-                if d.get(key) is None:
-                    d[key] = ""
-            result.append(d)
-
-        return result, total_count
-
-    def get_words_count(self):
-        """获取单词总数"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM words')
-        return cursor.fetchone()[0]
-
-    # --- 词典缓存操作 (Dict Cache) ---
-
-    def get_dict_cache(self, word, source, ttl=86400):
-        """
-        获取词典缓存。
-
-        Args:
-            word: 单词
-            source: 词典源标识 (bing, cambridge, freedict 等)
-            ttl: 缓存有效期（秒），默认 24 小时
-
-        Returns:
-            缓存的数据字典，或 None（未找到/已过期）
-        """
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        now = time.time()
-        cursor.execute('''
-            SELECT data, created_at FROM dict_cache
-            WHERE word = ? AND source = ?
-        ''', (word.lower(), source))
-
-        row = cursor.fetchone()
-        if row:
-            data_json, created_at = row
-            # 检查是否过期
-            if now - created_at < ttl:
-                try:
-                    return json.loads(data_json)
-                except (json.JSONDecodeError, TypeError):
-                    return None
-            else:
-                # 过期，删除旧缓存
-                cursor.execute('DELETE FROM dict_cache WHERE word = ? AND source = ?',
-                              (word.lower(), source))
-                conn.commit()
-        return None
-
-    def set_dict_cache(self, word, source, data):
-        """
-        设置词典缓存。
-
-        Args:
-            word: 单词
-            source: 词典源标识
-            data: 要缓存的数据字典
-        """
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        try:
-            data_json = json.dumps(data, ensure_ascii=False)
-            cursor.execute('''
-                INSERT OR REPLACE INTO dict_cache (word, source, data, created_at)
-                VALUES (?, ?, ?, ?)
-            ''', (word.lower(), source, data_json, time.time()))
-            conn.commit()
-        except Exception as e:
-            logger.error(f"Set dict cache error: {e}")
-
-    def clear_expired_dict_cache(self, ttl=86400):
-        """
-        清理过期的词典缓存。
-
-        Args:
-            ttl: 缓存有效期（秒），默认 24 小时
-
-        Returns:
-            删除的记录数
-        """
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        expired_time = time.time() - ttl
-        cursor.execute('DELETE FROM dict_cache WHERE created_at < ?', (expired_time,))
-        deleted = cursor.rowcount
-        conn.commit()
-        return deleted
-
-    def get_dict_cache_stats(self):
-        """获取词典缓存统计信息"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute('SELECT COUNT(*) FROM dict_cache')
-        total = cursor.fetchone()[0]
-
-        # 按来源统计
-        cursor.execute('SELECT source, COUNT(*) FROM dict_cache GROUP BY source')
-        by_source = {row[0]: row[1] for row in cursor.fetchall()}
-
-        return {'total': total, 'by_source': by_source}
-
-    def clear_all_dict_cache(self):
-        """清空所有词典缓存"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM dict_cache')
-        deleted = cursor.rowcount
-        conn.commit()
-        return deleted
+    # ------------------------------------------------------------------
+    # Backward-compatible delegation methods
+    # ------------------------------------------------------------------
+
+    # --- Words ---
+    def add_word(self, data): return self.words.add(data)
+    def get_word(self, word): return self.words.get(word)
+    def get_all_words(self): return self.words.get_all()
+    def get_words_for_list(self, keyword=None, tag=None, page=1, page_size=20): return self.words.get_for_list(keyword, tag, page, page_size)
+    def get_all_tags(self): return self.words.get_all_tags()
+    def update_context(self, word, en, cn): return self.words.update_context(word, en, cn)
+    def update_word(self, word, update_data): return self.words.update(word, update_data)
+    def delete_word(self, word): return self.words.delete(word)
+    def mark_word_mastered(self, word): return self.words.mark_mastered(word)
+    def search_words(self, **kwargs): return self.words.search(**kwargs)
+    def get_words_count(self): return self.words.get_count()
+
+    # --- Reviews ---
+    def update_review_status(self, word, stage, next_time, mastered, review_count_inc=True): return self.reviews.update_review_status(word, stage, next_time, mastered, review_count_inc)
+    def update_sm2_status(self, word, easiness, interval, repetitions, next_time, rating): return self.reviews.update_sm2_status(word, easiness, interval, repetitions, next_time, rating)
+    def get_review_heatmap_data(self): return self.reviews.get_heatmap_data()
+    def get_due_review_count(self): return self.reviews.get_due_count()
+    def get_word_review_history(self, word_id): return self.reviews.get_word_history(word_id)
+    def get_statistics(self): return self.reviews.get_statistics()
+    def get_learning_focus_summary(self, limit=5): return self.reviews.get_learning_focus_summary(limit)
+    def log_study_session(self, duration_seconds, review_count=0): return self.reviews.log_study_session(duration_seconds, review_count)
+    def get_total_study_time(self): return self.reviews.get_total_study_time()
+
+    # --- Chat ---
+    def save_chat_session(self, session_data, owner_key='guest'): return self.chat.save_session(session_data, owner_key)
+    def get_all_chat_sessions(self, owner_key=None): return self.chat.get_all_sessions(owner_key)
+    def delete_chat_session(self, session_id, owner_key=None): return self.chat.delete_session(session_id, owner_key)
+    def clear_all_chat_sessions(self, owner_key=None): return self.chat.clear_all_sessions(owner_key)
+
+    # --- Translations ---
+    def add_translation(self, source_text, target_text, source_lang, target_lang): return self.translations.add(source_text, target_text, source_lang, target_lang)
+    def find_translation(self, source_text, source_lang, target_lang): return self.translations.find(source_text, source_lang, target_lang)
+    def get_translations(self, limit=20, offset=0): return self.translations.get_all(limit, offset)
+    def delete_translation(self, translation_id): return self.translations.delete(translation_id)
+
+    # --- Word families ---
+    def add_word_family(self, root, root_meaning, word): return self.families.add(root, root_meaning, word)
+    def add_word_families_batch(self, root, root_meaning, words): return self.families.add_batch(root, root_meaning, words)
+    def get_word_family(self, word): return self.families.get_family(word)
+    def get_roots_for_word(self, word): return self.families.get_roots(word)
+
+    # --- Dict cache ---
+    def get_dict_cache(self, word, source, ttl=86400): return self.cache.get(word, source, ttl)
+    def set_dict_cache(self, word, source, data): return self.cache.set(word, source, data)
+    def clear_expired_dict_cache(self, ttl=86400): return self.cache.clear_expired(ttl)
+    def get_dict_cache_stats(self): return self.cache.get_stats()
+    def clear_all_dict_cache(self): return self.cache.clear_all()

@@ -1,6 +1,10 @@
-import sqlite3
+from __future__ import annotations
 
-from models.database import DatabaseManager
+import sqlite3
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.database import DatabaseManager
 
 
 class ReviewRepository:
