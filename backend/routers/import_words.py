@@ -74,7 +74,7 @@ async def import_from_file(
     except UnicodeDecodeError:
         try:
             text = content.decode('gbk')
-        except:
+        except Exception:
             raise HTTPException(status_code=400, detail="Unable to decode file. Use UTF-8 or GBK encoding.")
     
     # 解析文件

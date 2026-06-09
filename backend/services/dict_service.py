@@ -3,6 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from functools import lru_cache
+from typing import Optional
 import time
 
 from .tag_service import TagService
