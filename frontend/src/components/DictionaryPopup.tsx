@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { api, ApiError, API_PATHS, getClientId } from '../utils/api';
+import { api, ApiError, API_PATHS, getClientId, getOwnerTokenHeaders } from '../utils/api';
 import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors';
 import AudioButton from './AudioButton';
 import { useGlobalState } from '../context/GlobalStateContext';
@@ -251,7 +251,8 @@ export default function DictionaryPopup() {
                     'X-EverMem-Enabled': evermemEnabled,
                     'X-EverMem-Url': evermemUrl,
                     'X-EverMem-Key': evermemKey,
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                    ...getOwnerTokenHeaders(),
                 },
                 body: JSON.stringify({
                     messages: [{ role: 'user', content: prompt }],

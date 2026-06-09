@@ -6,7 +6,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from time import perf_counter
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import StreamingResponse
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # Add parent dir to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from auth import require_owner
 from routers import words, review, dictionary, stats, ai, tts, import_words, attachments
 from models.database import DatabaseManager
 from services.request_metrics import (
@@ -115,15 +116,17 @@ async def record_request_metrics(request: Request, call_next):
     response.headers["Server-Timing"] = f"app;dur={duration_ms:.2f}"
     return response
 
+_owner = [Depends(require_owner)]
+
 # Routers
-app.include_router(words.router, prefix="/api/words", tags=["Words"])
-app.include_router(review.router, prefix="/api/review", tags=["Review"])
-app.include_router(dictionary.router, prefix="/api/dict", tags=["Dictionary"])
-app.include_router(stats.router, prefix="/api/stats", tags=["Statistics"])
-app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
-app.include_router(tts.router, prefix="/api/tts", tags=["TTS"])
-app.include_router(import_words.router, prefix="/api/import", tags=["Import"])
-app.include_router(attachments.router)
+app.include_router(words.router, prefix="/api/words", tags=["Words"], dependencies=_owner)
+app.include_router(review.router, prefix="/api/review", tags=["Review"], dependencies=_owner)
+app.include_router(dictionary.router, prefix="/api/dict", tags=["Dictionary"], dependencies=_owner)
+app.include_router(stats.router, prefix="/api/stats", tags=["Statistics"], dependencies=_owner)
+app.include_router(ai.router, prefix="/api/ai", tags=["AI"], dependencies=_owner)
+app.include_router(tts.router, prefix="/api/tts", tags=["TTS"], dependencies=_owner)
+app.include_router(import_words.router, prefix="/api/import", tags=["Import"], dependencies=_owner)
+app.include_router(attachments.router, dependencies=_owner)
 
 
 @app.get("/")

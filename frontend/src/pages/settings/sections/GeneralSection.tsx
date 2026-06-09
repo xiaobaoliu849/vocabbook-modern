@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useTheme } from '../../../context/ThemeContext'
 import { useState, useEffect } from 'react'
-import { Check, Monitor, Moon, Sun, Volume2 } from 'lucide-react'
+import { Check, Key, Monitor, Moon, Sun, Volume2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import ShortcutPreferencesCard from './ShortcutPreferencesCard'
 
@@ -87,6 +87,10 @@ export default function GeneralSection() {
 
     const [accent, setAccent] = useState<'us' | 'uk'>(() =>
         (localStorage.getItem('preferred_accent') as 'us' | 'uk') || 'us'
+    )
+
+    const [ownerToken, setOwnerToken] = useState(() =>
+        localStorage.getItem('owner_token') || ''
     )
 
     useEffect(() => {
@@ -211,6 +215,34 @@ export default function GeneralSection() {
             </div>
 
             <ShortcutPreferencesCard />
+
+            <div className="glass-card p-6">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                    <Key className="text-primary-500" size={20} />
+                    Server Token
+                </h3>
+                <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+                    If your backend has <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">OWNER_TOKEN</code> configured, enter it here so the frontend can authenticate.
+                </p>
+                <input
+                    type="password"
+                    value={ownerToken}
+                    onChange={(e) => {
+                        setOwnerToken(e.target.value)
+                        if (e.target.value) {
+                            localStorage.setItem('owner_token', e.target.value)
+                        } else {
+                            localStorage.removeItem('owner_token')
+                        }
+                    }}
+                    placeholder="Paste your owner token"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm
+                        text-slate-800 placeholder-slate-400 outline-none transition-colors
+                        focus:border-primary-400 focus:ring-2 focus:ring-primary-500/20
+                        dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:placeholder-slate-500
+                        dark:focus:border-primary-600"
+                />
+            </div>
         </div>
     )
 }

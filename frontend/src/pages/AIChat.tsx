@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../context/ToastContext'
 import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages, RotateCw, Search, BookOpen, MessageCircle, FileText } from 'lucide-react'
-import { api, API_PATHS, API_BASE_URL, getClientId } from '../utils/api'
+import { api, API_PATHS, API_BASE_URL, getClientId, getOwnerTokenHeaders } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import EvermemLogo from '../assets/evermind-powered.svg'
 import { useAuth } from '../context/AuthContext'
@@ -162,7 +162,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
     const getCommonHeaders = useCallback(() => {
         const headers: Record<string, string> = {
-            'X-Client-Id': getClientId()
+            'X-Client-Id': getClientId(),
+            ...getOwnerTokenHeaders(),
         }
         if (token) headers['Authorization'] = `Bearer ${token}`
         return headers

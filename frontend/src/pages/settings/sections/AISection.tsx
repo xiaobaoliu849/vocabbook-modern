@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../../context/ToastContext'
+import { getOwnerTokenHeaders } from '../../../utils/api'
 
 function getDefaultModel(provider: string) {
     switch (provider) {
@@ -162,7 +163,8 @@ export default function AISection() {
                     'X-AI-Provider': aiProvider,
                     'X-AI-Key': aiApiKey,
                     'X-AI-Model': aiModel,
-                    'X-AI-Base': aiBase
+                    'X-AI-Base': aiBase,
+                    ...getOwnerTokenHeaders(),
                 }
             })
             const data = await response.json()
@@ -197,7 +199,7 @@ export default function AISection() {
         setOllamaError('')
         try {
             const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/ai/ollama-models`, {
-                headers: { 'X-AI-Base': base || aiBase || '' }
+                headers: { 'X-AI-Base': base || aiBase || '', ...getOwnerTokenHeaders() }
             })
             const data = await response.json()
             if (data.error) {

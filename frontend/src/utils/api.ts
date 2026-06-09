@@ -8,6 +8,11 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:80
 export const CLOUD_API_BASE_URL = import.meta.env.VITE_CLOUD_API_URL || 'https://api.historyai.fun'
 const CLIENT_ID_STORAGE_KEY = 'vocabbook_client_id'
 
+export function getOwnerTokenHeaders(): Record<string, string> {
+    const ownerToken = localStorage.getItem('owner_token') || ''
+    return ownerToken ? { 'X-Owner-Token': ownerToken } : {}
+}
+
 export function getClientId(): string {
     try {
         const existing = localStorage.getItem(CLIENT_ID_STORAGE_KEY)
@@ -65,12 +70,16 @@ export const api = {
      */
     _getHeaders(customHeaders?: HeadersInit): HeadersInit {
         const token = useAuthStore.getState().token
+        const ownerToken = localStorage.getItem('owner_token') || ''
         const headers: Record<string, string> = {
             ...getEverMemHeaders(),
         }
         headers['X-Client-Id'] = getClientId()
         if (token) {
             headers['Authorization'] = `Bearer ${token}`
+        }
+        if (ownerToken) {
+            headers['X-Owner-Token'] = ownerToken
         }
         return {
             ...headers,
