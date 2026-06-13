@@ -249,7 +249,8 @@
       "evermemHelpPrefix": "Get an API key from ",
       "evermemHelpMiddle": ", or ",
       "evermemHelpSuffix": ".",
-      "selfHost": "self-host it"
+      "selfHost": "self-host it",
+      "manageMemories": "Manage Memories"
     },
     "about": {
       "title": "About",
@@ -886,5 +887,33 @@
     "stackDetails": "View stack details",
     "retry": "Retry",
     "refresh": "Refresh page"
+  },
+  "memoryMgmt": {
+    "title": "Memory Management",
+    "type": {
+      "episodic": "Episodic",
+      "profile": "Profile",
+      "foresight": "Foresight",
+      "agentCase": "Agent Cases",
+      "agentSkill": "Agent Skills",
+      "eventLog": "Event Log"
+    },
+    "clearAll": "Clear All",
+    "clearing": "Clearing...",
+    "confirmClear": "Delete All",
+    "clearConfirmTitle": "Clear All Memories?",
+    "clearConfirmBody": "This will permanently delete all memories for your account across all types. This action cannot be undone.",
+    "delete": "Delete",
+    "deleting": "Deleting...",
+    "loading": "Loading memories...",
+    "loadError": "Failed to load memories.",
+    "empty": "No memories of this type yet.",
+    "notConfigured": "EverMemOS is not enabled or API key is missing.",
+    "configureHint": "Enable it and provide an API key in AI Settings.",
+    "prev": "Previous",
+    "next": "Next",
+    "pageInfo": "Page {{page}}",
+    "close": "Close",
+    "refresh": "Refresh"
   }
 }

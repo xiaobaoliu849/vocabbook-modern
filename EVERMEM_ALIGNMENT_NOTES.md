@@ -2,6 +2,21 @@
 
 This document captures the main pitfalls we hit while integrating EverMem long-term memory recall into the chat flow, and the concrete alignments required to make recall work reliably.
 
+> **v1.1 Refresh (2026-06-13):** Re-verified against `docs.evermind.ai/llms-full.txt` and `/changelog`.
+> Cloud API has not changed since 2026-04-08 (Cloud v0.2.1 perf tuning + Python SDK v0.4.0 multimodal).
+> New: EverOS OSS v1.0.0 released 2026-06-07 (self-hosted, `.md` on disk, SQLite + LanceDB).
+> Cloud v1 delete endpoint clarified:
+>   `POST /api/v1/memories/delete`
+>   Mode A (single): `{"memory_id": "<id>"}`
+>   Mode B (batch):  `{"user_id": "<uid>"}` and/or `{"group_id": "<gid>"}` and/or
+>                    `{"session_id": "<sid>"}` and/or `{"sender_id": "<sid>"}`.
+>   Filter values use three-state logic: string = exact match, `"__all__"` = skip
+>   matching this field, `null` = match empty.
+> Recommended defaults confirmed:
+>   search `method="hybrid"`, `top_k=5` for chat contexts, `top_k=10` for analysis.
+> Supported memory_types in v1: `episodic_memory`, `profile`, `agent_case`,
+>   `agent_skill`, `foresight`. (`event_log` is folded into `episodic_memory` in v1.)
+>
 > **v1 Migration (2026-05-13):** Migrated from deprecated v0 API to v1.
 > SDK package renamed `evermemos` → `everos`. All endpoints moved from `/api/v0/` to `/api/v1/`.
 > Search and Get changed from GET to POST with filters DSL. Flush is now a separate endpoint.
@@ -450,6 +465,40 @@ The final working behavior depends on these files:
 - `backend/services/ai_service.py`
 - `backend/services/evermem_service.py`
 - `backend/tests/test_ai_memory_recall.py`
+
+### Management Endpoints (added 2026-06-13)
+
+The memory-management UI exposes three new endpoints on the backend, all scoped
+to the authenticated owner via `_resolve_chat_owner_key`:
+
+- `GET  /api/ai/memories?memory_type=<type>&page=<n>&page_size=<n>&group_id=<g>`
+  — paginated list of memories by type (`episodic_memory`, `profile`, `foresight`,
+  `agent_case`, `agent_skill`, `event_log`).
+- `DELETE /api/ai/memories/{memory_id}`
+  — single delete with pre-flight ownership verification: the endpoint first
+  scans the owner's memories across all types and returns `404` if the memory
+  cannot be found under the owner's scope. This guards against guessing another
+  user's `memory_id`, since the upstream EverMind delete API accepts only
+  `memory_id` (single-mode) and cannot scope by `user_id`.
+- `POST /api/ai/memories/clear` with body `{"group_id": "<optional>"}`
+  — batch delete all memories for the authenticated owner (optionally scoped to
+  one group). Uses EverMind's batch-mode filter (`user_id` + optional `group_id`).
+
+Supporting files:
+
+- `backend/routers/ai.py` — route handlers + `_ClearMemoriesRequest` model.
+- `backend/tests/test_memory_management.py` — 10 pytest tests covering success
+  and error paths (incl. 404 for foreign memories).
+- `frontend/src/utils/evermem.ts` — API client (`listMemoriesApi`,
+  `deleteMemoryApi`, `clearMemoriesApi`) + `buildEvermemHeaders` helper.
+- `frontend/src/components/MemoryManagementModal.tsx` — the modal component,
+  with Escape/backdrop-close, type tabs, pagination, per-item delete, and a
+  confirm-gated "Clear All".
+- `frontend/src/pages/settings/sections/AISection.tsx` — hosts the
+  "Manage Memories" button under the EverMemOS settings block.
+- `frontend/src/utils/api.ts` — adds `AI_MEMORIES_LIST`, `AI_MEMORY_DELETE`,
+  `AI_MEMORIES_CLEAR` to `API_PATHS`.
+- `frontend/src/i18n/locales/{zh,en}/translation.json` — `memoryMgmt.*` keys.
 
 ## Short Summary
 

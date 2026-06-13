@@ -3,6 +3,7 @@ import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../../context/ToastContext'
 import { getOwnerTokenHeaders } from '../../../utils/api'
+import MemoryManagementModal from '../../../components/MemoryManagementModal'
 
 function getDefaultModel(provider: string) {
     switch (provider) {
@@ -42,6 +43,7 @@ export default function AISection() {
     const [evermemUrl, setEvermemUrl] = useState('')
     const [evermemKey, setEvermemKey] = useState('')
     const [showEvermemKey, setShowEvermemKey] = useState(false)
+    const [memoryMgmtOpen, setMemoryMgmtOpen] = useState(false)
 
     const loadAiSettings = useCallback(() => {
         const provider = localStorage.getItem('ai_provider') || 'dashscope'
@@ -481,9 +483,19 @@ export default function AISection() {
                                     </button>
                                 </div>
                             </div>
+                            <div className="flex items-center justify-between gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setMemoryMgmtOpen(true)}
+                                    className="flex items-center gap-2 rounded-lg bg-indigo-500/10 px-3 py-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition"
+                                >
+                                    🗂️ {t('settings.ai.manageMemories', 'Manage Memories')}
+                                </button>
+                            </div>
                             <p className="text-xs text-slate-500">
                                 {t('settings.ai.evermemHelpPrefix', 'Get an API key from ')}<a href="https://console.evermind.ai" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">EverMemOS Cloud</a>{t('settings.ai.evermemHelpMiddle', ', or ')}<a href="https://github.com/EverMind-AI/EverMemOS" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">{t('settings.ai.selfHost', 'self-host it')}</a>{t('settings.ai.evermemHelpSuffix', '.')}
                             </p>
+                            <MemoryManagementModal isOpen={memoryMgmtOpen} onClose={() => setMemoryMgmtOpen(false)} />
                         </div>
                     )}
                 </div>

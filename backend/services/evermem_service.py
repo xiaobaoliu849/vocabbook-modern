@@ -373,11 +373,14 @@ class EverMemService:
         Get memories by type from EverMemOS (v1 API).
         Uses POST /api/v1/memories/get with filters DSL.
 
-        v1 response structure:
-          episodic_memory → {"data": {"episodes": [...], "total_count": N}}
-          profile         → {"data": {"profiles": [...], "total_count": N}}
-          agent_case      → {"data": {"agent_cases": [...], "total_count": N}}
-          agent_skill     → {"data": {"agent_skills": [...], "total_count": N}}
+        Supported memory_type values (official v1):
+          - episodic_memory  → {"data": {"episodes": [...], "total_count": N}}
+          - profile          → {"data": {"profiles": [...], "total_count": N}}
+          - agent_case       → {"data": {"agent_cases": [...], "total_count": N}}
+          - agent_skill      → {"data": {"agent_skills": [...], "total_count": N}}
+          - foresight        → {"data": {"foresights": [...], "total_count": N}}
+
+        Legacy type 'event_log' is mapped to 'episodic_memory' (v1 consolidated).
         """
         if not self.api_key:
             logger.error("EverMemService: Missing API key. Cannot get memories.")

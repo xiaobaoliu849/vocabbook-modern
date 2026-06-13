@@ -249,7 +249,8 @@
       "evermemHelpPrefix": "在 ",
       "evermemHelpMiddle": " 注册获取 API Key，或 ",
       "evermemHelpSuffix": "。",
-      "selfHost": "自行部署"
+      "selfHost": "自行部署",
+      "manageMemories": "管理记忆"
     },
     "about": {
       "title": "关于软件",
@@ -894,5 +895,33 @@
     "stackDetails": "查看堆栈详情",
     "retry": "重试",
     "refresh": "刷新页面"
+  },
+  "memoryMgmt": {
+    "title": "记忆管理",
+    "type": {
+      "episodic": "对话记忆",
+      "profile": "用户画像",
+      "foresight": "提醒/前瞻",
+      "agentCase": "经验案例",
+      "agentSkill": "技能",
+      "eventLog": "事件日志"
+    },
+    "clearAll": "清空全部",
+    "clearing": "正在清空...",
+    "confirmClear": "确认删除全部",
+    "clearConfirmTitle": "要清空全部记忆吗？",
+    "clearConfirmBody": "将永久删除您账户下所有类型的全部记忆，此操作无法撤销。",
+    "delete": "删除",
+    "deleting": "删除中...",
+    "loading": "正在加载记忆...",
+    "loadError": "加载记忆失败。",
+    "empty": "该类型下还没有记忆。",
+    "notConfigured": "EverMemOS 未启用或缺少 API Key。",
+    "configureHint": "请在 AI 设置中启用并填写 API Key。",
+    "prev": "上一页",
+    "next": "下一页",
+    "pageInfo": "第 {{page}} 页",
+    "close": "关闭",
+    "refresh": "刷新"
   }
 }

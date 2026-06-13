@@ -671,6 +671,161 @@ async def dismiss_foresight(
     return {"success": success}
 
 
+@router.get("/memories")
+async def list_memories(
+    memory_type: str = "episodic_memory",
+    page: int = 1,
+    page_size: int = 20,
+    group_id: Optional[str] = None,
+    x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
+    authorization: Optional[str] = Header(None),
+):
+    """List memories of a given type for the authenticated owner, with pagination."""
+    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+        authorization=authorization,
+        x_evermem_enabled=x_evermem_enabled,
+        x_evermem_url=x_evermem_url,
+        x_evermem_key=x_evermem_key,
+    )
+    if not evermem_enabled or not service:
+        raise HTTPException(status_code=400, detail="EverMemOS not enabled")
+
+    owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
+
+    allowed_types = {"episodic_memory", "profile", "agent_case", "agent_skill", "foresight", "event_log"}
+    if memory_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported memory_type: {memory_type}")
+
+    if page < 1:
+        page = 1
+    if page_size < 1:
+        page_size = 1
+    if page_size > 100:
+        page_size = 100
+
+    group_ids = [group_id] if group_id else None
+    memories = await service.get_memories(
+        user_id=owner_key,
+        group_ids=group_ids,
+        memory_type=memory_type,
+        page=page,
+        page_size=page_size,
+    )
+
+    items: list[dict[str, Any]] = []
+    for memory in memories:
+        items.append({
+            "memory_id": memory.get("memory_id") or memory.get("id"),
+            "content": memory.get("content", ""),
+            "raw_content": memory.get("raw_content"),
+            "type": memory.get("type", memory_type),
+            "group_id": memory.get("group_id"),
+            "timestamp": memory.get("timestamp"),
+            "role": memory.get("role"),
+            "sender_name": memory.get("sender_name"),
+        })
+
+    return {
+        "memory_type": memory_type,
+        "page": page,
+        "page_size": page_size,
+        "items": items,
+        "count": len(items),
+    }
+
+
+@router.delete("/memories/{memory_id}")
+async def delete_memory(
+    memory_id: str,
+    x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
+    authorization: Optional[str] = Header(None),
+):
+    """Delete a single memory by its memory_id, scoped to the authenticated owner.
+
+    EverMind's delete endpoint accepts only `memory_id` (single mode), so we first
+    verify the memory belongs to the current owner by searching across their memory
+    types. If the memory cannot be found under the owner's scope, return 404.
+    """
+    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+        authorization=authorization,
+        x_evermem_enabled=x_evermem_enabled,
+        x_evermem_url=x_evermem_url,
+        x_evermem_key=x_evermem_key,
+    )
+    if not evermem_enabled or not service:
+        raise HTTPException(status_code=400, detail="EverMemOS not enabled")
+
+    owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
+
+    # Pre-flight: verify the memory belongs to the authenticated owner.
+    found = False
+    for mt in ("episodic_memory", "profile", "foresight", "agent_case", "agent_skill"):
+        try:
+            items = await service.get_memories(
+                user_id=owner_key,
+                memory_type=mt,
+                page_size=100,
+            )
+        except Exception:
+            items = []
+        for item in items or []:
+            if (item.get("memory_id") or item.get("id")) == memory_id:
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Memory {memory_id} not found for the current owner",
+        )
+
+    success = await service.delete_memories(memory_id=memory_id)
+    return {"success": success, "memory_id": memory_id}
+
+
+class _ClearMemoriesRequest(BaseModel):
+    group_id: Optional[str] = None
+
+
+@router.post("/memories/clear")
+async def clear_memories(
+    body: _ClearMemoriesRequest,
+    x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
+    x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
+    x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
+    authorization: Optional[str] = Header(None),
+):
+    """Batch-delete all memories for the authenticated owner (optionally scoped to a group)."""
+    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+        authorization=authorization,
+        x_evermem_enabled=x_evermem_enabled,
+        x_evermem_url=x_evermem_url,
+        x_evermem_key=x_evermem_key,
+    )
+    if not evermem_enabled or not service:
+        raise HTTPException(status_code=400, detail="EverMemOS not enabled")
+
+    owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
+    success = await service.delete_memories(
+        user_id=owner_key,
+        group_id=body.group_id,
+    )
+    return {
+        "success": success,
+        "user_id": owner_key,
+        "group_id": body.group_id,
+    }
+
+
 @router.get("/evermem-settings")
 async def get_evermem_settings(
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
