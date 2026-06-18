@@ -623,15 +623,36 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                         search_memory_types = ["episodic_memory", "profile", "agent_case", "agent_skill", "foresight"]
                     else:
                         search_memory_types = ["episodic_memory", "agent_skill"]
-                    found = await self.evermem_service.search_memories(
-                        query=query,
-                        user_id=self.evermem_user_id,
-                        min_score=search_min_score,
-                        group_ids=group_ids,
-                        memory_types=search_memory_types,
-                        retrieve_method="agentic" if recall_request else "hybrid",
-                        top_k=8,
-                    )
+
+                    method = "agentic" if recall_request else "hybrid"
+                    try:
+                        found = await self.evermem_service.search_memories(
+                            query=query,
+                            user_id=self.evermem_user_id,
+                            min_score=search_min_score,
+                            group_ids=group_ids,
+                            memory_types=search_memory_types,
+                            retrieve_method=method,
+                            top_k=8,
+                        )
+                    except Exception as e:
+                        if method == "agentic":
+                            logger.warning(
+                                f"[EverMem] Agentic retrieval failed or timed out: {e}. "
+                                "Falling back to hybrid retrieval..."
+                            )
+                            found = await self.evermem_service.search_memories(
+                                query=query,
+                                user_id=self.evermem_user_id,
+                                min_score=search_min_score,
+                                group_ids=group_ids,
+                                memory_types=search_memory_types,
+                                retrieve_method="hybrid",
+                                top_k=8,
+                            )
+                        else:
+                            raise e
+
                     scoped_raw_count += len(found)
                     scoped_collected.extend(found)
                 except Exception as e:

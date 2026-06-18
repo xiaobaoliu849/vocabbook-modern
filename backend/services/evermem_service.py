@@ -15,15 +15,21 @@ logger = logging.getLogger(__name__)
 
 
 class EverMemService:
-    def __init__(self, api_url: str, api_key: str = None):
+    def __init__(self, api_url: str, api_key: str = None, is_oss: Optional[bool] = None):
         self.api_url = (api_url or "https://api.evermind.ai").rstrip("/")
         self.api_key = api_key
+        if is_oss is not None:
+            self.is_oss = is_oss
+        else:
+            self.is_oss = "evermind.ai" not in self.api_url.lower()
 
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
 
     def _headers(self) -> Dict[str, str]:
+        if not self.api_key:
+            return {}
         return {"Authorization": f"Bearer {self.api_key}"}
 
     @staticmethod
@@ -88,7 +94,7 @@ class EverMemService:
           [{"type": "image"|"document", "uri": "<objectKey>", "name": "...", "ext": "..."}]
           When provided, message.content becomes a ContentItem array instead of a plain string.
         """
-        if not self.api_key:
+        if not self.api_key and not self.is_oss:
             logger.error("EverMemService: Missing API key. Cannot add memory.")
             return None
 
@@ -105,33 +111,48 @@ class EverMemService:
         else:
             message_content = content
 
-        message = {
-            "role": role,
-            "timestamp": self._now_ms(),
-            "content": message_content,
-            "sender_id": sender or user_id,
-            "sender_name": sender_name,
-            "message_id": str(uuid.uuid4()),
-        }
-
-        if group_id:
-            url = f"{self.api_url}/api/v1/memories/group"
-            body: Dict = {
-                "group_id": group_id,
-                "messages": [message],
+        if self.is_oss:
+            url = f"{self.api_url}/api/v1/memory/add"
+            message = {
+                "role": role,
+                "timestamp": self._now_ms(),
+                "content": message_content,
+                "sender_id": sender or user_id,
             }
-            if group_name:
-                body["group_meta"] = {"name": group_name}
-        else:
-            url = f"{self.api_url}/api/v1/memories"
             body = {
-                "user_id": user_id,
+                "session_id": group_id or "default",
+                "app_id": "vocabbook",
+                "project_id": "default",
                 "messages": [message],
             }
+        else:
+            message = {
+                "role": role,
+                "timestamp": self._now_ms(),
+                "content": message_content,
+                "sender_id": sender or user_id,
+                "sender_name": sender_name,
+                "message_id": str(uuid.uuid4()),
+            }
 
-        # Only inject async_mode when explicitly set by the caller.
-        if async_mode is not None:
-            body["async_mode"] = async_mode
+            if group_id:
+                url = f"{self.api_url}/api/v1/memories/group"
+                body: Dict = {
+                    "group_id": group_id,
+                    "messages": [message],
+                }
+                if group_name:
+                    body["group_meta"] = {"name": group_name}
+            else:
+                url = f"{self.api_url}/api/v1/memories"
+                body = {
+                    "user_id": user_id,
+                    "messages": [message],
+                }
+
+            # Only inject async_mode when explicitly set by the caller.
+            if async_mode is not None:
+                body["async_mode"] = async_mode
 
         def sync_add():
             return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
@@ -176,7 +197,14 @@ class EverMemService:
         user_id: Optional[str] = None,
     ) -> str:
         """Trigger memory extraction via v1 flush endpoint."""
-        if group_id:
+        if self.is_oss:
+            url = f"{self.api_url}/api/v1/memory/flush"
+            body = {
+                "session_id": group_id or "default",
+                "app_id": "vocabbook",
+                "project_id": "default",
+            }
+        elif group_id:
             url = f"{self.api_url}/api/v1/memories/group/flush"
             body: Dict = {"group_id": group_id}
         else:
@@ -225,7 +253,7 @@ class EverMemService:
         v1 response structure:
           {"data": {"episodes": [...], "profiles": [...], "total_count": N, "count": N}}
         """
-        if not self.api_key:
+        if not self.api_key and not self.is_oss:
             logger.error("EverMemService: Missing API key. Cannot search memories.")
             return []
 
@@ -234,35 +262,49 @@ class EverMemService:
         if retrieve_method == "rrf":
             retrieve_method = "hybrid"
 
-        url = f"{self.api_url}/api/v1/memories/search"
-        filters = self._build_filters(user_id=user_id, group_ids=group_ids)
+        if self.is_oss:
+            url = f"{self.api_url}/api/v1/memory/search"
+            body = {
+                "user_id": user_id,
+                "app_id": "vocabbook",
+                "project_id": "default",
+                "query": query,
+                "method": retrieve_method,
+                "top_k": top_k,
+            }
+            if memory_types:
+                body["memory_types"] = memory_types
+        else:
+            url = f"{self.api_url}/api/v1/memories/search"
+            filters = self._build_filters(user_id=user_id, group_ids=group_ids)
 
-        # Add time filters if provided
-        if start_time or end_time:
-            ts_filter: Dict = {}
-            if start_time:
-                ts_filter["gte"] = start_time
-            if end_time:
-                ts_filter["lte"] = end_time
-            filters["timestamp"] = ts_filter
+            # Add time filters if provided
+            if start_time or end_time:
+                ts_filter: Dict = {}
+                if start_time:
+                    ts_filter["gte"] = start_time
+                if end_time:
+                    ts_filter["lte"] = end_time
+                filters["timestamp"] = ts_filter
 
-        body: Dict = {
-            "query": query,
-            "filters": filters,
-            "method": retrieve_method,
-            "top_k": top_k,
-        }
-        if memory_types:
-            body["memory_types"] = memory_types
-        if current_time:
-            body["current_time"] = current_time
-        if radius is not None:
-            body["radius"] = radius
-        if include_original_data is not None:
-            body["include_original_data"] = include_original_data
+            body: Dict = {
+                "query": query,
+                "filters": filters,
+                "method": retrieve_method,
+                "top_k": top_k,
+            }
+            if memory_types:
+                body["memory_types"] = memory_types
+            if current_time:
+                body["current_time"] = current_time
+            if radius is not None:
+                body["radius"] = radius
+            if include_original_data is not None:
+                body["include_original_data"] = include_original_data
 
+        timeout_val = 60.0 if retrieve_method == "agentic" else 30.0
         def sync_search():
-            return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
+            return httpx.post(url, headers=self._headers(), json=body, timeout=timeout_val)
 
         try:
             resp = await asyncio.to_thread(sync_search)
@@ -382,37 +424,50 @@ class EverMemService:
 
         Legacy type 'event_log' is mapped to 'episodic_memory' (v1 consolidated).
         """
-        if not self.api_key:
+        if not self.api_key and not self.is_oss:
             logger.error("EverMemService: Missing API key. Cannot get memories.")
             return []
 
-        # v1 API does not support event_log type in get endpoint.
-        # Fall back to episodic_memory since v1 consolidates all extracted facts there.
-        if memory_type == "event_log":
-            memory_type = "episodic_memory"
+        if self.is_oss:
+            if memory_type == "event_log":
+                memory_type = "episodic_memory"
+            url = f"{self.api_url}/api/v1/memory/get"
+            body = {
+                "user_id": user_id,
+                "app_id": "vocabbook",
+                "project_id": "default",
+                "memory_type": memory_type,
+                "page": page or 1,
+                "page_size": min(page_size, 100),
+            }
+        else:
+            # v1 API does not support event_log type in get endpoint.
+            # Fall back to episodic_memory since v1 consolidates all extracted facts there.
+            if memory_type == "event_log":
+                memory_type = "episodic_memory"
 
-        url = f"{self.api_url}/api/v1/memories/get"
-        filters = self._build_filters(user_id=user_id, group_ids=group_ids)
+            url = f"{self.api_url}/api/v1/memories/get"
+            filters = self._build_filters(user_id=user_id, group_ids=group_ids)
 
-        if start_time or end_time:
-            ts_filter: Dict = {}
-            if start_time:
-                ts_filter["gte"] = start_time
-            if end_time:
-                ts_filter["lte"] = end_time
-            filters["timestamp"] = ts_filter
+            if start_time or end_time:
+                ts_filter: Dict = {}
+                if start_time:
+                    ts_filter["gte"] = start_time
+                if end_time:
+                    ts_filter["lte"] = end_time
+                filters["timestamp"] = ts_filter
 
-        body: Dict = {
-            "memory_type": memory_type,
-            "filters": filters,
-            "page_size": min(page_size, 100),
-        }
-        if page is not None:
-            body["page"] = page
-        if rank_by is not None:
-            body["rank_by"] = rank_by
-        if rank_order is not None:
-            body["rank_order"] = rank_order
+            body: Dict = {
+                "memory_type": memory_type,
+                "filters": filters,
+                "page_size": min(page_size, 100),
+            }
+            if page is not None:
+                body["page"] = page
+            if rank_by is not None:
+                body["rank_by"] = rank_by
+            if rank_order is not None:
+                body["rank_order"] = rank_order
 
         def sync_get():
             return httpx.post(url, headers=self._headers(), json=body, timeout=30.0)
@@ -528,7 +583,7 @@ class EverMemService:
 
     async def get_settings(self) -> Optional[Dict]:
         """Retrieve current memory space settings from Evermind."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
 
         def sync_get():
@@ -550,7 +605,7 @@ class EverMemService:
 
     async def update_settings(self, settings: Dict) -> Optional[Dict]:
         """Update memory space settings (partial update)."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
 
         def sync_put():
@@ -588,6 +643,10 @@ class EverMemService:
         """
         if not self.api_key:
             logger.error("EverMemService: Missing API key. Cannot delete memories.")
+            return False
+
+        if self.is_oss:
+            logger.warning("delete_memories: Delete API is not supported on self-hosted EverOS OSS instances via API. Please edit/delete Markdown files directly.")
             return False
 
         url = f"{self.api_url}/api/v1/memories/delete"
@@ -628,7 +687,7 @@ class EverMemService:
         description: Optional[str] = None,
     ) -> Optional[Dict]:
         """Create a new group or update an existing one (upsert by group_id)."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/groups"
         body = {"group_id": group_id, "name": name}
@@ -650,7 +709,7 @@ class EverMemService:
 
     async def get_group_details(self, group_id: str) -> Optional[Dict]:
         """Retrieve group details by group_id."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/groups/{group_id}"
 
@@ -674,7 +733,7 @@ class EverMemService:
         description: Optional[str] = None,
     ) -> Optional[Dict]:
         """Update group fields. At least one of name or description must be provided."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/groups/{group_id}"
         body = {}
@@ -702,7 +761,7 @@ class EverMemService:
 
     async def create_sender(self, sender_id: str, name: str) -> Optional[Dict]:
         """Create a new sender or update an existing one (upsert by sender_id)."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/senders"
         body = {"sender_id": sender_id, "name": name}
@@ -722,7 +781,7 @@ class EverMemService:
 
     async def get_sender_details(self, sender_id: str) -> Optional[Dict]:
         """Retrieve sender details by sender_id."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/senders/{sender_id}"
 
@@ -741,7 +800,7 @@ class EverMemService:
 
     async def update_sender(self, sender_id: str, name: str) -> Optional[Dict]:
         """Update sender's display name."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/senders/{sender_id}"
         body = {"name": name}
@@ -765,7 +824,7 @@ class EverMemService:
 
     async def get_task_status(self, task_id: str) -> Optional[Dict]:
         """Query the processing status of a specific async task by task_id."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/tasks/{task_id}"
 
@@ -788,7 +847,7 @@ class EverMemService:
 
     async def upload_multimodal_data(self, object_list: List[Dict]) -> Optional[Dict]:
         """Generate a pre-signed S3 upload URL for multimodal content."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/object/sign"
         body = {"objectList": object_list}
@@ -820,6 +879,9 @@ class EverMemService:
         upload_multimodal_data returns raw JSON (not unwrapped via _unwrap_v1_response),
         so the object list lives at resp["result"]["data"]["objectList"][0].
         """
+        if self.is_oss:
+            logger.error("EverMemService: self-hosted EverOS does not support Evermind S3 presign upload.")
+            return None
         if not self.api_key:
             logger.error("EverMemService: Missing API key. Cannot presign_and_upload.")
             return None
@@ -892,7 +954,7 @@ class EverMemService:
         async_mode: bool = True,
     ) -> Optional[Dict]:
         """Add messages and extract memory into agent memory space (cases and skills)."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/memories/agent"
         body = {
@@ -917,7 +979,7 @@ class EverMemService:
 
     async def flush_agent_memories(self, user_id: str, session_id: str) -> Optional[str]:
         """Trigger agent-aware boundary detection on accumulated agent messages."""
-        if not self.api_key:
+        if not self.api_key or self.is_oss:
             return None
         url = f"{self.api_url}/api/v1/memories/agent/flush"
         body = {

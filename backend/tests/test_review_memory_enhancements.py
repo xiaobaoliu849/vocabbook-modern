@@ -401,6 +401,28 @@ def test_ai_runtime_can_bootstrap_evermem_without_header_key(monkeypatch):
     assert calls == [(True, "https://api.evermind.ai", None)]
 
 
+def test_runtime_can_bootstrap_keyless_self_hosted_evermem(monkeypatch, tmp_path):
+    if evermem_config is None:
+        pytest.skip("evermem_config import unavailable")
+
+    config_path = tmp_path / "evermem_config.json"
+    monkeypatch.setattr(evermem_config, "_CONFIG_PATH", str(config_path))
+    monkeypatch.delenv("EVERMEM_API_KEY", raising=False)
+    evermem_config._cached_service = None
+    evermem_config._cached_key = None
+    evermem_config._cached_url = None
+
+    service = evermem_config.resolve_runtime_service(
+        enabled=True,
+        url="http://localhost:8000",
+        key=None,
+    )
+
+    assert service is not None
+    assert service.is_oss is True
+    assert service.api_key == ""
+
+
 def test_due_count_route_uses_lightweight_summary(monkeypatch):
     temp_dir, db = _build_temp_db()
     try:

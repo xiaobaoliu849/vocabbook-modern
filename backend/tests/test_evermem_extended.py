@@ -249,3 +249,91 @@ async def test_flush_agent_memories(service):
             json={"user_id": "user_123", "session_id": "sess_123"},
             timeout=30.0,
         )
+
+
+@pytest.fixture
+def oss_service():
+    return EverMemService(api_url="http://localhost:8000", api_key="local_key", is_oss=True)
+
+
+@pytest.fixture
+def keyless_oss_service():
+    return EverMemService(api_url="http://localhost:8000", api_key="", is_oss=True)
+
+
+@pytest.mark.asyncio
+async def test_oss_add_memory(oss_service):
+    with patch("httpx.post") as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": {"status": "accumulated"}}
+        mock_post.return_value = mock_resp
+
+        result = await oss_service.add_memory(
+            content="Testing OSS",
+            user_id="user_123",
+            group_id="session_123",
+            role="user",
+        )
+
+        assert result == {"status": "accumulated"}
+        # Check call arguments
+        args, kwargs = mock_post.call_args
+        assert args[0] == "http://localhost:8000/api/v1/memory/add"
+        assert kwargs["headers"] == {"Authorization": "Bearer local_key"}
+        assert kwargs["json"]["session_id"] == "session_123"
+        assert kwargs["json"]["app_id"] == "vocabbook"
+        assert kwargs["json"]["messages"][0]["content"] == "Testing OSS"
+        assert kwargs["json"]["messages"][0]["sender_id"] == "user_123"
+
+
+@pytest.mark.asyncio
+async def test_keyless_oss_add_memory(keyless_oss_service):
+    with patch("httpx.post") as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": {"status": "accumulated"}}
+        mock_post.return_value = mock_resp
+
+        result = await keyless_oss_service.add_memory(
+            content="Testing keyless OSS",
+            user_id="user_123",
+            group_id="session_123",
+            role="user",
+        )
+
+        assert result == {"status": "accumulated"}
+        args, kwargs = mock_post.call_args
+        assert args[0] == "http://localhost:8000/api/v1/memory/add"
+        assert kwargs["headers"] == {}
+
+
+@pytest.mark.asyncio
+async def test_oss_search_memories(oss_service):
+    with patch("httpx.post") as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": {"episodes": [{"episode": "Result OSS", "score": 0.8}]}}
+        mock_post.return_value = mock_resp
+
+        result = await oss_service.search_memories(
+            query="test",
+            user_id="user_123",
+            min_score=0.1,
+        )
+
+        assert len(result) == 1
+        assert "Result OSS" in result[0]["content"]
+        mock_post.assert_called_once_with(
+            "http://localhost:8000/api/v1/memory/search",
+            headers={"Authorization": "Bearer local_key"},
+            json={
+                "user_id": "user_123",
+                "app_id": "vocabbook",
+                "project_id": "default",
+                "query": "test",
+                "method": "hybrid",
+                "top_k": 10,
+            },
+            timeout=30.0,
+        )

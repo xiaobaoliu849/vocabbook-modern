@@ -23,6 +23,10 @@ def _normalize_url(url: Optional[str]) -> str:
     return (url or _DEFAULT_URL).rstrip("/")
 
 
+def _is_oss_url(url: Optional[str]) -> bool:
+    return "evermind.ai" not in _normalize_url(url).lower()
+
+
 def _persist_config(enabled: bool, url: Optional[str]) -> None:
     # Never persist API key to disk.
     config = {
@@ -69,6 +73,9 @@ def _schedule_timezone_init(service: EverMemService) -> None:
     in China Standard Time (UTC+8). Called once whenever a new API key
     is registered so we don't hit the settings endpoint on every request.
     """
+    if service.is_oss:
+        return
+
     async def _do_set_timezone():
         try:
             result = await service.update_settings({"timezone": "Asia/Shanghai"})
@@ -99,6 +106,9 @@ def _schedule_sender_registration(service: EverMemService, user_id: str) -> None
     participant names instead of raw IDs. Safe to call on every new key
     registration since the API upserts by sender_id.
     """
+    if service.is_oss:
+        return
+
     async def _do_register():
         try:
             r1 = await service.create_sender(sender_id=user_id, name="学习者")
@@ -108,7 +118,8 @@ def _schedule_sender_registration(service: EverMemService, user_id: str) -> None
             else:
                 logger.warning(
                     "[EverMem] Sender registration partial or failed "
-                    f"learner={r1 is not None} tutor={r2 is not None}"
+                    f"learner={r1 is not None} "
+                    f"tutor={r2 is not None}"
                 )
         except Exception as exc:
             logger.warning(f"[EverMem] Sender registration failed: {exc}")
@@ -134,8 +145,9 @@ def save_config(enabled: bool, url: str = None, key: str = None):
             _cached_url = None
             return
 
-        if isinstance(key, str) and key.strip():
-            in_memory_key = key.strip()
+        is_oss = _is_oss_url(resolved_url)
+        if (isinstance(key, str) and key.strip()) or is_oss:
+            in_memory_key = key.strip() if isinstance(key, str) and key.strip() else ""
             new_service = EverMemService(api_url=resolved_url, api_key=in_memory_key)
             _cached_service = new_service
             _cached_key = in_memory_key
@@ -169,9 +181,10 @@ def get_service() -> Optional[EverMemService]:
             _cached_url = None
             return None
 
+        is_oss = _is_oss_url(url)
         env_key = os.environ.get("EVERMEM_API_KEY", "").strip()
         current_key = _cached_key or env_key or legacy_key
-        if not current_key:
+        if not current_key and not is_oss:
             logger.info("EverMem enabled but no key in memory/environment.")
             return None
 
@@ -212,7 +225,8 @@ def resolve_runtime_service(
     else:
         runtime_key = os.environ.get("EVERMEM_API_KEY", "").strip() or legacy_key
 
-    if not runtime_key:
+    is_oss = _is_oss_url(resolved_url)
+    if not runtime_key and not is_oss:
         logger.info("EverMem enabled for request but no runtime key is available.")
         return None
 

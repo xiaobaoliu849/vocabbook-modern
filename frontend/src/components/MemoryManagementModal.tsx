@@ -7,6 +7,7 @@ import {
     clearMemoriesApi,
     deleteMemoryApi,
     isEvermemConfigured,
+    isEvermemSelfHosted,
     listMemoriesApi,
     type MemoryItem,
     type MemoryType,
@@ -48,6 +49,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
     const [clearing, setClearing] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const configured = isEvermemConfigured()
+    const selfHosted = isEvermemSelfHosted()
 
     const load = useCallback(async (type: MemoryType, p: number) => {
         if (!configured) return
@@ -76,6 +78,21 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
             void load(memoryType, 1)
         }
     }, [isOpen, memoryType, configured, load])
+
+    useEffect(() => {
+        if (!isOpen) return
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                if (confirmClear) {
+                    setConfirmClear(false)
+                } else {
+                    onClose()
+                }
+            }
+        }
+        document.addEventListener('keydown', handler)
+        return () => document.removeEventListener('keydown', handler)
+    }, [isOpen, confirmClear, onClose])
 
     const handleDelete = async (memoryId: string | undefined) => {
         if (!memoryId) return
@@ -135,21 +152,6 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
         agent_skill: t('memoryMgmt.type.agentSkill', 'Agent Skills'),
     }
 
-    useEffect(() => {
-        if (!isOpen) return
-        const handler = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                if (confirmClear) {
-                    setConfirmClear(false)
-                } else {
-                    onClose()
-                }
-            }
-        }
-        document.addEventListener('keydown', handler)
-        return () => document.removeEventListener('keydown', handler)
-    }, [isOpen, confirmClear, onClose])
-
     const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (e.target === e.currentTarget) onClose()
     }
@@ -207,8 +209,9 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                         <button
                             type="button"
                             onClick={() => setConfirmClear(true)}
-                            disabled={!configured || clearing || loading || (items.length === 0 && emptyHint)}
+                            disabled={selfHosted || !configured || clearing || loading || (items.length === 0 && emptyHint)}
                             className="flex items-center gap-1.5 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition disabled:opacity-40"
+                            title={selfHosted ? t('memoryMgmt.selfHostedDeleteUnavailable', 'Self-hosted EverOS memories are edited in the local EverOS data directory.') : undefined}
                         >
                             <AlertTriangle size={14} />
                             {t('memoryMgmt.clearAll', 'Clear All')}
@@ -231,6 +234,12 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                     {configured && loading && (
                         <div className="py-12 text-center text-sm text-slate-500">
                             {t('memoryMgmt.loading', 'Loading memories...')}
+                        </div>
+                    )}
+
+                    {configured && selfHosted && !loading && !error && (
+                        <div className="mb-4 rounded-2xl border border-sky-200/60 bg-sky-50 p-4 text-sm text-sky-700 dark:border-sky-400/20 dark:bg-sky-500/10 dark:text-sky-300">
+                            {t('memoryMgmt.selfHostedDeleteUnavailable', 'Self-hosted EverOS memories are edited in the local EverOS data directory.')}
                         </div>
                     )}
 
@@ -271,9 +280,10 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                                             <button
                                                 type="button"
                                                 onClick={() => handleDelete(it.memory_id)}
-                                                disabled={deletingId === it.memory_id}
+                                                disabled={selfHosted || deletingId === it.memory_id}
                                                 className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-red-500 hover:bg-red-500/10 transition disabled:opacity-40"
                                                 aria-label={t('memoryMgmt.delete', 'Delete')}
+                                                title={selfHosted ? t('memoryMgmt.selfHostedDeleteUnavailable', 'Self-hosted EverOS memories are edited in the local EverOS data directory.') : undefined}
                                             >
                                                 <Trash2 size={13} />
                                                 {deletingId === it.memory_id

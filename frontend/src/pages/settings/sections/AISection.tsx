@@ -459,7 +459,7 @@ export default function AISection() {
                                     className="input-field w-full"
                                 />
                                 <p className="text-xs text-slate-400 mt-1">
-                                    {t('settings.ai.evermemUrlHelp', '云端用 https://api.evermind.ai，自部署用 http://localhost:1995')}
+                                    {t('settings.ai.evermemUrlHelp', '云端用 https://api.evermind.ai，自部署用 http://127.0.0.1:8000')}
                                 </p>
                             </div>
                             <div>

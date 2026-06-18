@@ -41,7 +41,13 @@ export function buildEvermemHeaders(token: string | null): Record<string, string
 
 export function isEvermemConfigured(): boolean {
     if (localStorage.getItem('evermem_enabled') !== 'true') return false
-    return Boolean(localStorage.getItem('evermem_key'))
+    const key = localStorage.getItem('evermem_key') || ''
+    return isEvermemSelfHosted() || Boolean(key)
+}
+
+export function isEvermemSelfHosted(): boolean {
+    const url = localStorage.getItem('evermem_url') || ''
+    return url.trim() !== '' && !url.toLowerCase().includes('evermind.ai')
 }
 
 export async function listMemoriesApi(
