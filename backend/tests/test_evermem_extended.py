@@ -251,6 +251,37 @@ async def test_flush_agent_memories(service):
         )
 
 
+@pytest.mark.asyncio
+async def test_cloud_search_normalizes_latest_memory_type_enums(service):
+    with patch("httpx.post") as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"data": {"episodes": []}}
+        mock_post.return_value = mock_resp
+
+        await service.search_memories(
+            query="planning",
+            user_id="user_123",
+            memory_types=["episodic_memory", "agent_case", "agent_skill", "foresight"],
+        )
+
+        args, kwargs = mock_post.call_args
+        assert args[0] == "https://api.evermind.ai/api/v1/memories/search"
+        assert kwargs["json"]["memory_types"] == ["episodic_memory", "agent_memory"]
+
+
+@pytest.mark.asyncio
+async def test_cloud_get_ignores_unsupported_foresight_type(service):
+    with patch("httpx.post") as mock_post:
+        result = await service.get_memories(
+            user_id="user_123",
+            memory_type="foresight",
+        )
+
+        assert result == []
+        mock_post.assert_not_called()
+
+
 @pytest.fixture
 def oss_service():
     return EverMemService(api_url="http://localhost:8000", api_key="local_key", is_oss=True)

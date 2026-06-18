@@ -47,6 +47,28 @@ class EverMemService:
         return {}
 
     @staticmethod
+    def _cloud_search_memory_types(memory_types: Optional[List[str]]) -> Optional[List[str]]:
+        """Normalize app-level memory types to EverOS Cloud search enums."""
+        if not memory_types:
+            return None
+
+        normalized: List[str] = []
+        for memory_type in memory_types:
+            if memory_type in {"agent_case", "agent_skill"}:
+                candidate = "agent_memory"
+            elif memory_type == "foresight":
+                continue
+            else:
+                candidate = memory_type
+
+            if candidate not in {"episodic_memory", "profile", "raw_message", "agent_memory"}:
+                continue
+            if candidate not in normalized:
+                normalized.append(candidate)
+
+        return normalized or None
+
+    @staticmethod
     def _now_ms() -> int:
         return int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000)
 
@@ -277,6 +299,7 @@ class EverMemService:
         else:
             url = f"{self.api_url}/api/v1/memories/search"
             filters = self._build_filters(user_id=user_id, group_ids=group_ids)
+            cloud_memory_types = self._cloud_search_memory_types(memory_types)
 
             # Add time filters if provided
             if start_time or end_time:
@@ -293,8 +316,8 @@ class EverMemService:
                 "method": retrieve_method,
                 "top_k": top_k,
             }
-            if memory_types:
-                body["memory_types"] = memory_types
+            if cloud_memory_types:
+                body["memory_types"] = cloud_memory_types
             if current_time:
                 body["current_time"] = current_time
             if radius is not None:
@@ -415,12 +438,11 @@ class EverMemService:
         Get memories by type from EverMemOS (v1 API).
         Uses POST /api/v1/memories/get with filters DSL.
 
-        Supported memory_type values (official v1):
+        Supported Cloud memory_type values (official v1):
           - episodic_memory  → {"data": {"episodes": [...], "total_count": N}}
           - profile          → {"data": {"profiles": [...], "total_count": N}}
           - agent_case       → {"data": {"agent_cases": [...], "total_count": N}}
           - agent_skill      → {"data": {"agent_skills": [...], "total_count": N}}
-          - foresight        → {"data": {"foresights": [...], "total_count": N}}
 
         Legacy type 'event_log' is mapped to 'episodic_memory' (v1 consolidated).
         """
@@ -441,10 +463,13 @@ class EverMemService:
                 "page_size": min(page_size, 100),
             }
         else:
-            # v1 API does not support event_log type in get endpoint.
-            # Fall back to episodic_memory since v1 consolidates all extracted facts there.
+            # Cloud v1 get supports episodic_memory, profile, agent_case, and agent_skill.
+            # Fall back event_log to episodic_memory since v1 consolidates extracted facts there.
             if memory_type == "event_log":
                 memory_type = "episodic_memory"
+            elif memory_type == "foresight":
+                logger.info("EverMem Cloud get does not support memory_type=foresight.")
+                return []
 
             url = f"{self.api_url}/api/v1/memories/get"
             filters = self._build_filters(user_id=user_id, group_ids=group_ids)
@@ -483,7 +508,7 @@ class EverMemService:
             if not isinstance(data, dict):
                 return []
 
-            # v1 get returns typed arrays: episodes[], profiles[], agent_cases[], agent_skills[], foresights[]
+            # v1 get returns typed arrays: episodes[], profiles[], agent_cases[], agent_skills[]
             # Map memory_type to the expected response key
             type_to_key = {
                 "episodic_memory": "episodes",
@@ -491,7 +516,6 @@ class EverMemService:
                 "agent_case": "agent_cases",
                 "agent_skill": "agent_skills",
                 "event_log": "episodes",  # event_log may come back as episodes
-                "foresight": "foresights",
             }
             response_key = type_to_key.get(memory_type, "episodes")
             memories_list = data.get(response_key, [])
