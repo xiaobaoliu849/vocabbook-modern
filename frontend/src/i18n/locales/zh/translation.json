@@ -384,6 +384,7 @@
         "subtitle": "查看 AI 记住了什么，以及下一步怎么继续帮你。",
         "close": "关闭记忆面板",
         "refresh": "刷新",
+        "manage": "管理",
         "loading": "正在加载学习记忆...",
         "loadFailed": "记忆概览加载失败，请稍后重试。",
         "updatedAt": "更新于 {{time}}",

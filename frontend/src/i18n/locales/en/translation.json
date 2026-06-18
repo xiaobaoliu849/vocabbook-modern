@@ -376,6 +376,7 @@
         "subtitle": "See what the AI has remembered and how it can help next.",
         "close": "Close memory panel",
         "refresh": "Refresh",
+        "manage": "Manage",
         "loading": "Loading learning memory...",
         "loadFailed": "Failed to load memory overview. Please try again.",
         "updatedAt": "Updated at {{time}}",

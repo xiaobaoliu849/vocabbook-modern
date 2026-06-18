@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../context/ToastContext'
-import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages, RotateCw, Search, BookOpen, FileText, Brain, Bot } from 'lucide-react'
+import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages, RotateCw, Search, BookOpen, FileText, Brain, Bot, Settings } from 'lucide-react'
 import { api, API_PATHS, API_BASE_URL, getClientId, getOwnerTokenHeaders } from '../utils/api'
 import AudioButton from '../components/AudioButton'
+import MemoryManagementModal from '../components/MemoryManagementModal'
 import EvermemLogo from '../assets/evermind-powered.svg'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -645,6 +646,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([])
     const [isDragOverComposer, setIsDragOverComposer] = useState(false)
     const [memoryPanelOpen, setMemoryPanelOpen] = useState(false)
+    const [memoryMgmtOpen, setMemoryMgmtOpen] = useState(false)
     const [memoryOverview, setMemoryOverview] = useState<MemoryOverview | null>(null)
     const [memoryOverviewLoading, setMemoryOverviewLoading] = useState(false)
     const [memoryOverviewError, setMemoryOverviewError] = useState<string | null>(null)
@@ -1179,6 +1181,12 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         memoryOverviewRequestRef.current = request
         return request
     }, [evermemEnabled, getApiHeaders, memoryOverview, t])
+
+    const closeMemoryManagement = useCallback(() => {
+        setMemoryMgmtOpen(false)
+        memoryOverviewDirtyRef.current = true
+        void loadMemoryOverview({ force: true, silent: true })
+    }, [loadMemoryOverview])
 
     const getDisplaySessionTitle = (title: string) => {
         if (isDefaultNewChatTitle(title)) return t('chat.session.newChat')
@@ -2087,7 +2095,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 <div className={`absolute inset-y-0 right-0 z-30 w-full max-w-sm border-l border-white/20 dark:border-slate-800/20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${memoryPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                     <div className="flex h-full flex-col">
                         <div className="flex items-start justify-between gap-3 border-b border-slate-200/20 dark:border-slate-700/20 px-6 py-6">
-                            <div>
+                            <div className="min-w-0">
                                 <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                     {t('chat.memory.panel.title')}
                                 </p>
@@ -2101,6 +2109,14 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                 )}
                             </div>
                             <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setMemoryMgmtOpen(true)}
+                                    className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-500 transition-all hover:bg-white/50 hover:text-amber-600 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-amber-400"
+                                    title={t('chat.memory.panel.manage')}
+                                >
+                                    <Settings size={16} />
+                                    <span className="hidden sm:inline">{t('chat.memory.panel.manage')}</span>
+                                </button>
                                 <button
                                     onClick={() => void loadMemoryOverview({ force: true })}
                                     className="rounded-xl p-2.5 text-slate-400 transition-all hover:bg-white/50 dark:hover:bg-slate-800/50 hover:text-amber-500"
@@ -2295,6 +2311,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         </div>
                     </div>
                 </div>
+                <MemoryManagementModal isOpen={memoryMgmtOpen} onClose={closeMemoryManagement} />
 
                 {/* Messages Area */}
                 <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 sm:px-8 py-8 space-y-8 custom-scrollbar scroll-smooth relative z-10">
