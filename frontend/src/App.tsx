@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ThemeProvider } from './context/ThemeContext'
 import { ShortcutProvider, useShortcuts } from './context/ShortcutContext'
@@ -33,16 +33,17 @@ function AppContent() {
   const { t } = useTranslation()
   const { getBindings, isElectron, matches, platform } = useShortcuts()
   const [currentPage, setCurrentPage] = useState<Page>('add')
-  const [mountedPages, setMountedPages] = useState<Page[]>(['add'])
+  const [hasMountedChat, setHasMountedChat] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined)
 
   useEffect(() => {
-    setMountedPages((prev) => (prev.includes(currentPage) ? prev : [...prev, currentPage]))
+    if (currentPage === 'chat') {
+      setHasMountedChat(true)
+    }
   }, [currentPage])
 
-  const mountedPageSet = useMemo(() => new Set(mountedPages), [mountedPages])
-  const shouldRenderPage = (page: Page) => currentPage === page || mountedPageSet.has(page)
+  const shouldRenderPage = (page: Page) => currentPage === page || (page === 'chat' && hasMountedChat)
   const getPageClassName = (page: Page) => (currentPage === page ? '' : 'hidden')
 
   // Global keyboard shortcuts

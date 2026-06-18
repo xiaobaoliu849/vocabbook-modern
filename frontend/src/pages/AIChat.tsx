@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../context/ToastContext'
-import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages, RotateCw, Search, BookOpen, MessageCircle, FileText } from 'lucide-react'
+import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizontal, Eraser, ChevronRight, Paperclip, X, Languages, RotateCw, Search, BookOpen, FileText, Brain, Bot } from 'lucide-react'
 import { api, API_PATHS, API_BASE_URL, getClientId, getOwnerTokenHeaders } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import EvermemLogo from '../assets/evermind-powered.svg'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useAuth } from '../context/AuthContext'
 import { useChatSessionSync } from '../hooks/useChatSessionSync'
 
@@ -13,6 +15,328 @@ const generateId = () => {
         ? crypto.randomUUID()
         : Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9);
 };
+
+const renderChildrenWithCaret = (children: React.ReactNode, isStreaming: boolean): React.ReactNode => {
+    if (!isStreaming) return children
+
+    const processNode = (node: React.ReactNode): { processed: React.ReactNode, found: boolean } => {
+        if (typeof node === 'string') {
+            if (node.endsWith('▋')) {
+                const textWithoutCaret = node.slice(0, -1)
+                return {
+                    processed: (
+                        <>
+                            {textWithoutCaret}
+                            <span className="inline-block w-1.5 h-[1.1em] ml-1 bg-amber-500 dark:bg-amber-400 animate-pulse align-middle rounded-sm shadow-[0_0_8px_#f59e0b] dark:shadow-[0_0_8px_#fbbf24]" />
+                        </>
+                    ),
+                    found: true
+                }
+            }
+            return { processed: node, found: false }
+        }
+
+        if (React.isValidElement<{ children?: React.ReactNode }>(node)) {
+            const childrenArray = React.Children.toArray(node.props.children)
+            if (childrenArray.length > 0) {
+                for (let i = childrenArray.length - 1; i >= 0; i--) {
+                    const { processed, found } = processNode(childrenArray[i])
+                    if (found) {
+                        const newChildren = [...childrenArray]
+                        const replacement = processed === undefined || processed === null || typeof processed === 'boolean'
+                            ? <></>
+                            : processed
+                        newChildren[i] = replacement as (typeof newChildren)[number]
+                        return {
+                            processed: React.cloneElement(node, undefined, ...newChildren),
+                            found: true
+                        }
+                    }
+                }
+            }
+        }
+
+        return { processed: node, found: false }
+    }
+
+    const { processed } = processNode(children)
+    return processed
+}
+
+const sanitizeMermaidCode = (code: string): string => {
+    if (!code) return code
+    
+    // Process line by line to wrap node labels in double quotes.
+    // Mermaid's parser chokes on special characters like ( ) { } [ ] " 
+    // inside unquoted node labels. Wrapping in "..." makes them safe.
+    return code.split('\n').map(line => {
+        const trimmed = line.trim()
+        
+        // Skip empty lines and directive/declaration lines
+        if (!trimmed ||
+            trimmed.startsWith('style ') ||
+            trimmed.startsWith('classDef ') ||
+            trimmed.startsWith('class ') ||
+            trimmed.startsWith('%%') ||
+            trimmed.startsWith('subgraph ') ||
+            trimmed === 'end' ||
+            /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph|journey|mindmap)\b/.test(trimmed)) {
+            return line
+        }
+        
+        let result = line
+        
+        // 1. Wrap content inside [...] node labels in double quotes
+        //    A[text with (parens)] → A["text with (parens)"]
+        result = result.replace(/(\b[A-Za-z]\w*)\[([^\]]+)\]/g, (_m, id, content) => {
+            if (content.startsWith('"') && content.endsWith('"')) return _m
+            return `${id}["${content.replace(/"/g, "'")}"]`
+        })
+        
+        // 2. Wrap content inside {...} diamond nodes in double quotes
+        //    B{question?} → B{"question?"}
+        result = result.replace(/(\b[A-Za-z]\w*)\{([^}]+)\}/g, (_m, id, content) => {
+            if (content.startsWith('"') && content.endsWith('"')) return _m
+            return `${id}{"${content.replace(/"/g, "'")}"}` 
+        })
+        
+        // 3. Wrap content inside (...) rounded rect nodes in double quotes
+        //    C(text) → C("text")
+        //    Skip known Mermaid directives that use parens
+        result = result.replace(/(\b[A-Za-z]\w*)\(([^)]+)\)/g, (_m, id, content) => {
+            if (content.startsWith('"') && content.endsWith('"')) return _m
+            if (['fill', 'stroke', 'style', 'click', 'class', 'classDef', 'linkStyle'].includes(id)) return _m
+            return `${id}("${content.replace(/"/g, "'")}")`
+        })
+        
+        // 4. Sanitize link labels: -->|text| — convert " to ' inside 
+        result = result.replace(/(-->\|)([^|]+)(\|)/g, (_m, open, content, close) => {
+            return `${open}${content.replace(/"/g, "'")}${close}`
+        })
+        
+        return result
+    }).join('\n')
+}
+
+const Mermaid: React.FC<{ chartCode: string }> = ({ chartCode }) => {
+    const [svg, setSvg] = useState<string>('')
+    const [error, setError] = useState<string | null>(null)
+    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+
+    useEffect(() => {
+        const observer = new MutationObserver(() => {
+            setIsDark(document.documentElement.classList.contains('dark'))
+        })
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+        return () => observer.disconnect()
+    }, [])
+
+    useEffect(() => {
+        let isMounted = true
+        const renderId = `mermaid-${Math.random().toString(36).substring(2, 9)}`
+        
+        const renderChart = async () => {
+            try {
+                const { default: mermaid } = await import('mermaid')
+                if (!isMounted) return
+
+                // Initialize mermaid with correct theme (dark / default)
+                mermaid.initialize({
+                    startOnLoad: false,
+                    theme: isDark ? 'dark' : 'default',
+                    themeVariables: isDark ? {
+                        background: '#1e293b', // slate-800
+                        primaryColor: '#f59e0b', // amber-500
+                        primaryTextColor: '#f8fafc',
+                        lineColor: '#475569',
+                    } : {
+                        background: '#f8fafc', // slate-50
+                        primaryColor: '#d97706', // amber-600
+                        primaryTextColor: '#0f172a',
+                        lineColor: '#cbd5e1',
+                    },
+                    securityLevel: 'loose',
+                })
+                
+                const cleanCode = sanitizeMermaidCode(chartCode.trim())
+                if (!cleanCode) return
+
+                setError(null)
+                const { svg: renderedSvg } = await mermaid.render(renderId, cleanCode)
+                
+                if (isMounted) {
+                    setSvg(renderedSvg)
+                }
+            } catch (err: any) {
+                console.error("Mermaid parsing error:", err)
+                const badElement = document.getElementById(renderId)
+                if (badElement) {
+                    badElement.remove()
+                }
+                
+                if (isMounted) {
+                    setError(err?.message || "Failed to parse Mermaid diagram")
+                }
+            }
+        }
+
+        renderChart()
+
+        return () => {
+            isMounted = false
+        }
+    }, [chartCode, isDark])
+
+    if (error) {
+        return (
+            <div className="my-3 rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-xs font-mono text-red-600 dark:text-red-400">
+                <div className="font-bold mb-2">⚠️ Diagram Render Error:</div>
+                <pre className="overflow-x-auto whitespace-pre-wrap">{chartCode}</pre>
+                <div className="mt-2 text-[10px] text-slate-500">{error}</div>
+            </div>
+        )
+    }
+
+    if (!svg) {
+        return (
+            <div className="my-3 flex items-center justify-center p-8 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/30">
+                <div className="animate-pulse flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
+                    <span className="h-4 w-4 rounded-full border-2 border-slate-400 dark:border-slate-500 border-t-transparent animate-spin"></span>
+                    Rendering Diagram...
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div 
+            className="my-3 p-4 flex justify-center overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 shadow-sm"
+            dangerouslySetInnerHTML={{ __html: svg }}
+        />
+    )
+}
+
+const createMarkdownComponents = (isStreaming: boolean, isUser: boolean = false) => ({
+    p: ({ children }: any) => (
+        <p className={`mb-3 last:mb-0 leading-[1.6] ${isUser ? '' : 'text-slate-800 dark:text-slate-200'}`}>
+            {renderChildrenWithCaret(children, isStreaming)}
+        </p>
+    ),
+    ul: ({ children }: any) => (
+        <ul className={`list-disc pl-5 mb-3 space-y-1 ${isUser ? '' : 'text-slate-800 dark:text-slate-200'}`}>
+            {children}
+        </ul>
+    ),
+    ol: ({ children }: any) => (
+        <ol className={`list-decimal pl-5 mb-3 space-y-1 ${isUser ? '' : 'text-slate-800 dark:text-slate-200'}`}>
+            {children}
+        </ol>
+    ),
+    li: ({ children }: any) => (
+        <li className={isUser ? '' : 'text-slate-800 dark:text-slate-200'}>
+            {renderChildrenWithCaret(children, isStreaming)}
+        </li>
+    ),
+    h1: ({ children }: any) => (
+        <h1 className={`text-xl font-bold mt-4 mb-2 ${isUser ? '' : 'text-slate-900 dark:text-white'}`}>
+            {renderChildrenWithCaret(children, isStreaming)}
+        </h1>
+    ),
+    h2: ({ children }: any) => (
+        <h2 className={`text-lg font-bold mt-3 mb-2 ${isUser ? '' : 'text-slate-900 dark:text-white'}`}>
+            {renderChildrenWithCaret(children, isStreaming)}
+        </h2>
+    ),
+    h3: ({ children }: any) => (
+        <h3 className={`text-base font-bold mt-2 mb-1 ${isUser ? '' : 'text-slate-900 dark:text-white'}`}>
+            {renderChildrenWithCaret(children, isStreaming)}
+        </h3>
+    ),
+    blockquote: ({ children }: any) => (
+        <blockquote className={`border-l-4 border-amber-500/80 pl-4 italic my-3 ${isUser ? '' : 'text-slate-600 dark:text-slate-400'}`}>
+            {children}
+        </blockquote>
+    ),
+    hr: () => (
+        <hr className="my-4 border-t border-slate-200 dark:border-slate-800" />
+    ),
+    a: ({ href, children }: any) => (
+        <a 
+            href={href} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className={`font-medium inline-flex items-center gap-0.5 hover:underline ${isUser ? 'text-amber-300 dark:text-amber-600' : 'text-amber-600 dark:text-amber-400'}`}
+        >
+            {renderChildrenWithCaret(children, isStreaming)}
+        </a>
+    ),
+    pre: ({ children }: any) => {
+        const isMermaid = children && children.props && children.props.className === 'language-mermaid';
+        if (isMermaid) {
+            return <>{children}</>;
+        }
+        return (
+            <pre className="bg-slate-950/80 dark:bg-slate-900/80 rounded-xl p-4 my-3 overflow-x-auto border border-slate-800 dark:border-slate-700/50 custom-scrollbar">
+                {children}
+            </pre>
+        );
+    },
+    code: ({ className, children, ...props }: any) => {
+        const isInline = !className
+        const processedChildren = renderChildrenWithCaret(children, isStreaming)
+        if (!isInline && className === 'language-mermaid') {
+            const chartCode = String(children).replace(/▋$/, '').trim();
+            if (isStreaming) {
+                return (
+                    <div className="my-3 rounded-xl border border-slate-200/50 dark:border-slate-800/50 bg-slate-950/90 dark:bg-slate-900/90 p-4">
+                        <div className="text-[10px] text-amber-500 uppercase tracking-wider mb-2 font-mono flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+                            Streaming Diagram Code...
+                        </div>
+                        <pre className="text-xs text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap">{chartCode}</pre>
+                    </div>
+                )
+            }
+            return <Mermaid chartCode={chartCode} />
+        }
+        return isInline ? (
+            <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-amber-600 dark:text-amber-400 font-semibold" {...props}>
+                {processedChildren}
+            </code>
+        ) : (
+            <code className={`${className || ''} font-mono text-xs text-slate-200 block`} {...props}>
+                {processedChildren}
+            </code>
+        )
+    },
+    table: ({ children }: any) => (
+        <div className={`overflow-x-auto my-3 border rounded-xl shadow-sm ${isUser ? 'border-white/20' : 'border-slate-200 dark:border-slate-700/60'}`}>
+            <table className="w-full border-collapse text-sm">
+                {children}
+            </table>
+        </div>
+    ),
+    thead: ({ children }: any) => (
+        <thead className={isUser ? 'bg-white/10' : 'bg-slate-100/80 dark:bg-slate-800/50'}>
+            {children}
+        </thead>
+    ),
+    tr: ({ children }: any) => (
+        <tr className={`transition-colors ${isUser ? 'even:bg-white/5 hover:bg-white/10' : 'even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-50 dark:hover:bg-slate-800/35'}`}>
+            {children}
+        </tr>
+    ),
+    th: ({ children }: any) => (
+        <th className={`border-b p-2.5 text-left font-bold ${isUser ? 'border-white/20 text-white dark:text-slate-900' : 'border-slate-200 dark:border-slate-700/60 text-slate-900 dark:text-white'}`}>
+            {renderChildrenWithCaret(children, isStreaming)}
+        </th>
+    ),
+    td: ({ children }: any) => (
+        <td className={`border-b p-2.5 text-left ${isUser ? 'border-white/10' : 'border-slate-200/50 dark:border-slate-700/30'}`}>
+            {renderChildrenWithCaret(children, isStreaming)}
+        </td>
+    )
+})
 
 const CHAT_SCOPE_SEPARATOR = '::'
 
@@ -106,6 +430,178 @@ interface MemoryOverview {
     suggestions: string[]
 }
 
+interface ChatMessageItemProps {
+    msg: Message
+    isStreaming: boolean
+    displayContent: string
+    displayReasoning?: string
+    isReasoningExpanded: boolean
+    showLoading: boolean
+    reasoningTitle: string
+    reasoningCollapse: string
+    reasoningExpand: string
+    thinkingLabel: string
+    memorySavedLabel: string
+    memoryRetrievedLabel: string
+    onToggleReasoning: (messageId: string) => void
+}
+
+const ChatMessageItem = React.memo(function ChatMessageItem({
+    msg,
+    isStreaming,
+    displayContent,
+    displayReasoning,
+    isReasoningExpanded,
+    showLoading,
+    reasoningTitle,
+    reasoningCollapse,
+    reasoningExpand,
+    thinkingLabel,
+    memorySavedLabel,
+    memoryRetrievedLabel,
+    onToggleReasoning,
+}: ChatMessageItemProps) {
+    const mdComponents = useMemo(
+        () => createMarkdownComponents(isStreaming, msg.role === 'user'),
+        [isStreaming, msg.role]
+    )
+
+    const hasReasoning = Boolean(displayReasoning && displayReasoning.trim())
+
+    return (
+        <div className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+            {msg.role === 'assistant' && (
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md text-amber-600 dark:text-amber-400 shadow-lg shadow-slate-200/10 dark:shadow-black/20 border border-white/50 dark:border-slate-700/50 self-start mt-1">
+                    {hasReasoning ? (
+                        <Brain className={`w-5 h-5 ${isStreaming && !displayContent ? 'animate-pulse' : ''}`} />
+                    ) : (
+                        <Bot className="w-5 h-5" />
+                    )}
+                </div>
+            )}
+
+            <div className="flex flex-col gap-2 max-w-[85%] md:max-w-[80%]">
+                <div className={`px-5 py-3.5 text-[15px] leading-[1.6] relative transition-all
+                    ${msg.role === 'user'
+                        ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-[22px] rounded-tr-[4px] shadow-xl shadow-slate-900/10 dark:shadow-black/20 border border-slate-800 dark:border-white whitespace-pre-wrap'
+                        : 'bg-white/60 dark:bg-slate-800/60 backdrop-blur-2xl text-slate-800 dark:text-slate-200 rounded-[22px] rounded-tl-[4px] border border-white/60 dark:border-slate-700/60 shadow-sm'
+                    }`}
+                >
+                    {msg.attachments && msg.attachments.length > 0 && (
+                        <div className={`mb-3 grid gap-2 ${msg.attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            {msg.attachments.map(attachment => (
+                                <div
+                                    key={attachment.id}
+                                    className={`overflow-hidden rounded-xl border ${msg.role === 'user'
+                                        ? 'border-white/20 bg-white/10'
+                                        : 'border-slate-200/50 bg-white dark:border-slate-700/50 dark:bg-slate-900/60'
+                                        }`}
+                                >
+                                    {attachment.fileType === 'document' ? (
+                                        <div className="flex items-center gap-3 p-3">
+                                            <FileText className="h-8 w-8 flex-shrink-0 text-amber-600" />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="truncate text-sm font-medium">{attachment.name}</div>
+                                                <div className="text-xs opacity-60">{attachment.size ? `${(attachment.size / 1024).toFixed(0)} KB` : ''} · PDF</div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <img
+                                            src={attachment.dataUrl}
+                                            alt={attachment.name}
+                                            className="block max-h-64 w-full object-cover"
+                                        />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {displayContent || hasReasoning ? (
+                        <div className="space-y-3">
+                            {msg.role === 'assistant' && hasReasoning && (
+                                <div className="rounded-xl border border-amber-200/40 dark:border-amber-700/30 bg-amber-50/40 dark:bg-amber-900/10 overflow-hidden">
+                                    <button
+                                        type="button"
+                                        onClick={() => onToggleReasoning(msg.id)}
+                                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-amber-100/40 dark:hover:bg-amber-800/20 transition-colors"
+                                    >
+                                        <span className="flex items-center gap-2 min-w-0 text-amber-700 dark:text-amber-300 text-[13px] font-bold">
+                                            <ChevronRight
+                                                size={14}
+                                                className={`shrink-0 transition-transform duration-200 ${isReasoningExpanded ? 'rotate-90' : ''}`}
+                                            />
+                                            <span className="truncate">{reasoningTitle}</span>
+                                        </span>
+                                        <span className="shrink-0 text-[10px] font-bold text-amber-400 dark:text-amber-500 uppercase tracking-wider">
+                                            {isReasoningExpanded ? reasoningCollapse : reasoningExpand}
+                                        </span>
+                                    </button>
+                                    <div
+                                        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${isReasoningExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+                                    >
+                                        <div className="overflow-hidden">
+                                            {isReasoningExpanded && (
+                                                <div className="border-t border-amber-200/40 dark:border-amber-700/30 px-3 py-2 text-[13px] leading-relaxed text-amber-700/80 dark:text-amber-200/80 max-h-[20rem] overflow-y-auto custom-scrollbar italic">
+                                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                                                        {(displayReasoning || '') + (isStreaming && !displayContent ? '▋' : '')}
+                                                    </ReactMarkdown>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {displayContent && (
+                                <div className="tracking-normal">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                                        {displayContent + (isStreaming ? '▋' : '')}
+                                    </ReactMarkdown>
+                                </div>
+                            )}
+                            {msg.role === 'assistant' && displayContent && !isStreaming && (
+                                <div className="mt-3 flex items-center justify-end border-t border-slate-200/30 dark:border-slate-700/30 pt-2">
+                                    <AudioButton
+                                        text={displayContent}
+                                        useTTS={true}
+                                        size={14}
+                                        className="!p-2 hover:bg-white dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-lg text-slate-400 hover:text-primary-600 dark:text-slate-500 dark:hover:text-primary-400 transition-all"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        msg.role === 'assistant' && showLoading && (
+                            <div className="flex gap-2 items-center h-6">
+                                <div className="flex gap-1">
+                                    <div className="w-1.5 h-1.5 bg-amber-400 dark:bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-amber-400 dark:bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-amber-400 dark:bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                </div>
+                                <span className="text-xs font-bold text-amber-500/80 dark:text-amber-400/80 uppercase tracking-widest animate-pulse">
+                                    {thinkingLabel}
+                                </span>
+                            </div>
+                        )
+                    )}
+                </div>
+
+                <div className={`flex items-center gap-3 px-1 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {msg.role === 'user' && msg.memorySaved && (
+                        <span className="text-[10px] text-amber-500/80 dark:text-amber-400/80 flex items-center gap-1 font-bold uppercase tracking-wider">
+                            <div className="h-1 w-1 rounded-full bg-amber-500 animate-pulse" /> {memorySavedLabel}
+                        </span>
+                    )}
+                    {msg.role === 'assistant' && (msg.memoriesUsed || 0) > 0 && (
+                        <span className="text-[10px] text-amber-500/80 dark:text-amber-400/80 flex items-center gap-1 font-bold uppercase tracking-wider">
+                            <Sparkles size={10} /> {memoryRetrievedLabel}
+                        </span>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+})
+
 export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boolean, onOpenTranslation?: () => void }) {
     const { t } = useTranslation()
     const { toast, confirmDialog } = useToast()
@@ -143,6 +639,9 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     // Memory activity toast
     const [memoryToast, setMemoryToast] = useState<string | null>(null)
     const [expandedReasoning, setExpandedReasoning] = useState<Record<string, boolean>>({})
+    const toggleReasoning = useCallback((messageId: string) => {
+        setExpandedReasoning(prev => ({ ...prev, [messageId]: !prev[messageId] }))
+    }, [])
     const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([])
     const [isDragOverComposer, setIsDragOverComposer] = useState(false)
     const [memoryPanelOpen, setMemoryPanelOpen] = useState(false)
@@ -155,6 +654,28 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const memoryOverviewLastFetchedAtRef = useRef<number>(0)
     const memoryOverviewDirtyRef = useRef(false)
     const memoryOverviewRefreshTimerRef = useRef<number | null>(null)
+
+    // Typing animation & Streaming Caret tracking
+    const activeTypingTimerRef = useRef<number | null>(null)
+    const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null)
+    const [streamingContent, setStreamingContent] = useState('')
+    const [streamingReasoning, setStreamingReasoning] = useState('')
+
+    useEffect(() => {
+        return () => {
+            if (activeTypingTimerRef.current !== null) {
+                window.clearInterval(activeTypingTimerRef.current)
+            }
+        }
+    }, [])
+
+    // Auto-grow textarea height as the user types
+    useEffect(() => {
+        const textarea = inputRef.current
+        if (!textarea) return
+        textarea.style.height = 'auto'
+        textarea.style.height = `${textarea.scrollHeight}px`
+    }, [input])
 
     const MAX_ATTACHMENTS = 3
     const MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -850,6 +1371,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         const targetSessionId = activeSessionId
         const userContent = input.trim()
         let botMsgId: string | null = null
+        let typingTimer: number | null = null
 
         // Presign all pending attachments to Evermind S3
         let uploadedAttachments: Attachment[] = []
@@ -981,22 +1503,71 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             const decoder = new TextDecoder()
             let done = false
             let sseBuffer = ''
-            let botContent = ''
-            let botReasoning = ''
+            let targetContent = ''
+            let targetReasoning = ''
+            let typedContent = ''
+            let typedReasoning = ''
             let memoriesRetrieved = 0
             let memorySaved = false
-            let streamFlushTimer: number | null = null
-            const STREAM_FLUSH_MS = 120
 
-            const applyBotStreamUpdate = () => {
+            // Set the active streaming message ID
+            setStreamingMsgId(botMsgId)
+            setStreamingContent('')
+            setStreamingReasoning('')
+
+            // Start typing animation loop
+            typingTimer = window.setInterval(() => {
+                let hasChanges = false
+                if (typedReasoning.length < targetReasoning.length) {
+                    const diff = targetReasoning.length - typedReasoning.length
+                    let step = 1
+                    if (diff > 80) step = Math.floor(Math.random() * 4) + 8
+                    else if (diff > 40) step = Math.floor(Math.random() * 3) + 5
+                    else if (diff > 15) step = Math.floor(Math.random() * 2) + 2
+                    else if (diff > 0) step = 1
+
+                    typedReasoning += targetReasoning.substring(typedReasoning.length, typedReasoning.length + step)
+                    hasChanges = true
+                } else if (typedContent.length < targetContent.length) {
+                    const diff = targetContent.length - typedContent.length
+                    let step = 1
+                    if (diff > 80) step = Math.floor(Math.random() * 4) + 8
+                    else if (diff > 40) step = Math.floor(Math.random() * 3) + 5
+                    else if (diff > 15) step = Math.floor(Math.random() * 2) + 2
+                    else if (diff > 0) step = 1
+
+                    typedContent += targetContent.substring(typedContent.length, typedContent.length + step)
+                    hasChanges = true
+                }
+
+                if (hasChanges) {
+                    setStreamingContent(typedContent)
+                    setStreamingReasoning(typedReasoning)
+                    scrollToBottom(true)
+                }
+            }, 25)
+            activeTypingTimerRef.current = typingTimer
+
+            const flushBotStreamUpdate = () => {
+                if (typingTimer !== null) {
+                    window.clearInterval(typingTimer)
+                    typingTimer = null
+                }
+                activeTypingTimerRef.current = null
+                typedContent = targetContent
+                typedReasoning = targetReasoning
+
+                setStreamingContent(typedContent)
+                setStreamingReasoning(typedReasoning)
+
                 setSessions(prev => prev.map(s => {
                     if (s.id === targetSessionId) {
                         const updatedMessages = s.messages.map(m =>
                             m.id === botMsgId
                                 ? {
                                     ...m,
-                                    content: botContent,
-                                    reasoningContent: botReasoning
+                                    content: typedContent,
+                                    reasoningContent: typedReasoning
                                 }
                                 : m
                         )
@@ -1004,23 +1575,6 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                     }
                     return s
                 }))
-            }
-
-            const scheduleBotStreamUpdate = () => {
-                if (streamFlushTimer !== null) return
-                streamFlushTimer = window.setTimeout(() => {
-                    streamFlushTimer = null
-                    applyBotStreamUpdate()
-                    scrollToBottom(true)
-                }, STREAM_FLUSH_MS)
-            }
-
-            const flushBotStreamUpdate = () => {
-                if (streamFlushTimer !== null) {
-                    window.clearTimeout(streamFlushTimer)
-                    streamFlushTimer = null
-                }
-                applyBotStreamUpdate()
                 scrollToBottom(true)
             }
 
@@ -1030,12 +1584,13 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                     const data = JSON.parse(payload)
                     if (data.type === 'token') {
                         const tokenChunk = typeof data.content === 'string' ? data.content : ''
-                        botContent += tokenChunk
-                        scheduleBotStreamUpdate()
+                        targetContent += tokenChunk
                     } else if (data.type === 'reasoning') {
                         const reasoningChunk = typeof data.content === 'string' ? data.content : ''
-                        botReasoning += reasoningChunk
-                        scheduleBotStreamUpdate()
+                        targetReasoning += reasoningChunk
+                        if (botMsgId) {
+                            setExpandedReasoning(prev => prev[botMsgId!] ? prev : { ...prev, [botMsgId!]: true })
+                        }
                     } else if (data.type === 'done') {
                         memoriesRetrieved = data.memories_retrieved || 0
                         memorySaved = data.memory_saved || false
@@ -1100,16 +1655,16 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         if (lastBotIdx >= 0) {
                             updatedMessages[lastBotIdx] = {
                                 ...updatedMessages[lastBotIdx],
-                                content: botContent,
-                                reasoningContent: botReasoning,
+                                content: targetContent,
+                                reasoningContent: targetReasoning,
                                 memoriesUsed: memoriesRetrieved
                             }
-                        } else if (botContent || botReasoning) {
+                        } else if (targetContent || targetReasoning) {
                             updatedMessages.push({
                                 id: botMsgId || generateId(),
                                 role: 'assistant',
-                                content: botContent,
-                                reasoningContent: botReasoning,
+                                content: targetContent,
+                                reasoningContent: targetReasoning,
                                 timestamp: Date.now(),
                                 memoriesUsed: memoriesRetrieved
                             })
@@ -1145,6 +1700,11 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             }
         } catch (error: unknown) {
             console.error('Chat stream failed:', error)
+            if (typingTimer !== null) {
+                window.clearInterval(typingTimer)
+                typingTimer = null
+            }
+            activeTypingTimerRef.current = null
             setSessions(prev => {
                 const updated = prev.map(s => {
                     if (s.id === targetSessionId) {
@@ -1177,7 +1737,13 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 return updated
             })
         } finally {
+            if (typingTimer !== null) {
+                window.clearInterval(typingTimer)
+                typingTimer = null
+            }
+            activeTypingTimerRef.current = null
             setLoading(false)
+            setStreamingMsgId(null)
         }
     }
 
@@ -1788,130 +2354,30 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         </div>
                     )}
 
-                    {messages.map((msg) => (
-                        <div
-                            key={msg.id}
-                            className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-                        >
-                            {msg.role === 'assistant' && (
-                                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md text-amber-600 dark:text-amber-400 shadow-lg shadow-slate-200/10 dark:shadow-black/20 border border-white/50 dark:border-slate-700/50 self-start mt-1">
-                                    <img src={EvermemLogo} className="w-5 h-5 object-contain" alt="Evermem" />
-                                </div>
-                            )}
+                    {messages.map((msg) => {
+                        const isStreamingThis = msg.id === streamingMsgId
+                        const displayContent = isStreamingThis ? streamingContent : msg.content
+                        const displayReasoning = isStreamingThis ? streamingReasoning : msg.reasoningContent
 
-                            <div className={`flex flex-col gap-2 max-w-[85%] md:max-w-[80%]`}>
-                                <div className={`px-5 py-3.5 text-[15px] leading-[1.6] whitespace-pre-wrap relative transition-all
-                                    ${msg.role === 'user'
-                                        ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-[22px] rounded-tr-[4px] shadow-xl shadow-slate-900/10 dark:shadow-black/20 border border-slate-800 dark:border-white'
-                                        : 'bg-white/60 dark:bg-slate-800/60 backdrop-blur-2xl text-slate-800 dark:text-slate-200 rounded-[22px] rounded-tl-[4px] border border-white/60 dark:border-slate-700/60 shadow-sm'
-                                    }`}
-                                >
-                                    {msg.attachments && msg.attachments.length > 0 && (
-                                        <div className={`mb-3 grid gap-2 ${msg.attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                                            {msg.attachments.map(attachment => (
-                                                <div
-                                                    key={attachment.id}
-                                                    className={`overflow-hidden rounded-xl border ${msg.role === 'user'
-                                                        ? 'border-white/20 bg-white/10'
-                                                        : 'border-slate-200/50 bg-white dark:border-slate-700/50 dark:bg-slate-900/60'
-                                                        }`}
-                                                >
-                                                    {attachment.fileType === 'document' ? (
-                                                        <div className="flex items-center gap-3 p-3">
-                                                            <FileText className="h-8 w-8 flex-shrink-0 text-amber-600" />
-                                                            <div className="min-w-0 flex-1">
-                                                                <div className="truncate text-sm font-medium">{attachment.name}</div>
-                                                                <div className="text-xs opacity-60">{attachment.size ? `${(attachment.size / 1024).toFixed(0)} KB` : ''} · PDF</div>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <img
-                                                            src={attachment.dataUrl}
-                                                            alt={attachment.name}
-                                                            className="block max-h-64 w-full object-cover"
-                                                        />
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {msg.content || (msg.reasoningContent && msg.reasoningContent.trim()) ? (
-                                        <div className="space-y-3">
-                                            {msg.role === 'assistant' && msg.reasoningContent && msg.reasoningContent.trim() && (
-                                                <div className="rounded-xl border border-amber-200/40 dark:border-amber-700/30 bg-amber-50/40 dark:bg-amber-900/10 overflow-hidden">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setExpandedReasoning(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))}
-                                                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-amber-100/40 dark:hover:bg-amber-800/20 transition-colors"
-                                                    >
-                                                        <span className="flex items-center gap-2 min-w-0 text-amber-700 dark:text-amber-300 text-[13px] font-bold">
-                                                            <ChevronRight
-                                                                size={14}
-                                                                className={`shrink-0 transition-transform duration-200 ${expandedReasoning[msg.id] ? 'rotate-90' : ''}`}
-                                                            />
-                                                            <span className="truncate">{t('chat.reasoning.title')}</span>
-                                                        </span>
-                                                        <span className="shrink-0 text-[10px] font-bold text-amber-400 dark:text-amber-500 uppercase tracking-wider">
-                                                            {expandedReasoning[msg.id] ? t('chat.reasoning.collapse') : t('chat.reasoning.expand')}
-                                                        </span>
-                                                    </button>
-                                                    <div
-                                                        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${expandedReasoning[msg.id] ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
-                                                    >
-                                                        <div className="overflow-hidden">
-                                                            {expandedReasoning[msg.id] && (
-                                                                <div className="border-t border-amber-200/40 dark:border-amber-700/30 px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-amber-700/80 dark:text-amber-200/80 max-h-[20rem] overflow-y-auto custom-scrollbar italic">
-                                                                    {msg.reasoningContent}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {msg.content && <div className="tracking-normal">{msg.content}</div>}
-                                            {msg.role === 'assistant' && msg.content && (
-                                                <div className="mt-3 flex items-center justify-end border-t border-slate-200/30 dark:border-slate-700/30 pt-2">
-                                                    <AudioButton
-                                                        text={msg.content}
-                                                        useTTS={true}
-                                                        size={14}
-                                                        className="!p-2 hover:bg-white dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-lg text-slate-400 hover:text-primary-600 dark:text-slate-500 dark:hover:text-primary-400 transition-all"
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        msg.role === 'assistant' && loading && (
-                                            <div className="flex gap-2 items-center h-6">
-                                                <div className="flex gap-1">
-                                                    <div className="w-1.5 h-1.5 bg-amber-400 dark:bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                                    <div className="w-1.5 h-1.5 bg-amber-400 dark:bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                                    <div className="w-1.5 h-1.5 bg-amber-400 dark:bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                                                </div>
-                                                <span className="text-xs font-bold text-amber-500/80 dark:text-amber-400/80 uppercase tracking-widest animate-pulse">
-                                                    {t('chat.loading.thinking')}
-                                                </span>
-                                            </div>
-                                        )
-                                    )}
-                                </div>
-
-                                {/* Memory indicators */}
-                                <div className={`flex items-center gap-3 px-1 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    {msg.role === 'user' && msg.memorySaved && (
-                                        <span className="text-[10px] text-amber-500/80 dark:text-amber-400/80 flex items-center gap-1 font-bold uppercase tracking-wider">
-                                            <div className="h-1 w-1 rounded-full bg-amber-500 animate-pulse" /> {t('chat.memory.savedIndicator')}
-                                        </span>
-                                    )}
-                                    {msg.role === 'assistant' && (msg.memoriesUsed || 0) > 0 && (
-                                        <span className="text-[10px] text-amber-500/80 dark:text-amber-400/80 flex items-center gap-1 font-bold uppercase tracking-wider">
-                                            <Sparkles size={10} /> {t('chat.memory.retrievedIndicator', { count: msg.memoriesUsed })}
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+                        return (
+                            <ChatMessageItem
+                                key={msg.id}
+                                msg={msg}
+                                isStreaming={isStreamingThis}
+                                displayContent={displayContent}
+                                displayReasoning={displayReasoning}
+                                isReasoningExpanded={Boolean(expandedReasoning[msg.id])}
+                                showLoading={isStreamingThis && loading}
+                                reasoningTitle={t('chat.reasoning.title')}
+                                reasoningCollapse={t('chat.reasoning.collapse')}
+                                reasoningExpand={t('chat.reasoning.expand')}
+                                thinkingLabel={t('chat.loading.thinking')}
+                                memorySavedLabel={t('chat.memory.savedIndicator')}
+                                memoryRetrievedLabel={t('chat.memory.retrievedIndicator', { count: msg.memoriesUsed || 0 })}
+                                onToggleReasoning={toggleReasoning}
+                            />
+                        )
+                    })}
 
                     <div ref={messagesEndRef} className="h-4" />
                 </div>
