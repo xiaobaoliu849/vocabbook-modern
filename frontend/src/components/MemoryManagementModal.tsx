@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { X, Trash2, AlertTriangle, RefreshCcw, Database } from 'lucide-react'
@@ -27,6 +27,12 @@ const MEMORY_TYPES: MemoryType[] = [
 ]
 
 const PAGE_SIZE = 20
+const CACHE_TTL_MS = 60_000
+
+interface MemoryCacheEntry {
+    items: MemoryItem[]
+    loadedAt: number
+}
 
 function formatMemoryTimestamp(ts: number | null | undefined): string {
     if (!ts) return ''
@@ -48,31 +54,53 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
     const [confirmClear, setConfirmClear] = useState(false)
     const [clearing, setClearing] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const cacheRef = useRef<Map<string, MemoryCacheEntry>>(new Map())
     const configured = isEvermemConfigured()
     const selfHosted = isEvermemSelfHosted()
 
-    const load = useCallback(async (type: MemoryType, p: number) => {
+    const getCacheKey = useCallback((type: MemoryType, p: number) => `${type}:${p}`, [])
+
+    const applyItems = useCallback((nextItems: MemoryItem[]) => {
+        setItems(nextItems)
+        setEmptyHint(nextItems.length === 0)
+    }, [])
+
+    const load = useCallback(async (type: MemoryType, p: number, options?: { force?: boolean }) => {
         if (!configured) return
-        setLoading(true)
+        const force = options?.force === true
+        const key = getCacheKey(type, p)
+        const cached = cacheRef.current.get(key)
+        const fresh = cached && Date.now() - cached.loadedAt < CACHE_TTL_MS
+
         setError(null)
         setEmptyHint(false)
+        if (cached && !force) {
+            applyItems(cached.items)
+            if (fresh) return
+        }
+
+        setLoading(!cached || force)
+        setError(null)
         try {
             const resp = await listMemoriesApi(token, type, p, PAGE_SIZE)
-            setItems(resp.items || [])
-            if (!resp.items || resp.items.length === 0) setEmptyHint(true)
+            const nextItems = resp.items || []
+            cacheRef.current.set(key, { items: nextItems, loadedAt: Date.now() })
+            applyItems(nextItems)
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
             setError(msg)
-            setItems([])
+            if (!cached) {
+                setItems([])
+                setEmptyHint(false)
+            }
         } finally {
             setLoading(false)
         }
-    }, [configured, token])
+    }, [applyItems, configured, getCacheKey, token])
 
     useEffect(() => {
         if (!isOpen) return
         setPage(1)
-        setItems([])
         setError(null)
         if (configured) {
             void load(memoryType, 1)
@@ -99,7 +127,15 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
         setDeletingId(memoryId)
         try {
             await deleteMemoryApi(token, memoryId)
-            setItems((prev) => prev.filter((it) => it.memory_id !== memoryId))
+            const removeDeleted = (prev: MemoryItem[]) => prev.filter((it) => it.memory_id !== memoryId)
+            cacheRef.current.forEach((entry, key) => {
+                cacheRef.current.set(key, { ...entry, items: removeDeleted(entry.items) })
+            })
+            setItems((prev) => {
+                const nextItems = removeDeleted(prev)
+                setEmptyHint(nextItems.length === 0)
+                return nextItems
+            })
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
             setError(msg)
@@ -112,6 +148,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
         setClearing(true)
         try {
             await clearMemoriesApi(token)
+            cacheRef.current.clear()
             setItems([])
             setEmptyHint(true)
             setConfirmClear(false)
@@ -124,7 +161,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
     }
 
     const handleRefresh = () => {
-        void load(memoryType, page)
+        void load(memoryType, page, { force: true })
     }
 
     const nextPage = () => {

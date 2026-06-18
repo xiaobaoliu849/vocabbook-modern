@@ -2111,8 +2111,9 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={() => setMemoryMgmtOpen(true)}
-                                    className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-500 transition-all hover:bg-white/50 hover:text-amber-600 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-amber-400"
+                                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-xs font-bold text-slate-500 transition-all hover:bg-white/50 hover:text-amber-600 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-amber-400"
                                     title={t('chat.memory.panel.manage')}
+                                    aria-label={t('chat.memory.panel.manage')}
                                 >
                                     <Settings size={16} />
                                     <span className="hidden sm:inline">{t('chat.memory.panel.manage')}</span>
