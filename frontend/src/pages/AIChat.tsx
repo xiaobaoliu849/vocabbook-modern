@@ -1978,17 +1978,17 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         </button>
 
                         <div className="flex items-center gap-2.5 min-w-0">
-                            <h2 className="text-sm font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5 flex-shrink-0">
+                            <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5 flex-shrink-0">
                                 <span>{t('chat.header.title')}</span>
                             </h2>
                             <span className="text-slate-200 dark:text-slate-800 text-xs">|</span>
                             <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100/80 dark:bg-slate-800/80 text-[9px] font-bold text-slate-500 dark:text-slate-400 border border-slate-200/20 dark:border-slate-700/20">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100/80 dark:bg-slate-800/80 text-[11px] font-bold text-slate-500 dark:text-slate-400 border border-slate-200/20 dark:border-slate-700/20">
                                     <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
                                     <span className="truncate max-w-[120px]">{model || t('chat.header.defaultModel')}</span>
                                 </span>
                                 {evermemEnabled && (
-                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-[9px] font-black text-amber-600 dark:text-amber-400 border border-amber-500/20 dark:border-amber-800/20 tracking-wider uppercase">
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 text-[11px] font-black text-amber-600 dark:text-amber-400 border border-amber-500/20 dark:border-amber-800/20 tracking-wider uppercase">
                                         <img src={EvermemLogo} className="w-3 h-3 object-contain" alt="Evermem" />
                                         EVERMIND ACTIVE
                                     </span>
@@ -2001,7 +2001,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         {onOpenTranslation && (
                             <button
                                 onClick={onOpenTranslation}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200/50 bg-white/30 text-[11px] font-bold text-slate-600 transition-all hover:bg-white/60 hover:border-primary-200 dark:border-slate-700/50 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60 shadow-sm"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200/50 bg-white/30 text-xs font-bold text-slate-600 transition-all hover:bg-white/60 hover:border-primary-200 dark:border-slate-700/50 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60 shadow-sm"
                                 title={t('sidebar.translationTooltip')}
                             >
                                 <Languages size={13} />
@@ -2011,7 +2011,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         {evermemEnabled && (
                             <button
                                 onClick={() => setMemoryPanelOpen(prev => !prev)}
-                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition-all shadow-sm ${memoryPanelOpen
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm ${memoryPanelOpen
                                     ? 'border-amber-300/50 bg-amber-50/50 text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/30 dark:text-amber-300'
                                     : 'border-slate-200/50 bg-white/30 text-slate-600 hover:bg-white/60 hover:border-amber-300 dark:border-slate-700/50 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60'
                                     }`}
@@ -2023,7 +2023,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         )}
                         <button
                             onClick={createNewSession}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:scale-[1.02] active:scale-[0.98] text-[11px] font-bold rounded-xl transition-all shadow-sm"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:scale-[1.02] active:scale-[0.98] text-xs font-bold rounded-xl transition-all shadow-sm"
                             title={t('chat.actions.newChatTitle')}
                         >
                             <Plus size={14} />
@@ -2213,7 +2213,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                             <div className="space-y-3">
                                                 {(memoryOverview?.foresights || []).map((fs, index) => (
                                                     <div key={fs.memory_id || index} className="relative pl-4 border-l-2 border-blue-500/20 pr-6">
-                                                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
+                                                        <p className="text-[13px] font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
                                                             {fs.content}
                                                         </p>
                                                         {fs.timestamp && (
@@ -2244,7 +2244,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                         <div className="flex flex-wrap gap-2">
                                             {(memoryOverview?.profile_facts || []).length > 0 ? (
                                                 memoryOverview?.profile_facts.map((fact, index) => (
-                                                    <div key={`${fact}-${index}`} className="rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-900/40 px-3 py-2 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                                    <div key={`${fact}-${index}`} className="rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-900/40 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300">
                                                         {fact}
                                                     </div>
                                                 ))
@@ -2272,7 +2272,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                                                 {formatMemoryTimestamp(item.timestamp)}
                                                             </span>
                                                         </div>
-                                                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
+                                                        <p className="text-[13px] font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
                                                             {item.content}
                                                         </p>
                                                     </div>
@@ -2299,7 +2299,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                                             setMemoryPanelOpen(false);
                                                             inputRef.current?.focus();
                                                         }}
-                                                        className="w-full text-left rounded-xl bg-white/60 dark:bg-slate-900/40 px-3 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 border border-white/60 dark:border-slate-700/60 hover:bg-white dark:hover:bg-slate-900/80 transition-all"
+                                                        className="w-full text-left rounded-xl bg-white/60 dark:bg-slate-900/40 px-3.5 py-3 text-[13px] font-bold leading-snug text-slate-600 dark:text-slate-300 border border-white/60 dark:border-slate-700/60 hover:bg-white dark:hover:bg-slate-900/80 transition-all"
                                                     >
                                                         {item}
                                                     </button>
@@ -2322,11 +2322,11 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                 <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight text-center">
                                     {t('chat.empty.title')}
                                 </h1>
-                                <p className="mt-2 text-sm text-slate-400 dark:text-slate-500 font-medium text-center">
+                                <p className="mt-2 text-[15px] text-slate-400 dark:text-slate-500 font-medium text-center">
                                     {t('chat.empty.subtitle')}
                                 </p>
 
-                                <div className="mt-8 grid grid-cols-2 gap-3 w-full">
+                                <div className="mt-8 grid grid-cols-1 gap-3 w-full sm:grid-cols-2">
                                     {[
                                         { icon: MessageSquare, titleKey: 'chat.empty.starters.dailyTitle', descKey: 'chat.empty.starters.dailyDesc', prompt: 'Let\'s have a casual conversation in English. Ask me about my day.' },
                                         { icon: Languages, titleKey: 'chat.empty.starters.scenarioTitle', descKey: 'chat.empty.starters.scenarioDesc', prompt: 'Let\'s do a role play. You be a barista and I\'ll order coffee.' },
@@ -2339,13 +2339,13 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                                 setInput(starter.prompt)
                                                 setTimeout(() => inputRef.current?.focus(), 0)
                                             }}
-                                            className="group text-left rounded-2xl border border-slate-200/60 dark:border-slate-700/40 bg-white/50 dark:bg-slate-800/30 backdrop-blur-xl p-4 transition-all duration-300 hover:border-amber-400/40 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 hover:shadow-lg hover:shadow-amber-500/5 active:scale-[0.98]"
+                                            className="group text-left rounded-2xl border border-slate-200/60 dark:border-slate-700/40 bg-white/50 dark:bg-slate-800/30 backdrop-blur-xl p-4 transition-all duration-300 hover:border-amber-400/40 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 hover:shadow-lg hover:shadow-amber-500/5 active:scale-[0.98] sm:p-5"
                                         >
-                                            <starter.icon size={18} className="text-slate-400 dark:text-slate-500 group-hover:text-amber-500 transition-colors" />
-                                            <p className="mt-2.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                                            <starter.icon size={20} className="text-slate-400 dark:text-slate-500 group-hover:text-amber-500 transition-colors" />
+                                            <p className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">
                                                 {t(starter.titleKey)}
                                             </p>
-                                            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
+                                            <p className="mt-1.5 text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
                                                 {t(starter.descKey)}
                                             </p>
                                         </button>
@@ -2353,7 +2353,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                                 </div>
 
                                 {evermemEnabled && memoryOverview?.review_focus && (
-                                    <div className="mt-6 flex items-center gap-2 text-[11px]">
+                                    <div className="mt-6 flex items-center gap-2 text-xs">
                                         <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                                         <span className="text-amber-600 dark:text-amber-400 font-bold">
                                             {memoryOverview.review_focus.due_count} {t('chat.memory.dueToday', 'due words today')}

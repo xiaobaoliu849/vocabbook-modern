@@ -1,6 +1,7 @@
 import json
 import time
 import secrets
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta
 from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -25,9 +26,11 @@ from schemas import (
     OrderStatusResponse,
     MockPaySuccessRequest,
     AdminUserTierUpdateRequest,
+    AdminOrderStatusUpdateRequest,
     AdminUserResponse,
     AdminOrderResponse,
     AdminSummaryResponse,
+    PaymentReadinessResponse,
 )
 import auth
 from config import settings
@@ -35,6 +38,19 @@ from config import settings
 # --- Setup ---
 app_router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+ORDER_PENDING = "PENDING"
+ORDER_SUCCESS = "SUCCESS"
+ORDER_FAIL = "FAIL"
+ORDER_EXPIRED = "EXPIRED"
+
+PAYMENT_PLANS = {
+    "premium_monthly": {
+        "amount_fen": 2900,
+        "description": "VocabBook Modern Premium - 1 Month",
+        "license_days": 30,
+    }
+}
 
 # --- Dependencies ---
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -117,6 +133,51 @@ def _activate_premium(user: User, days: int = 30) -> None:
     user.license_expiry = start_at + timedelta(days=days)
 
 
+def _resolve_payment_plan(plan_id: str) -> dict:
+    plan = PAYMENT_PLANS.get(plan_id)
+    if not plan:
+        raise HTTPException(status_code=400, detail="Unknown payment plan")
+    return plan
+
+
+def _license_days_for_order(order: Order) -> int:
+    for plan in PAYMENT_PLANS.values():
+        if order.amount_fen == plan["amount_fen"] and order.description == plan["description"]:
+            return int(plan["license_days"])
+    return 30
+
+
+def _amount_yuan_to_fen(amount: str) -> int | None:
+    try:
+        return int((Decimal(amount).quantize(Decimal("0.01")) * 100).to_integral_value())
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _mark_order_success(order: Order, user: User | None, trade_no: str | None, license_days: int | None = None) -> bool:
+    """Mark an order paid once. Returns True only when membership was newly applied."""
+    if order.status == ORDER_SUCCESS:
+        if trade_no and not order.trade_no:
+            order.trade_no = trade_no
+        order.updated_at = datetime.utcnow()
+        return False
+
+    order.status = ORDER_SUCCESS
+    order.trade_no = trade_no or order.trade_no
+    order.updated_at = datetime.utcnow()
+    if user:
+        _activate_premium(user, days=license_days or _license_days_for_order(order))
+        return True
+    return False
+
+
+def _mark_order_terminal(order: Order, status_value: str) -> None:
+    if order.status == ORDER_SUCCESS:
+        return
+    order.status = status_value
+    order.updated_at = datetime.utcnow()
+
+
 # Initialize Alipay
 alipay_client = None
 ALIPAY_PUBLIC_KEY = None
@@ -144,15 +205,21 @@ async def _create_payment_order(
     current_user: User,
     db: Session,
 ) -> PayResponse:
+    plan = _resolve_payment_plan(req.plan_id)
+    amount_fen = plan["amount_fen"]
+    description = plan["description"]
+
     if not alipay_client:
+        if settings.is_production:
+            raise HTTPException(status_code=503, detail="Payment provider is not configured")
         # Mock for Dev if keys are missing - still persist order for status polling.
         out_trade_no = _build_out_trade_no("MOCK", current_user.id)
         new_order = Order(
             user_id=current_user.id,
             out_trade_no=out_trade_no,
-            amount_fen=req.amount_fen,
-            status="PENDING",
-            description=req.description
+            amount_fen=amount_fen,
+            status=ORDER_PENDING,
+            description=description
         )
         db.add(new_order)
         await db.commit()
@@ -163,8 +230,8 @@ async def _create_payment_order(
     # 支付宝 Precreate Model (当面付 - 扫码支付)
     model = AlipayTradePrecreateModel()
     model.out_trade_no = out_trade_no
-    model.total_amount = f"{req.amount_fen / 100:.2f}" # Alipay requires Yuan format e.g., "29.00"
-    model.subject = req.description
+    model.total_amount = f"{amount_fen / 100:.2f}" # Alipay requires Yuan format e.g., "29.00"
+    model.subject = description
     model.timeout_express = "30m" # 30 minutes until expiration
     
     request = AlipayTradePrecreateRequest(biz_model=model)
@@ -180,9 +247,9 @@ async def _create_payment_order(
             new_order = Order(
                 user_id=current_user.id,
                 out_trade_no=out_trade_no,
-                amount_fen=req.amount_fen,
-                status="PENDING",
-                description=req.description
+                amount_fen=amount_fen,
+                status=ORDER_PENDING,
+                description=description
             )
             db.add(new_order)
             await db.commit()
@@ -259,6 +326,10 @@ async def pay_notify(request: Request, db: Session = Depends(get_db)):
 
     # Signature is valid, Check trade status
     trade_status = params.get("trade_status")
+    if params.get("app_id") and params.get("app_id") != settings.ALIPAY_APP_ID:
+        print(f"Alipay app_id mismatch: got={params.get('app_id')} expected={settings.ALIPAY_APP_ID}")
+        return "fail"
+
     if trade_status in ["TRADE_SUCCESS", "TRADE_FINISHED"]:
         out_trade_no = params.get("out_trade_no")
         trade_no = params.get("trade_no") # Alipay's internal ID
@@ -266,29 +337,45 @@ async def pay_notify(request: Request, db: Session = Depends(get_db)):
         # 1. Update Order
         result = await db.execute(select(Order).where(Order.out_trade_no == out_trade_no))
         order = result.scalars().first()
+
+        if not order:
+            return "success"
+
+        paid_amount_fen = _amount_yuan_to_fen(params.get("total_amount"))
+        if paid_amount_fen != order.amount_fen:
+            print(f"Alipay amount mismatch for {out_trade_no}: paid={paid_amount_fen} expected={order.amount_fen}")
+            return "fail"
         
-        if order and order.status != 'SUCCESS':
-            order.status = 'SUCCESS'
-            order.trade_no = trade_no
-            from datetime import datetime
-            order.updated_at = datetime.utcnow()
-            
-            # 2. Update User License
+        if order.status != ORDER_SUCCESS:
+            # 2. Update User License exactly once.
             u_res = await db.execute(select(User).where(User.id == order.user_id))
             user = u_res.scalars().first()
-            if user:
-                _activate_premium(user)
-            
+            _mark_order_success(order, user, trade_no, _license_days_for_order(order))
+            await db.commit()
+        else:
+            _mark_order_success(order, None, trade_no)
             await db.commit()
             
         # VERY IMPORTANT: return 'success' plain text so Alipay stops retrying
         return "success"
-        
+
+    if trade_status == "TRADE_CLOSED":
+        out_trade_no = params.get("out_trade_no")
+        if out_trade_no:
+            result = await db.execute(select(Order).where(Order.out_trade_no == out_trade_no))
+            order = result.scalars().first()
+            if order:
+                _mark_order_terminal(order, ORDER_EXPIRED)
+                await db.commit()
+
     return "success"
 
 @app_router.post("/api/pay/mock_success")
 async def mock_pay_success(req: MockPaySuccessRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Mock endpoint for developers to mark a specific pending order as paid."""
+    if not settings.DEBUG_PAYMENT_MOCKS:
+        raise HTTPException(status_code=404, detail="Not found")
+
     result = await db.execute(
         select(Order).where(
             Order.out_trade_no == req.out_trade_no,
@@ -299,17 +386,25 @@ async def mock_pay_success(req: MockPaySuccessRequest, current_user: User = Depe
     if not order:
         raise HTTPException(status_code=404, detail="Order not found for current user")
 
-    if order.status != "PENDING":
+    if order.status != ORDER_PENDING:
         raise HTTPException(status_code=400, detail=f"Order status is {order.status}, expected PENDING")
 
-    order.status = "SUCCESS"
-    order.trade_no = f"MOCK_TRADE_{uuid4().hex[:16]}"
-    order.updated_at = datetime.utcnow()
-    _activate_premium(current_user)
+    _mark_order_success(order, current_user, f"MOCK_TRADE_{uuid4().hex[:16]}", _license_days_for_order(order))
     db.add(order)
     db.add(current_user)
     await db.commit()
     return {"msg": "success", "out_trade_no": req.out_trade_no}
+
+
+@app_router.get("/admin/payment/readiness", response_model=PaymentReadinessResponse)
+async def admin_payment_readiness(_: bool = Depends(require_admin_token)):
+    return PaymentReadinessResponse(
+        alipay_configured=alipay_client is not None,
+        mock_payments_enabled=settings.DEBUG_PAYMENT_MOCKS,
+        gateway_url=settings.ALIPAY_GATEWAY_URL,
+        notify_url=settings.ALIPAY_NOTIFY_URL,
+        plans=PAYMENT_PLANS,
+    )
 
 
 @app_router.get("/admin/summary", response_model=AdminSummaryResponse)
@@ -404,3 +499,55 @@ async def admin_list_orders(
         )
         for order in orders
     ]
+
+
+@app_router.post("/admin/orders/{out_trade_no}/status", response_model=AdminOrderResponse)
+async def admin_update_order_status(
+    out_trade_no: str,
+    payload: AdminOrderStatusUpdateRequest,
+    _: bool = Depends(require_admin_token),
+    db: Session = Depends(get_db),
+):
+    result = await db.execute(select(Order).where(Order.out_trade_no == out_trade_no))
+    order = result.scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    user_result = await db.execute(select(User).where(User.id == order.user_id))
+    user = user_result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Order user not found")
+
+    if payload.status == ORDER_SUCCESS:
+        _mark_order_success(
+            order,
+            user,
+            payload.trade_no or order.trade_no or f"ADMIN_TRADE_{uuid4().hex[:16]}",
+            payload.extend_days or _license_days_for_order(order),
+        )
+    elif payload.status == ORDER_PENDING:
+        if order.status == ORDER_SUCCESS:
+            raise HTTPException(status_code=400, detail="Paid orders cannot be moved back to PENDING")
+        order.status = ORDER_PENDING
+        order.updated_at = datetime.utcnow()
+    else:
+        _mark_order_terminal(order, payload.status)
+
+    db.add(order)
+    db.add(user)
+    await db.commit()
+    await db.refresh(order)
+
+    return AdminOrderResponse(
+        id=order.id,
+        user_id=order.user_id,
+        user_email=user.email,
+        out_trade_no=order.out_trade_no,
+        trade_no=order.trade_no,
+        payment_method=order.payment_method,
+        amount_fen=order.amount_fen,
+        status=order.status,
+        description=order.description,
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+    )

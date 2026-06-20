@@ -92,8 +92,12 @@ pip install -r cloud_server/requirements.txt
 最少需要：
 
 ```bash
+ENVIRONMENT=production
 DATABASE_URL=sqlite+aiosqlite:////var/www/vocabbook-cloud/cloud_server/cloud_app.db
 SECRET_KEY=请替换成一长串随机字符串
+ADMIN_TOKEN=请替换成另一条长随机字符串
+CORS_ORIGINS=https://api.historyai.fun
+DEBUG_PAYMENT_MOCKS=false
 ALIPAY_APP_ID=你的支付宝应用ID
 ALIPAY_PRIVATE_KEY_PATH=/var/www/vocabbook-cloud/secure/alipay_private_key.pem
 ALIPAY_PUBLIC_KEY_PATH=/var/www/vocabbook-cloud/secure/alipay_public_key.pem
@@ -103,6 +107,9 @@ ALIPAY_NOTIFY_URL=https://api.historyai.fun/api/pay/alipay/notify
 说明：
 
 - `SECRET_KEY` 不要继续用仓库里的占位符
+- `ADMIN_TOKEN` 用于后台管理接口，必须和 `SECRET_KEY` 分开生成
+- `ENVIRONMENT=production` 会启用启动期配置校验；支付宝仍指向沙盒、回调不是 HTTPS、mock 支付开启、CORS 为 `*` 时服务会拒绝启动
+- 生产环境还会校验 `ALIPAY_APP_ID` 不能使用示例值，且 `ALIPAY_PRIVATE_KEY_PATH` / `ALIPAY_PUBLIC_KEY_PATH` 必须指向真实存在的密钥文件
 - 支付宝私钥、公钥不要放在仓库目录中，建议单独放：
 
 ```bash
@@ -124,6 +131,14 @@ sudo systemctl enable vocabbook-cloud
 sudo systemctl start vocabbook-cloud
 sudo systemctl status vocabbook-cloud
 ```
+
+`deploy_cloud_server_remote.sh` 会在覆盖代码前备份当前版本到：
+
+```bash
+/var/www/vocabbook-cloud/deploy_backups/
+```
+
+如果部署后的健康检查失败，脚本会自动恢复上一版 `cloud_server` / `deploy` / `scripts` / `docs` 并重启服务。默认保留最近 5 份备份，可在远程执行时用 `KEEP_BACKUPS=10` 调整。
 
 ## 9. Nginx 反代
 
@@ -153,20 +168,47 @@ sudo systemctl reload nginx
 服务器本机先测：
 
 ```bash
-curl -sS http://127.0.0.1:8010/
+curl -sS http://127.0.0.1:8010/health
 ```
 
 预期返回：
 
 ```json
-{"status":"Cloud Server Running","version":"1.0.0"}
+{"status":"healthy","database":true,"environment":"production"}
+```
+
+部署包内置了更完整的检查脚本。带上后台 token 时，会额外验证支付 readiness：
+
+```bash
+/var/www/vocabbook-cloud/.venv/bin/python /var/www/vocabbook-cloud/scripts/cloud_deploy_check.py \
+  --base-url http://127.0.0.1:8010 \
+  --expect-production \
+  --admin-token "$ADMIN_TOKEN"
+```
+
+远程部署脚本也支持同样的正向支付检查：
+
+```bash
+DEPLOY_ADMIN_TOKEN="$ADMIN_TOKEN" /tmp/deploy_cloud_server_remote.sh
 ```
 
 公网再测：
 
 ```bash
-curl -sS https://api.historyai.fun/
+python scripts/cloud_deploy_check.py --base-url https://api.historyai.fun --expect-production
 ```
+
+生产支付小额联调可以用本地脚本创建真实支付宝订单：
+
+```bash
+python scripts/payment_live_drill.py \
+  --base-url https://api.historyai.fun \
+  --email 你的测试账号邮箱 \
+  --password 你的测试账号密码 \
+  --admin-token 你的后台管理Token
+```
+
+脚本会登录账号、创建 `premium_monthly` 订单、确认订单金额为 29 元并输出支付宝 QR URL。扫码支付后，再用客户端或后台订单列表确认订单从 `PENDING` 变为 `SUCCESS`。
 
 ## 12. 手动开会员
 
@@ -188,6 +230,22 @@ WHERE email = '你的用户邮箱';
 ```
 
 然后本地/Electron 端登录该账号即可自动识别高级权限。
+
+如果已经有订单号，优先使用后台接口补单，而不是直接改库：
+
+```bash
+curl -X POST https://api.historyai.fun/admin/orders/订单号/status \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Token: 你的后台管理Token" \
+  -d '{"status":"SUCCESS","trade_no":"人工补单流水号"}'
+```
+
+可用状态：
+
+- `SUCCESS`：确认收款并开通/延长会员，重复执行不会重复延长
+- `FAIL`：标记失败订单
+- `EXPIRED`：标记过期订单
+- `PENDING`：把未支付且未成功的异常订单退回待支付
 
 ## 13. 本地项目联动
 

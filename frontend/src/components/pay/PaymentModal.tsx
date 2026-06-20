@@ -53,7 +53,7 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
         setLoading(true);
         setStatus('pending');
         try {
-            const res = await payService.createNativeOrder(2900, "VocabBook Pro Subscription");
+            const res = await payService.createNativeOrder('premium_monthly');
             setQrCode(res.code_url);
             setOutTradeNo(res.out_trade_no);
         } catch (error) {

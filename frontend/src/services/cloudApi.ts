@@ -56,8 +56,8 @@ export const authService = {
 };
 
 export const payService = {
-    createNativeOrder: async (amountFen = 2900, description = "VocabBook Pro") => {
-        const response = await api.post('/api/pay/native', { amount_fen: amountFen, description });
+    createNativeOrder: async (planId = 'premium_monthly') => {
+        const response = await api.post('/api/pay/native', { plan_id: planId });
         return response.data; // { code_url, out_trade_no }
     },
 
@@ -66,10 +66,6 @@ export const payService = {
         return response.data;
     },
 
-    mockSuccess: async (outTradeNo: string) => {
-        const response = await api.post('/api/pay/mock_success', { out_trade_no: outTradeNo });
-        return response.data;
-    },
 };
 
 export default api;

@@ -32,5 +32,9 @@ ipcRenderer.on('trigger-search', (_event, text) => {
     window.dispatchEvent(new CustomEvent('search-word', { detail: text }))
 })
 
+ipcRenderer.on('navigate-to', (_event, target) => {
+    window.dispatchEvent(new CustomEvent('navigate', { detail: target }))
+})
+
 // Indicate that we're running in Electron
 contextBridge.exposeInMainWorld('isElectron', true)

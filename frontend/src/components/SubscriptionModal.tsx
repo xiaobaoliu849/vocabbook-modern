@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Wrench } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { payService } from '../services/cloudApi';
 import { QRCodeSVG } from 'qrcode.react';
@@ -17,7 +16,6 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
     const trapRef = useFocusTrap(isOpen);
     const { user, token, checkAuth } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [mockLoading, setMockLoading] = useState(false);
     const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
     const [orderNo, setOrderNo] = useState<string | null>(null);
     const [error, setError] = useState('');
@@ -62,7 +60,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
         setLoading(true);
         setError('');
         try {
-            const data = await payService.createNativeOrder(2900, 'VocabBook Modern Premium - 1 Month');
+            const data = await payService.createNativeOrder('premium_monthly');
             setQrCodeUrl(data.code_url);
             setOrderNo(data.out_trade_no);
         } catch (err: any) {
@@ -93,26 +91,6 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
             setError(message || t('subscription.errors.checkStatusFailed', 'Failed to check payment status.'));
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleMockPayment = async () => {
-        if (!token) return;
-        if (!orderNo) {
-            setError(t('subscription.errors.noPendingOrder', 'No pending order found. Please create a payment order first.'));
-            return;
-        }
-        setMockLoading(true);
-        try {
-            await payService.mockSuccess(orderNo);
-            await handleCheckStatus();
-        } catch (err: any) {
-            setError(t('subscription.errors.mockPaymentError', {
-                defaultValue: 'Mock payment error: {{message}}',
-                message: err?.response?.data?.detail || err.message
-            }));
-        } finally {
-            setMockLoading(false);
         }
     };
 
@@ -202,7 +180,6 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                             <QRCodeSVG value={qrCodeUrl} size={200} />
                         </div>
                         <p className="text-sm text-slate-500 mb-6 font-mono text-center">
-                            {t('subscription.payment.sandbox', 'Sandbox test')}<br />
                             {t('subscription.payment.orderNo', {
                                 defaultValue: 'Order No: {{orderNo}}',
                                 orderNo: orderNo || ''
@@ -210,7 +187,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                         </p>
                         <button
                             onClick={handleCheckStatus}
-                            disabled={loading || mockLoading}
+                            disabled={loading}
                             className="text-blue-600 font-medium hover:bg-blue-50 py-2 px-6 rounded-lg transition-colors"
                         >
                             {loading
@@ -219,15 +196,6 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                         </button>
 
                         <div className="flex gap-4 mt-3">
-                            <button
-                                onClick={handleMockPayment}
-                                disabled={loading || mockLoading}
-                                className="text-emerald-600 text-sm hover:text-emerald-700 transition-colors bg-emerald-50 px-3 py-1.5 rounded-md border border-emerald-200 inline-flex items-center gap-1"
-                            >
-                                {mockLoading
-                                    ? t('subscription.actions.mocking', 'Mocking...')
-                                    : <><Wrench size={14} className="inline" /> {t('subscription.actions.mockSuccess', '[Dev] Simulate success')}</>}
-                            </button>
                             <button
                                 onClick={() => { setQrCodeUrl(null); setOrderNo(null); setError(''); }}
                                 className="text-slate-400 text-sm hover:text-slate-600 transition-colors py-1.5"

@@ -6,8 +6,12 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/var/www/vocabbook-cloud/cloud_server
+Environment=ENVIRONMENT=production
 Environment=DATABASE_URL=sqlite+aiosqlite:////var/www/vocabbook-cloud/cloud_server/cloud_app.db
 Environment=SECRET_KEY=CHANGE_ME_TO_A_LONG_RANDOM_SECRET
+Environment=ADMIN_TOKEN=CHANGE_ME_TO_A_LONG_RANDOM_ADMIN_TOKEN
+Environment=CORS_ORIGINS=https://api.historyai.fun
+Environment=DEBUG_PAYMENT_MOCKS=false
 Environment=ALIPAY_APP_ID=CHANGE_ME
 Environment=ALIPAY_PRIVATE_KEY_PATH=/var/www/vocabbook-cloud/secure/alipay_private_key.pem
 Environment=ALIPAY_PUBLIC_KEY_PATH=/var/www/vocabbook-cloud/secure/alipay_public_key.pem

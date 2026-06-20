@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, ipcMain } = require('electron')
+const { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, ipcMain, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { spawn } = require('child_process')
@@ -13,6 +13,10 @@ const DEV_MODE = process.env.NODE_ENV === 'development'
 const FRONTEND_URL = DEV_MODE ? 'http://localhost:5173' : `file://${path.join(__dirname, '../frontend/dist/index.html')}`
 const BACKEND_PATH = path.join(__dirname, '../backend')
 const DEFAULT_GLOBAL_SHORTCUT = 'Ctrl+Alt+KeyV'
+const ALLOWED_EXTERNAL_ORIGINS = new Set([
+    'https://github.com',
+    'https://console.evermind.ai'
+])
 
 let shortcutSettings = {
     globalToggleWindow: DEFAULT_GLOBAL_SHORTCUT
@@ -164,6 +168,41 @@ function toggleMainWindowVisibility() {
     }
 }
 
+function isAllowedExternalUrl(rawUrl) {
+    try {
+        const url = new URL(rawUrl)
+        if (!['https:', 'mailto:'].includes(url.protocol)) {
+            return false
+        }
+        if (url.protocol === 'mailto:') {
+            return true
+        }
+        return ALLOWED_EXTERNAL_ORIGINS.has(url.origin)
+    } catch (_error) {
+        return false
+    }
+}
+
+function isAppNavigationUrl(rawUrl) {
+    try {
+        const url = new URL(rawUrl)
+        if (DEV_MODE) {
+            return url.origin === 'http://localhost:5173' || url.origin === 'http://127.0.0.1:5173'
+        }
+        return url.protocol === 'file:'
+    } catch (_error) {
+        return false
+    }
+}
+
+async function openAllowedExternalUrl(rawUrl) {
+    if (!isAllowedExternalUrl(rawUrl)) {
+        console.warn(`Blocked external URL: ${rawUrl}`)
+        return
+    }
+    await shell.openExternal(rawUrl)
+}
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -173,6 +212,8 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
+            webSecurity: true,
+            allowRunningInsecureContent: false,
             preload: path.join(__dirname, 'preload.js')
         },
         titleBarStyle: 'default',
@@ -181,6 +222,19 @@ function createWindow() {
     })
 
     mainWindow.loadURL(FRONTEND_URL)
+
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        void openAllowedExternalUrl(url)
+        return { action: 'deny' }
+    })
+
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+        if (isAppNavigationUrl(url)) {
+            return
+        }
+        event.preventDefault()
+        void openAllowedExternalUrl(url)
+    })
 
     // Show window when ready
     mainWindow.once('ready-to-show', () => {
@@ -245,9 +299,7 @@ function createTray() {
             label: '开始复习',
             click: () => {
                 mainWindow.show()
-                mainWindow.webContents.executeJavaScript(`
-          window.dispatchEvent(new CustomEvent('navigate', { detail: 'review' }))
-        `)
+                mainWindow.webContents.send('navigate-to', 'review')
             }
         },
         { type: 'separator' },
@@ -271,6 +323,19 @@ function createTray() {
 
 function createApplicationMenu() {
     const isMac = process.platform === 'darwin'
+    const viewSubmenu = [
+        ...(DEV_MODE ? [
+            { role: 'reload', label: '刷新' },
+            { role: 'forceReload', label: '强制刷新' },
+            { role: 'toggleDevTools', label: '开发者工具' },
+            { type: 'separator' },
+        ] : []),
+        { role: 'resetZoom', label: '实际大小' },
+        { role: 'zoomIn', label: '放大' },
+        { role: 'zoomOut', label: '缩小' },
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: '切换全屏' }
+    ]
 
     const template = [
         // { role: 'appMenu' }
@@ -313,17 +378,7 @@ function createApplicationMenu() {
         // { role: 'viewMenu' }
         {
             label: '视图',
-            submenu: [
-                { role: 'reload', label: '刷新' },
-                { role: 'forceReload', label: '强制刷新' },
-                { role: 'toggleDevTools', label: '开发者工具' },
-                { type: 'separator' },
-                { role: 'resetZoom', label: '实际大小' },
-                { role: 'zoomIn', label: '放大' },
-                { role: 'zoomOut', label: '缩小' },
-                { type: 'separator' },
-                { role: 'togglefullscreen', label: '切换全屏' }
-            ]
+            submenu: viewSubmenu
         },
         // { role: 'windowMenu' }
         {
@@ -348,8 +403,7 @@ function createApplicationMenu() {
                 {
                     label: '了解更多',
                     click: async () => {
-                        const { shell } = require('electron')
-                        await shell.openExternal('https://github.com/vocabbook/vocabbook-modern')
+                        await openAllowedExternalUrl('https://github.com/xiaobaoliu849/vocabbook-modern')
                     }
                 }
             ]
@@ -413,6 +467,21 @@ function updateGlobalShortcut(binding) {
     }
 }
 
+function resolvePackagedBackendPath() {
+    const exeName = process.platform === 'win32' ? 'vocabbook-backend.exe' : 'vocabbook-backend'
+    const candidates = [
+        path.join(process.resourcesPath, 'backend-dist', exeName),
+        path.join(process.resourcesPath, 'backend-dist', 'vocabbook-backend', exeName)
+    ]
+
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+            return candidate
+        }
+    }
+
+    throw new Error(`Packaged backend executable not found. Checked: ${candidates.join(', ')}`)
+}
 function startBackend() {
     const userDataPath = app.getPath('userData')
     const env = { ...process.env, VOCABBOOK_DATA_DIR: userDataPath }
@@ -425,16 +494,17 @@ function startBackend() {
             cwd: BACKEND_PATH,
             stdio: 'pipe',
             shell: true,
+            windowsHide: true,
             env: env
         })
     } else {
         // Start compiled backend executable
-        const exeName = process.platform === 'win32' ? 'vocabbook-backend.exe' : 'vocabbook-backend'
-        const exePath = path.join(process.resourcesPath, 'backend-dist', exeName)
-        
+        const exePath = resolvePackagedBackendPath()
+
         backendProcess = spawn(exePath, [], {
             stdio: 'pipe',
             shell: false,
+            windowsHide: true,
             env: env
         })
     }

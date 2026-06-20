@@ -10,6 +10,8 @@ venv/
 frontend/dist/
 backend/build/
 backend/dist/
+backend/build-release/
+backend/dist-release/
 backend/venv-build/
 electron/dist/
 *.egg-info/
@@ -42,6 +44,9 @@ cloud_server/*.pem
 *公钥私钥*.txt
 
 # Temp files
+tmp-release-smoke-data/
+tmp-cloud-prod-smoke/
+tmp-cloud-rollback-test/
 *.patch
 *.orig
 *.rej

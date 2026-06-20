@@ -26,11 +26,11 @@ pip install pyinstaller fastapi uvicorn aiosqlite edge_tts openai anthropic goog
 pip install -r requirements.txt
 
 echo Cleaning old build files...
-if exist build rmdir /s /q build
-if exist dist rmdir /s /q dist
+if exist build-release rmdir /s /q build-release
+if exist dist-release rmdir /s /q dist-release
 
 echo Running PyInstaller...
-pyinstaller --name vocabbook-backend --onefile --clean --noupx --hidden-import uvicorn --hidden-import fastapi --hidden-import aiosqlite --hidden-import edge_tts --hidden-import openai --hidden-import anthropic --hidden-import google.generativeai --hidden-import bs4 --hidden-import pydantic main.py
+pyinstaller --clean --distpath dist-release --workpath build-release vocabbook-backend.spec
 
 if %errorlevel% neq 0 (
     echo Backend build failed!

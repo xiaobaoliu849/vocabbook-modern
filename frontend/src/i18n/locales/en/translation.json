@@ -828,12 +828,9 @@
       "scanWithAlipay": "Scan with Alipay",
       "checkStatus": "I have completed payment",
       "checking": "Checking...",
-      "mockSuccess": "🔧 [Dev] Simulate success",
-      "mocking": "Mocking...",
       "cancelPayment": "Cancel payment"
     },
     "payment": {
-      "sandbox": "Sandbox test",
       "orderNo": "Order No: {{orderNo}}"
     },
     "errors": {
@@ -841,10 +838,7 @@
       "createOrderFailed": "Failed to create payment order",
       "generic": "Something went wrong",
       "paymentPending": "Payment has not been received yet. Please wait a moment and try again.",
-      "checkStatusFailed": "Failed to check payment status.",
-      "noPendingOrder": "No pending order found. Please create a payment order first.",
-      "mockPaymentFailed": "Mock payment failed: {{message}}",
-      "mockPaymentError": "Mock payment error: {{message}}"
+      "checkStatusFailed": "Failed to check payment status."
     }
   },
   "wordDetail": {

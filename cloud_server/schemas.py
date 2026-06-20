@@ -32,8 +32,7 @@ class UserResponse(UserBase):
 
 # --- Payment ---
 class PayRequest(BaseModel):
-    description: str = "VocabBook Pro"
-    amount_fen: int = 2900 # 29 CNY default
+    plan_id: Literal["premium_monthly"] = "premium_monthly"
 
 class PayResponse(BaseModel):
     code_url: str
@@ -59,6 +58,12 @@ class MockPaySuccessRequest(BaseModel):
 class AdminUserTierUpdateRequest(BaseModel):
     tier: Literal["free", "premium"]
     license_expiry: Optional[datetime] = None
+    extend_days: Optional[int] = None
+
+
+class AdminOrderStatusUpdateRequest(BaseModel):
+    status: Literal["PENDING", "SUCCESS", "FAIL", "EXPIRED"]
+    trade_no: Optional[str] = None
     extend_days: Optional[int] = None
 
 
@@ -88,3 +93,11 @@ class AdminSummaryResponse(BaseModel):
     premium_users: int
     total_orders: int
     paid_orders: int
+
+
+class PaymentReadinessResponse(BaseModel):
+    alipay_configured: bool
+    mock_payments_enabled: bool
+    gateway_url: str
+    notify_url: str
+    plans: dict

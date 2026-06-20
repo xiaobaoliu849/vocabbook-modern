@@ -26,6 +26,8 @@ if exist "deploy_tmp_cloud" rmdir /s /q deploy_tmp_cloud
 mkdir deploy_tmp_cloud
 
 xcopy /E /I /Y cloud_server deploy_tmp_cloud\cloud_server >nul
+mkdir deploy_tmp_cloud\scripts >nul 2>&1
+copy /Y scripts\cloud_deploy_check.py deploy_tmp_cloud\scripts\ >nul
 if exist "deploy_tmp_cloud\cloud_server\cloud_app.db" del /q deploy_tmp_cloud\cloud_server\cloud_app.db >nul 2>&1
 if exist "deploy_tmp_cloud\cloud_server\__pycache__" rmdir /s /q deploy_tmp_cloud\cloud_server\__pycache__
 
