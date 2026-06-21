@@ -10,11 +10,13 @@ Environment=ENVIRONMENT=production
 Environment=DATABASE_URL=sqlite+aiosqlite:////var/www/vocabbook-cloud/cloud_server/cloud_app.db
 Environment=SECRET_KEY=CHANGE_ME_TO_A_LONG_RANDOM_SECRET
 Environment=ADMIN_TOKEN=CHANGE_ME_TO_A_LONG_RANDOM_ADMIN_TOKEN
-Environment=CORS_ORIGINS=https://api.historyai.fun
+Environment=CORS_ORIGINS=https://api.historyai.fun,null
 Environment=DEBUG_PAYMENT_MOCKS=false
+Environment=ENABLE_LIVE_TEST_PLAN=false
 Environment=ALIPAY_APP_ID=CHANGE_ME
 Environment=ALIPAY_PRIVATE_KEY_PATH=/var/www/vocabbook-cloud/secure/alipay_private_key.pem
 Environment=ALIPAY_PUBLIC_KEY_PATH=/var/www/vocabbook-cloud/secure/alipay_public_key.pem
+Environment=ALIPAY_GATEWAY_URL=https://openapi.alipay.com/gateway.do
 Environment=ALIPAY_NOTIFY_URL=https://api.historyai.fun/api/pay/alipay/notify
 ExecStart=/var/www/vocabbook-cloud/.venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8010
 Restart=always

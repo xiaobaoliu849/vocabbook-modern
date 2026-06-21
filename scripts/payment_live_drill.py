@@ -49,6 +49,8 @@ def main() -> int:
     parser.add_argument("--base-url", default="https://api.historyai.fun")
     parser.add_argument("--email", required=True)
     parser.add_argument("--password", required=True)
+    parser.add_argument("--plan-id", default="live_test_001", help="Payment plan to create for the live drill")
+    parser.add_argument("--expected-amount-fen", type=int, default=1, help="Expected order amount in fen")
     parser.add_argument("--register", action="store_true", help="Register the account first if needed")
     parser.add_argument("--admin-token", default=None, help="Optional admin token for payment readiness check")
     args = parser.parse_args()
@@ -83,7 +85,7 @@ def main() -> int:
             "POST",
             "/api/pay/native",
             headers={"Authorization": f"Bearer {token}"},
-            data={"plan_id": "premium_monthly"},
+            data={"plan_id": args.plan_id},
         )
         require(order_result.status == 200, f"Create order failed: HTTP {order_result.status} {order_result.body}")
         order = parse_json(order_result)
@@ -96,7 +98,7 @@ def main() -> int:
         require(status_result.status == 200, f"Order status failed: HTTP {status_result.status} {status_result.body}")
         status_payload = parse_json(status_result)
         require(status_payload.get("status") == "PENDING", f"Expected PENDING before payment, got {status_payload}")
-        require(status_payload.get("amount_fen") == 2900, f"Unexpected amount: {status_payload}")
+        require(status_payload.get("amount_fen") == args.expected_amount_fen, f"Unexpected amount: {status_payload}")
         print("[OK] Order status is PENDING with expected amount")
     except Exception as exc:
         print(f"[FAIL] {exc}")

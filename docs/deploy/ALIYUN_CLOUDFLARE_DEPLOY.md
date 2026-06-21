@@ -96,11 +96,13 @@ ENVIRONMENT=production
 DATABASE_URL=sqlite+aiosqlite:////var/www/vocabbook-cloud/cloud_server/cloud_app.db
 SECRET_KEY=请替换成一长串随机字符串
 ADMIN_TOKEN=请替换成另一条长随机字符串
-CORS_ORIGINS=https://api.historyai.fun
+CORS_ORIGINS=https://api.historyai.fun,null
 DEBUG_PAYMENT_MOCKS=false
+ENABLE_LIVE_TEST_PLAN=false
 ALIPAY_APP_ID=你的支付宝应用ID
 ALIPAY_PRIVATE_KEY_PATH=/var/www/vocabbook-cloud/secure/alipay_private_key.pem
 ALIPAY_PUBLIC_KEY_PATH=/var/www/vocabbook-cloud/secure/alipay_public_key.pem
+ALIPAY_GATEWAY_URL=https://openapi.alipay.com/gateway.do
 ALIPAY_NOTIFY_URL=https://api.historyai.fun/api/pay/alipay/notify
 ```
 
@@ -110,6 +112,8 @@ ALIPAY_NOTIFY_URL=https://api.historyai.fun/api/pay/alipay/notify
 - `ADMIN_TOKEN` 用于后台管理接口，必须和 `SECRET_KEY` 分开生成
 - `ENVIRONMENT=production` 会启用启动期配置校验；支付宝仍指向沙盒、回调不是 HTTPS、mock 支付开启、CORS 为 `*` 时服务会拒绝启动
 - 生产环境还会校验 `ALIPAY_APP_ID` 不能使用示例值，且 `ALIPAY_PRIVATE_KEY_PATH` / `ALIPAY_PUBLIC_KEY_PATH` 必须指向真实存在的密钥文件
+- `null` CORS origin 用于 Electron 正式版的 `file://` 渲染页面；如果以后改为自定义 `app://` 协议，应替换为对应 origin
+- `ENABLE_LIVE_TEST_PLAN=true` 会临时开启 0.01 元正式支付测试套餐 `live_test_001`；跑完生产支付联调后应改回 `false` 并重启服务
 - 支付宝私钥、公钥不要放在仓库目录中，建议单独放：
 
 ```bash
@@ -208,7 +212,19 @@ python scripts/payment_live_drill.py \
   --admin-token 你的后台管理Token
 ```
 
-脚本会登录账号、创建 `premium_monthly` 订单、确认订单金额为 29 元并输出支付宝 QR URL。扫码支付后，再用客户端或后台订单列表确认订单从 `PENDING` 变为 `SUCCESS`。
+脚本默认登录账号、创建 `live_test_001` 订单、确认订单金额为 0.01 元并输出支付宝 QR URL。扫码支付后，再用客户端或后台订单列表确认订单从 `PENDING` 变为 `SUCCESS`。
+
+如果你确实要测试 29 元正式套餐，可以显式传：
+
+```bash
+python scripts/payment_live_drill.py \
+  --base-url https://api.historyai.fun \
+  --email 你的测试账号邮箱 \
+  --password 你的测试账号密码 \
+  --admin-token 你的后台管理Token \
+  --plan-id premium_monthly \
+  --expected-amount-fen 2900
+```
 
 ## 12. 手动开会员
 

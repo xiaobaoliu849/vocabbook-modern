@@ -52,6 +52,19 @@ PAYMENT_PLANS = {
     }
 }
 
+LIVE_TEST_PAYMENT_PLAN = {
+    "amount_fen": 1,
+    "description": "VocabBook Modern Premium - Live Payment Test",
+    "license_days": 1,
+}
+
+
+def _available_payment_plans() -> dict:
+    plans = dict(PAYMENT_PLANS)
+    if settings.ENABLE_LIVE_TEST_PLAN:
+        plans["live_test_001"] = LIVE_TEST_PAYMENT_PLAN
+    return plans
+
 # --- Dependencies ---
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -134,14 +147,14 @@ def _activate_premium(user: User, days: int = 30) -> None:
 
 
 def _resolve_payment_plan(plan_id: str) -> dict:
-    plan = PAYMENT_PLANS.get(plan_id)
+    plan = _available_payment_plans().get(plan_id)
     if not plan:
         raise HTTPException(status_code=400, detail="Unknown payment plan")
     return plan
 
 
 def _license_days_for_order(order: Order) -> int:
-    for plan in PAYMENT_PLANS.values():
+    for plan in _available_payment_plans().values():
         if order.amount_fen == plan["amount_fen"] and order.description == plan["description"]:
             return int(plan["license_days"])
     return 30
@@ -403,7 +416,7 @@ async def admin_payment_readiness(_: bool = Depends(require_admin_token)):
         mock_payments_enabled=settings.DEBUG_PAYMENT_MOCKS,
         gateway_url=settings.ALIPAY_GATEWAY_URL,
         notify_url=settings.ALIPAY_NOTIFY_URL,
-        plans=PAYMENT_PLANS,
+        plans=_available_payment_plans(),
     )
 
 

@@ -8,6 +8,7 @@ PLACEHOLDER_ALIPAY_APP_ID = "9021000161679538"
 class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG_PAYMENT_MOCKS: bool = False
+    ENABLE_LIVE_TEST_PLAN: bool = False
     CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     # Database

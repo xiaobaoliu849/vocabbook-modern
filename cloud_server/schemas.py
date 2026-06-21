@@ -32,7 +32,7 @@ class UserResponse(UserBase):
 
 # --- Payment ---
 class PayRequest(BaseModel):
-    plan_id: Literal["premium_monthly"] = "premium_monthly"
+    plan_id: Literal["premium_monthly", "live_test_001"] = "premium_monthly"
 
 class PayResponse(BaseModel):
     code_url: str

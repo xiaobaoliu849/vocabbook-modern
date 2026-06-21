@@ -20,11 +20,14 @@ from routers import (
     ORDER_PENDING,
     ORDER_SUCCESS,
     PAYMENT_PLANS,
+    LIVE_TEST_PAYMENT_PLAN,
+    _available_payment_plans,
     _amount_yuan_to_fen,
     _license_days_for_order,
     _mark_order_success,
     _mark_order_terminal,
     _resolve_payment_plan,
+    settings as router_settings,
 )
 
 sys.path.remove(CLOUD_SERVER_DIR)
@@ -67,6 +70,25 @@ def test_payment_plan_is_server_controlled():
 
     with pytest.raises(Exception):
         _resolve_payment_plan("client_supplied_discount")
+
+
+def test_live_payment_test_plan_is_disabled_by_default(monkeypatch):
+    monkeypatch.setattr(router_settings, "ENABLE_LIVE_TEST_PLAN", False)
+
+    assert "live_test_001" not in _available_payment_plans()
+
+    with pytest.raises(Exception):
+        _resolve_payment_plan("live_test_001")
+
+
+def test_live_payment_test_plan_can_be_enabled_temporarily(monkeypatch):
+    monkeypatch.setattr(router_settings, "ENABLE_LIVE_TEST_PLAN", True)
+
+    plan = _resolve_payment_plan("live_test_001")
+
+    assert plan == LIVE_TEST_PAYMENT_PLAN
+    assert plan["amount_fen"] == 1
+    assert plan["license_days"] == 1
 
 
 def test_yuan_to_fen_conversion_rejects_invalid_amounts():
