@@ -782,39 +782,27 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
 
         return deduped
 
-    async def chat(
+    async def _prepare_evermem_context(
         self,
         messages: List[Dict],
         context_word: str = "",
         session_id: str = None,
         learning_context: str = "",
-        enable_thinking: Optional[bool] = None,
         attachments: Optional[List[Dict]] = None,
-    ) -> Dict:
+        stream_label: str = "EverMem",
+    ) -> tuple:
         """
-        AI 对话练习 (optimized with EverMemOS official pattern)
-        
-        Flow: Store user msg → Retrieve context → Generate response → Store assistant msg
-        
-        Args:
-            messages: 对话历史
-            context_word: 当前学习的单词（可选）
-            session_id: The ID of the current chat session (optional)
-            learning_context: Local review weakness summary (optional)
-        
-        Returns:
-            Dict with 'response', 'memories_retrieved', 'memory_saved'
-        """
-        import asyncio as _asyncio
+        Shared EverMem preparation for chat() and chat_stream().
 
+        Returns:
+            (system_prompt, last_user_msg, user_memory_saved, memories_retrieved)
+        """
         system_prompt = "你是一位友好的英语口语老师，帮助学生练习英语对话。用简单易懂的英语回复，并在适当时候纠正语法错误。"
-        
+
         memories_retrieved = 0
-        memory_saved = False
         user_memory_saved = False
         last_user_msg = None
-        
-        # EverMemOS integration (official pattern: store → retrieve → generate → store)
+
         if self.evermem_service:
             system_prompt += (
                 "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。"
@@ -823,10 +811,9 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 "不要编造记忆内容，也不要主动提及你在使用记忆系统，除非用户明确询问。"
             )
             last_user_msg = next((self._extract_text_content(m['content']) for m in reversed(messages) if m['role'] == 'user'), None)
-            
+
             if last_user_msg:
-                # Step 1: Persist the user message before retrieval so recall can
-                # reliably see the latest confirmed facts instead of a pending task.
+                # Step 1: Persist the user message before retrieval
                 if self._should_store_user_memory(last_user_msg):
                     save_result = await self.evermem_service.add_memory(
                         content=last_user_msg,
@@ -841,7 +828,7 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     )
                     user_memory_saved = save_result is not None
                 else:
-                    logger.warning(f"[EverMem] Skipped saving low-signal user message: '{last_user_msg}'")
+                    logger.warning(f"[{stream_label}] Skipped saving low-signal user message: '{last_user_msg}'")
 
                 # Step 2: Retrieve context (skip only for trivial messages)
                 if self._should_retrieve_memory(last_user_msg):
@@ -866,12 +853,12 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                                     "除非上面的长期记忆确实为空。"
                                 )
                         logger.debug(
-                            f"[EverMem] Injected {memories_retrieved} memories "
+                            f"[{stream_label}] Injected {memories_retrieved} memories "
                             f"(recall_request={self._is_memory_recall_request(last_user_msg)}): "
                             f"{self._summarize_memories_for_log(memories)}"
                         )
                 else:
-                    logger.warning(f"[EverMem] Skipped retrieval for low-value message: '{last_user_msg}'")
+                    logger.warning(f"[{stream_label}] Skipped retrieval for low-value message: '{last_user_msg}'")
 
         if context_word:
             system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
@@ -882,7 +869,39 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                 "如果当前问题适合结合用户正在复习或容易遗忘的单词，请优先围绕这些单词给出例句、提问、解释或纠错。"
                 "如果当前问题与单词学习无关，就不要强行提及。"
             )
-        
+
+        return system_prompt, last_user_msg, user_memory_saved, memories_retrieved
+
+    async def chat(
+        self,
+        messages: List[Dict],
+        context_word: str = "",
+        session_id: str = None,
+        learning_context: str = "",
+        enable_thinking: Optional[bool] = None,
+        attachments: Optional[List[Dict]] = None,
+    ) -> Dict:
+        """
+        AI 对话练习 (optimized with EverMemOS official pattern)
+
+        Flow: Store user msg → Retrieve context → Generate response → Store assistant msg
+
+        Args:
+            messages: 对话历史
+            context_word: 当前学习的单词（可选）
+            session_id: The ID of the current chat session (optional)
+            learning_context: Local review weakness summary (optional)
+
+        Returns:
+            Dict with 'response', 'memories_retrieved', 'memory_saved'
+        """
+        system_prompt, last_user_msg, user_memory_saved, memories_retrieved = (
+            await self._prepare_evermem_context(
+                messages, context_word, session_id, learning_context, attachments,
+                stream_label="EverMem",
+            )
+        )
+
         try:
             # Step 3: Generate response
             response = await self._call_llm([
@@ -922,84 +941,15 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         AI 对话练习 (流式输出)
         Flow: Store user msg → Retrieve context → Stream response → Store assistant msg
         """
-        import asyncio as _asyncio
         import json
 
-        system_prompt = "你是一位友好的英语口语老师，帮助学生练习英语对话。用简单易懂的英语回复，并在适当时候纠正语法错误。"
-        
-        memories_retrieved = 0
-        memory_saved = False
-        user_memory_saved = False
-        last_user_msg = None
-        
-        if self.evermem_service:
-            system_prompt += (
-                "\n\n你拥有长期记忆能力，能记住用户过去分享的信息和学习记录。"
-                "记忆中可能包含用户的单词复习记录（含评分和薄弱点），请优先把相关记忆转化为个性化教学建议、举例或纠错。"
-                "如果记忆与当前问题直接相关，至少使用其中一条具体事实来定制回答；如果不相关，就忽略。"
-                "不要编造记忆内容，也不要主动提及你在使用记忆系统，除非用户明确询问。"
+        system_prompt, last_user_msg, user_memory_saved, memories_retrieved = (
+            await self._prepare_evermem_context(
+                messages, context_word, session_id, learning_context, attachments,
+                stream_label="EverMem Stream",
             )
-            last_user_msg = next((self._extract_text_content(m['content']) for m in reversed(messages) if m['role'] == 'user'), None)
-            
-            if last_user_msg:
-                # Step 1: Persist the user message before retrieval so recall can
-                # reliably see the latest confirmed facts instead of a pending task.
-                if self._should_store_user_memory(last_user_msg):
-                    save_result = await self.evermem_service.add_memory(
-                        content=last_user_msg,
-                        user_id=self.evermem_user_id,
-                        sender=self.evermem_user_id,
-                        sender_name="User",
-                        group_id=session_id,
-                        group_name=session_id,
-                        role="user",
-                        attachments=attachments,
-                        flush=True if attachments else False,
-                    )
-                    user_memory_saved = save_result is not None
-                else:
-                    logger.warning(f"[EverMem Stream] Skipped saving low-signal user message: '{last_user_msg}'")
+        )
 
-                # Step 2: Retrieve context
-                if self._should_retrieve_memory(last_user_msg):
-                    memories = await self._retrieve_relevant_memories(last_user_msg, session_id=session_id)
-                    if memories:
-                        memories_retrieved = len(memories)
-                        memory_context = self._format_memory_context(
-                            memories,
-                            prefer_recent=self._is_memory_recall_request(last_user_msg)
-                        )
-                        if memory_context:
-                            system_prompt += (
-                                "\n\n【与当前问题相关的长期记忆】\n"
-                                f"{memory_context}\n"
-                                "请先判断哪些记忆与当前问题最相关，再把最相关的内容自然融入回复。"
-                            )
-                            if self._is_memory_recall_request(last_user_msg):
-                                system_prompt += (
-                                    "\n如果用户正在询问你记得什么、之前聊过什么，"
-                                    "请优先总结精确的历史事实，必要时直接列点回答；"
-                                    "不要先讲泛化画像，也不要泛泛地说你没有记录，"
-                                    "除非上面的长期记忆确实为空。"
-                                )
-                        logger.debug(
-                            f"[EverMem Stream] Injected {memories_retrieved} memories "
-                            f"(recall_request={self._is_memory_recall_request(last_user_msg)}): "
-                            f"{self._summarize_memories_for_log(memories)}"
-                        )
-                else:
-                    logger.warning(f"[EverMem Stream] Skipped retrieval for low-value message: '{last_user_msg}'")
-
-        if context_word:
-            system_prompt += f"\n\n今天的学习单词是 '{context_word}'，请在对话中自然地使用这个单词，帮助学生加深印象。"
-        if learning_context:
-            system_prompt += (
-                "\n\n【当前复习薄弱点】\n"
-                f"{learning_context}\n"
-                "如果当前问题适合结合用户正在复习或容易遗忘的单词，请优先围绕这些单词给出例句、提问、解释或纠错。"
-                "如果当前问题与单词学习无关，就不要强行提及。"
-            )
-        
         full_response = ""
         try:
             # Step 3: Stream response

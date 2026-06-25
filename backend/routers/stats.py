@@ -10,8 +10,8 @@ router = APIRouter()
 
 
 def get_db():
-    from main import get_db as main_get_db
-    return main_get_db()
+    from utils.db import get_db as _get_db
+    return _get_db()
 
 
 @router.get("")

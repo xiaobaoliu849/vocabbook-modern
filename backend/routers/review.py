@@ -2,19 +2,24 @@
 Review API Router
 复习相关操作
 """
+import hashlib
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Header
 from pydantic import BaseModel, Field
 from datetime import datetime, date, timedelta
 import time
-import base64
-import hashlib
-import json
-import re
 
 from repositories.review_repository import ReviewRepository
 from services.blocking_io import run_db_blocking
 from services.multi_dict_service import clean_chinese_text
+from utils.db import get_db
+from utils.evermem_helpers import (
+    extract_bearer_token,
+    can_use_evermem,
+    normalize_scope_value,
+    extract_sub_from_jwt,
+    prime_evermem_runtime,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -35,55 +40,20 @@ class ReviewSession(BaseModel):
     review_count: int  # 复习单词数
 
 
-def get_db():
-    from main import get_db as main_get_db
-    return main_get_db()
-
-
 def get_review_repository() -> ReviewRepository:
     return ReviewRepository(get_db())
 
 
-def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1].strip()
-        return token or None
-    return None
-
-
-def _can_use_evermem(authorization: Optional[str]) -> bool:
-    """Long-term memory writes require authenticated requests."""
-    return _extract_bearer_token(authorization) is not None
-
-
-def _normalize_scope_value(value: str) -> str:
-    normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
-    return normalized or "guest"
-
-
-def _extract_sub_from_jwt(token: str) -> Optional[str]:
-    try:
-        payload_part = token.split(".")[1]
-        padded = payload_part + ("=" * (-len(payload_part) % 4))
-        payload = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
-        sub = payload.get("sub")
-        if isinstance(sub, str) and sub.strip():
-            return sub.strip()
-    except Exception:
-        pass
-    return None
-
-
 def _resolve_evermem_user_id(authorization: Optional[str], x_client_id: Optional[str] = None) -> str:
-    token = _extract_bearer_token(authorization)
+    token = extract_bearer_token(authorization)
     if not token:
         if isinstance(x_client_id, str) and x_client_id.strip():
-            return f"guest_{_normalize_scope_value(x_client_id)}"
+            return f"guest_{normalize_scope_value(x_client_id)}"
         return "guest"
 
-    sub = _extract_sub_from_jwt(token)
+    sub = extract_sub_from_jwt(token)
     if sub:
-        return f"cloud_{_normalize_scope_value(sub)}"
+        return f"cloud_{normalize_scope_value(sub)}"
 
     token_fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
     return f"token_{token_fingerprint}"
@@ -125,32 +95,6 @@ def _review_group_ids_recent(user_id: Optional[str], weeks: int = 4) -> Optional
         tag = f"{iso.year}-W{iso.week:02d}"
         group_ids.append(f"{user_id}::review::{tag}")
     return group_ids if group_ids else None
-
-
-def _prime_evermem_runtime(
-    authorization: Optional[str],
-    x_evermem_enabled: Optional[str],
-    x_evermem_url: Optional[str],
-    x_evermem_key: Optional[str],
-):
-    from routers.ai import _is_enabled
-    from services.evermem_config import resolve_runtime_service
-
-    evermem_requested = _is_enabled(x_evermem_enabled)
-    authed = _can_use_evermem(authorization)
-    evermem_enabled = evermem_requested and authed
-    service = resolve_runtime_service(
-        enabled=evermem_enabled,
-        url=x_evermem_url,
-        key=x_evermem_key,
-    )
-    if evermem_requested and not service:
-        logger.debug(
-            "[EverMem Review] Runtime unavailable "
-            f"requested={evermem_requested} enabled={evermem_enabled} "
-            f"has_auth={authed} has_key={bool((x_evermem_key or '').strip())}"
-        )
-    return service, evermem_enabled
 
 
 def _clean_review_words(words: List[dict]) -> List[dict]:
@@ -254,7 +198,7 @@ async def submit_review(
 ):
     """提交单词复习结果（SM-2 算法）"""
     repo = get_review_repository()
-    evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id) if _can_use_evermem(authorization) else None
+    evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id) if can_use_evermem(authorization) else None
 
     word_data = await run_db_blocking(repo.get_word, review.word)
     if not word_data:
@@ -283,7 +227,7 @@ async def submit_review(
 
     # Store learning record to EverMemOS (fire-and-forget)
     try:
-        evermem, evermem_enabled = _prime_evermem_runtime(
+        evermem, _, evermem_enabled, _ = prime_evermem_runtime(
             authorization=authorization,
             x_evermem_enabled=x_evermem_enabled,
             x_evermem_url=x_evermem_url,
@@ -363,9 +307,9 @@ async def log_session(
     repo = get_review_repository()
     await run_db_blocking(repo.log_study_session, session.duration, session.review_count)
 
-    evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id) if _can_use_evermem(authorization) else None
+    evermem_user_id = _resolve_evermem_user_id(authorization, x_client_id) if can_use_evermem(authorization) else None
     try:
-        evermem, evermem_enabled = _prime_evermem_runtime(
+        evermem, _, evermem_enabled, _ = prime_evermem_runtime(
             authorization=authorization,
             x_evermem_enabled=x_evermem_enabled,
             x_evermem_url=x_evermem_url,

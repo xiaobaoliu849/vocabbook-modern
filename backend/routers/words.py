@@ -77,8 +77,8 @@ class WordListResponse(BaseModel):
 
 def get_db():
     """获取数据库实例"""
-    from main import get_db as main_get_db
-    return main_get_db()
+    from utils.db import get_db as _get_db
+    return _get_db()
 
 
 def _clean_word_data(word_data: dict) -> dict:

@@ -11,17 +11,17 @@ from models.database import DatabaseManager
 from services.blocking_io import run_db_blocking
 from routers.ai import (
     _resolve_chat_owner_key,
-    _can_use_evermem as _ai_can_use_evermem,
-    _prime_evermem_runtime as _prime_ai_evermem_runtime,
 )
 from routers.review import (
     ReviewSubmit,
     _resolve_evermem_user_id,
-    _can_use_evermem as _review_can_use_evermem,
-    _prime_evermem_runtime,
     get_due_words,
     get_due_count,
     submit_review,
+)
+from utils.evermem_helpers import (
+    can_use_evermem,
+    prime_evermem_runtime,
 )
 from services.review_service import ReviewService
 
@@ -259,15 +259,10 @@ def test_guest_client_id_isolation_keys():
 
 
 def test_evermem_requires_bearer_auth_for_chat_and_review():
-    assert _ai_can_use_evermem(None) is False
-    assert _ai_can_use_evermem("Basic abc123") is False
-    assert _ai_can_use_evermem("Bearer ") is False
-    assert _ai_can_use_evermem("Bearer jwt-token") is True
-
-    assert _review_can_use_evermem(None) is False
-    assert _review_can_use_evermem("Token abc123") is False
-    assert _review_can_use_evermem("Bearer ") is False
-    assert _review_can_use_evermem("Bearer jwt-token") is True
+    assert can_use_evermem(None) is False
+    assert can_use_evermem("Basic abc123") is False
+    assert can_use_evermem("Bearer ") is False
+    assert can_use_evermem("Bearer jwt-token") is True
 
 
 def test_evermem_key_not_persisted_to_disk(monkeypatch, tmp_path):
@@ -321,11 +316,12 @@ def test_review_runtime_can_bootstrap_evermem_from_headers(monkeypatch):
 
     monkeypatch.setattr("services.evermem_config.resolve_runtime_service", fake_resolve_runtime_service)
 
-    service, enabled = _prime_evermem_runtime(
+    service, requested, enabled, authed = prime_evermem_runtime(
         authorization="Bearer jwt-token",
         x_evermem_enabled="true",
         x_evermem_url="https://api.evermind.ai",
         x_evermem_key="secret-key",
+        caller="Review",
     )
 
     assert enabled is True
@@ -342,11 +338,12 @@ def test_review_runtime_disables_evermem_when_header_off(monkeypatch):
 
     monkeypatch.setattr("services.evermem_config.resolve_runtime_service", fake_resolve_runtime_service)
 
-    service, enabled = _prime_evermem_runtime(
+    service, requested, enabled, authed = prime_evermem_runtime(
         authorization="Bearer jwt-token",
         x_evermem_enabled="false",
         x_evermem_url="https://api.evermind.ai",
         x_evermem_key="secret-key",
+        caller="Review",
     )
 
     assert enabled is False
@@ -363,11 +360,12 @@ def test_review_runtime_stays_quiet_when_evermem_not_requested(monkeypatch):
     monkeypatch.setattr("services.evermem_config.resolve_runtime_service", fake_resolve_runtime_service)
     monkeypatch.setattr("builtins.print", lambda *args, **kwargs: messages.append(args))
 
-    service, enabled = _prime_evermem_runtime(
+    service, requested, enabled, authed = prime_evermem_runtime(
         authorization="Bearer jwt-token",
         x_evermem_enabled="false",
         x_evermem_url="https://api.evermind.ai",
         x_evermem_key=None,
+        caller="Review",
     )
 
     assert enabled is False
@@ -387,7 +385,7 @@ def test_ai_runtime_can_bootstrap_evermem_without_header_key(monkeypatch):
 
     monkeypatch.setattr("services.evermem_config.resolve_runtime_service", fake_resolve_runtime_service)
 
-    service, requested, enabled, authed = _prime_ai_evermem_runtime(
+    service, requested, enabled, authed = prime_evermem_runtime(
         authorization="Bearer jwt-token",
         x_evermem_enabled="true",
         x_evermem_url="https://api.evermind.ai",

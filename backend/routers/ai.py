@@ -2,11 +2,8 @@
 AI API Router
 AI 增强功能
 """
-import base64
 import hashlib
-import json
 import os
-import re
 import time
 from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Header
@@ -15,6 +12,15 @@ from pydantic import BaseModel
 from repositories.chat_repository import ChatSessionRepository
 from repositories.review_repository import ReviewRepository
 from services.blocking_io import run_db_blocking, run_io_blocking
+from utils.db import get_db
+from utils.evermem_helpers import (
+    extract_bearer_token,
+    is_enabled,
+    can_use_evermem,
+    normalize_scope_value,
+    extract_sub_from_jwt,
+    prime_evermem_runtime,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,17 +28,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
-    """Extract Bearer token from authorization header."""
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1].strip()
-        return token or None
-    return None
-
-
-def _is_enabled(value: Optional[str]) -> bool:
-    """Parse common boolean header values."""
-    return str(value).strip().lower() == "true"
+# Re-export for backward compatibility (used by review.py's _prime_evermem_runtime)
+_is_enabled = is_enabled
 
 
 def _is_learning_context_enabled() -> bool:
@@ -55,66 +52,16 @@ def _is_local_ollama_request(provider: Optional[str], api_base: Optional[str]) -
     )
 
 
-def _can_use_evermem(authorization: Optional[str]) -> bool:
-    """
-    Require authenticated requests for long-term memory access.
-    """
-    return _extract_bearer_token(authorization) is not None
-
-
-def _prime_evermem_runtime(
-    authorization: Optional[str],
-    x_evermem_enabled: Optional[str],
-    x_evermem_url: Optional[str],
-    x_evermem_key: Optional[str],
-):
-    from services.evermem_config import resolve_runtime_service
-
-    evermem_requested = _is_enabled(x_evermem_enabled)
-    authed = _can_use_evermem(authorization)
-    evermem_enabled = evermem_requested and authed
-    service = resolve_runtime_service(
-        enabled=evermem_enabled,
-        url=x_evermem_url,
-        key=x_evermem_key,
-    )
-    if evermem_requested and not service:
-        logger.debug(
-            "[EverMem AI] Runtime unavailable "
-            f"requested={evermem_requested} enabled={evermem_enabled} "
-            f"has_auth={authed} has_key={bool((x_evermem_key or '').strip())}"
-        )
-    return service, evermem_requested, evermem_enabled, authed
-
-
-def _normalize_scope_value(value: str) -> str:
-    normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
-    return normalized or "guest"
-
-
-def _extract_sub_from_jwt(token: str) -> Optional[str]:
-    try:
-        payload_part = token.split(".")[1]
-        padded = payload_part + ("=" * (-len(payload_part) % 4))
-        payload = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
-        sub = payload.get("sub")
-        if isinstance(sub, str) and sub.strip():
-            return sub.strip()
-    except Exception:
-        pass
-    return None
-
-
 def _owner_key_from_identity(identity: str) -> str:
-    return f"cloud_{_normalize_scope_value(identity)}"
+    return f"cloud_{normalize_scope_value(identity)}"
 
 
 def _owner_key_from_client_id(client_id: str) -> str:
-    return f"guest_{_normalize_scope_value(client_id)}"
+    return f"guest_{normalize_scope_value(client_id)}"
 
 
 def _owner_key_from_token(token: str) -> str:
-    sub = _extract_sub_from_jwt(token)
+    sub = extract_sub_from_jwt(token)
     if sub:
         return _owner_key_from_identity(sub)
     token_fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
@@ -122,7 +69,7 @@ def _owner_key_from_token(token: str) -> str:
 
 
 async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Optional[str] = None) -> str:
-    token = _extract_bearer_token(authorization)
+    token = extract_bearer_token(authorization)
     if not token:
         if isinstance(x_client_id, str) and x_client_id.strip():
             return _owner_key_from_client_id(x_client_id)
@@ -150,15 +97,11 @@ async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Opt
 
 
 def get_chat_repository() -> ChatSessionRepository:
-    from main import get_db as main_get_db
-
-    return ChatSessionRepository(main_get_db())
+    return ChatSessionRepository(get_db())
 
 
 def get_review_repository() -> ReviewRepository:
-    from main import get_db as main_get_db
-
-    return ReviewRepository(main_get_db())
+    return ReviewRepository(get_db())
 
 
 def _format_learning_focus_context(summary: dict[str, Any], limit: int = 5) -> str:
@@ -285,7 +228,7 @@ async def _check_ai_limit(
 
     try:
         limit_service = LimitService(db=get_db())
-        await limit_service.check_and_consume(action, token=_extract_bearer_token(authorization))
+        await limit_service.check_and_consume(action, token=extract_bearer_token(authorization))
     except LimitException as le:
         raise HTTPException(status_code=403, detail={"message": le.message, "required_tier": le.required_tier})
 
@@ -395,7 +338,7 @@ async def chat(
     from services.ai_service import AIService
     await _check_ai_limit("ai_chat", authorization, provider=x_ai_provider, api_base=x_ai_base)
     
-    evermem_service, _evermem_requested, evermem_enabled, _authed = _prime_evermem_runtime(
+    evermem_service, _evermem_requested, evermem_enabled, _authed = prime_evermem_runtime(
         authorization=authorization,
         x_evermem_enabled=x_evermem_enabled,
         x_evermem_url=x_evermem_url,
@@ -452,7 +395,7 @@ async def chat_stream(
 
     await _check_ai_limit("ai_chat", authorization, provider=x_ai_provider, api_base=x_ai_base)
 
-    evermem_service, _evermem_requested, evermem_enabled, _authed = _prime_evermem_runtime(
+    evermem_service, _evermem_requested, evermem_enabled, _authed = prime_evermem_runtime(
         authorization=authorization,
         x_evermem_enabled=x_evermem_enabled,
         x_evermem_url=x_evermem_url,
@@ -530,7 +473,7 @@ async def get_memory_overview(
     authorization: Optional[str] = Header(None),
 ):
     """Return a compact memory overview for the AI Partner drawer."""
-    service, evermem_requested, evermem_enabled, authed = _prime_evermem_runtime(
+    service, evermem_requested, evermem_enabled, authed = prime_evermem_runtime(
         authorization=authorization,
         x_evermem_enabled=x_evermem_enabled,
         x_evermem_url=x_evermem_url,
@@ -659,7 +602,7 @@ async def dismiss_foresight(
     authorization: Optional[str] = Header(None),
 ):
     """Dismiss a specific foresight reminder."""
-    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+    service, _, evermem_enabled, _ = prime_evermem_runtime(
         authorization=authorization,
         x_evermem_enabled=x_evermem_enabled,
         x_evermem_url=x_evermem_url,
@@ -684,7 +627,7 @@ async def list_memories(
     authorization: Optional[str] = Header(None),
 ):
     """List memories of a given type for the authenticated owner, with pagination."""
-    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+    service, _, evermem_enabled, _ = prime_evermem_runtime(
         authorization=authorization,
         x_evermem_enabled=x_evermem_enabled,
         x_evermem_url=x_evermem_url,
@@ -752,7 +695,7 @@ async def delete_memory(
     verify the memory belongs to the current owner by searching across their memory
     types. If the memory cannot be found under the owner's scope, return 404.
     """
-    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+    service, _, evermem_enabled, _ = prime_evermem_runtime(
         authorization=authorization,
         x_evermem_enabled=x_evermem_enabled,
         x_evermem_url=x_evermem_url,
@@ -805,7 +748,7 @@ async def clear_memories(
     authorization: Optional[str] = Header(None),
 ):
     """Batch-delete all memories for the authenticated owner (optionally scoped to a group)."""
-    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+    service, _, evermem_enabled, _ = prime_evermem_runtime(
         authorization=authorization,
         x_evermem_enabled=x_evermem_enabled,
         x_evermem_url=x_evermem_url,
@@ -834,7 +777,7 @@ async def get_evermem_settings(
     authorization: Optional[str] = Header(None),
 ):
     """Fetch current EverMemOS memory space settings."""
-    service, _, evermem_enabled, _ = _prime_evermem_runtime(
+    service, _, evermem_enabled, _ = prime_evermem_runtime(
         authorization=authorization,
         x_evermem_enabled=x_evermem_enabled,
         x_evermem_url=x_evermem_url,

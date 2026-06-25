@@ -29,7 +29,7 @@ async def presign_attachment(
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
     authorization: Optional[str] = Header(None),
 ):
-    from routers.ai import _prime_evermem_runtime, _is_enabled, _can_use_evermem
+    from utils.evermem_helpers import prime_evermem_runtime, is_enabled, can_use_evermem
 
     mime = (file.content_type or "").split(";")[0].strip().lower()
     if mime not in ALLOWED_MIME:
@@ -42,10 +42,10 @@ async def presign_attachment(
         limit_mb = max_bytes // (1024 * 1024)
         raise HTTPException(status_code=400, detail=f"file_too_large_{limit_mb}mb")
 
-    if not _is_enabled(x_evermem_enabled) or not _can_use_evermem(authorization):
+    if not is_enabled(x_evermem_enabled) or not can_use_evermem(authorization):
         raise HTTPException(status_code=400, detail="evermem_not_enabled")
 
-    service, _requested, evermem_enabled, _authed = _prime_evermem_runtime(
+    service, _requested, evermem_enabled, _authed = prime_evermem_runtime(
         authorization=authorization,
         x_evermem_enabled=x_evermem_enabled,
         x_evermem_url=x_evermem_url,
