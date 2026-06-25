@@ -2,7 +2,6 @@ import re
 from bs4 import BeautifulSoup
 from collections import OrderedDict
 from datetime import datetime
-from functools import lru_cache
 from typing import Optional
 import time
 

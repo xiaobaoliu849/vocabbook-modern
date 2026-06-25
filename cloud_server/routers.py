@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 import secrets
 from decimal import Decimal, InvalidOperation
@@ -34,6 +35,8 @@ from schemas import (
 )
 import auth
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 # --- Setup ---
 app_router = APIRouter()
@@ -211,7 +214,7 @@ if settings.ALIPAY_APP_ID:
         
         alipay_client = DefaultAlipayClient(alipay_client_config)
     except Exception as e:
-        print(f"Alipay init failed (Expected if files are missing during dev): {e}")
+        logger.warning(f"Alipay init failed (expected if files are missing during dev): {e}")
 
 async def _create_payment_order(
     req: PayRequest,
@@ -270,13 +273,12 @@ async def _create_payment_order(
             # qr_code field contains the URL to generate QR locally
             return PayResponse(code_url=api_response.get("qr_code"), out_trade_no=out_trade_no)
         else:
-            print(f"Alipay API Failed. Raw Response: {response_content}")
+            logger.error(f"Alipay API failed. Raw response: {response_content}")
             raise HTTPException(status_code=400, detail=f"Alipay API Error: {response_content}")
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Payment execution failed")
         raise HTTPException(status_code=500, detail=f"Payment execution failed: {e}")
 
 
@@ -331,16 +333,16 @@ async def pay_notify(request: Request, db: AsyncSession = Depends(get_db)):
         # Verify RSA2 signature
         is_valid = verify_with_rsa(public_key, params, signature)
         if not is_valid:
-            print("Alipay Signature Verification Failed")
+            logger.warning("Alipay signature verification failed")
             return "fail"
     except Exception as e:
-        print(f"Alipay verification error: {e}")
+        logger.error(f"Alipay verification error: {e}")
         return "fail"
 
     # Signature is valid, Check trade status
     trade_status = params.get("trade_status")
     if params.get("app_id") and params.get("app_id") != settings.ALIPAY_APP_ID:
-        print(f"Alipay app_id mismatch: got={params.get('app_id')} expected={settings.ALIPAY_APP_ID}")
+        logger.warning(f"Alipay app_id mismatch: got={params.get('app_id')} expected={settings.ALIPAY_APP_ID}")
         return "fail"
 
     if trade_status in ["TRADE_SUCCESS", "TRADE_FINISHED"]:
@@ -356,7 +358,7 @@ async def pay_notify(request: Request, db: AsyncSession = Depends(get_db)):
 
         paid_amount_fen = _amount_yuan_to_fen(params.get("total_amount"))
         if paid_amount_fen != order.amount_fen:
-            print(f"Alipay amount mismatch for {out_trade_no}: paid={paid_amount_fen} expected={order.amount_fen}")
+            logger.warning(f"Alipay amount mismatch for {out_trade_no}: paid={paid_amount_fen} expected={order.amount_fen}")
             return "fail"
         
         if order.status != ORDER_SUCCESS:

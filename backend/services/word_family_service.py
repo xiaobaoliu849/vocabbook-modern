@@ -1,3 +1,8 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class WordFamilyService:
     @staticmethod
     def extract_root_from_word(word):
@@ -36,7 +41,7 @@ class WordFamilyService:
                         "root": root.strip(),
                         "meaning": meaning.strip()
                     })
-        except Exception:
-            pass
-            
+        except Exception as e:
+            logger.debug(f"Failed to parse roots text: {e}")
+
         return results

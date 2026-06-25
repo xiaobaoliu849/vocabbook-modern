@@ -47,8 +47,8 @@ def extract_sub_from_jwt(token: str) -> Optional[str]:
         if isinstance(sub, str) and sub.strip():
             return sub.strip()
     except Exception:
-        pass
-    return None
+        logger.debug("Failed to extract sub from JWT token")
+        return None
 
 
 def prime_evermem_runtime(

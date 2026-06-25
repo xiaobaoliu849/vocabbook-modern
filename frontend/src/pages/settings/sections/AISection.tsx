@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../../context/ToastContext'
-import { getOwnerTokenHeaders } from '../../../utils/api'
+import { API_BASE_URL, getOwnerTokenHeaders } from '../../../utils/api'
 import MemoryManagementModal from '../../../components/MemoryManagementModal'
 
 function getDefaultModel(provider: string) {
@@ -158,7 +158,7 @@ export default function AISection() {
         setIsTesting(true)
         setTestResult(null)
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/ai/test-connection`, {
+            const response = await fetch(`${API_BASE_URL}/api/ai/test-connection`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -200,7 +200,7 @@ export default function AISection() {
         setOllamaLoading(true)
         setOllamaError('')
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/ai/ollama-models`, {
+            const response = await fetch(`${API_BASE_URL}/api/ai/ollama-models`, {
                 headers: { 'X-AI-Base': base || aiBase || '', ...getOwnerTokenHeaders() }
             })
             const data = await response.json()

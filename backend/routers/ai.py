@@ -90,8 +90,8 @@ async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Opt
             email = resp.json().get("email")
             if isinstance(email, str) and email.strip():
                 return _owner_key_from_identity(email)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Cloud auth verification failed, using fallback: {e}")
 
     return fallback_owner_key
 
@@ -506,7 +506,8 @@ async def get_memory_overview(
             memory_type="profile",
             page_size=20,
         )
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Failed to fetch profile memories: {e}")
         profile_memories = []
 
     profile_facts: list[str] = []
@@ -527,7 +528,8 @@ async def get_memory_overview(
             memory_type="event_log",
             page_size=40,
         )
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Failed to fetch event logs: {e}")
         event_logs = []
 
     recent_memories: list[dict[str, Any]] = []
@@ -585,8 +587,8 @@ async def get_memory_overview(
             })
             if len(foresights) >= 3:
                 break
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to fetch foresights: {e}")
 
     response["foresights"] = foresights
     response["suggestions"] = _build_memory_suggestions(learning_focus, profile_facts)
@@ -715,7 +717,8 @@ async def delete_memory(
                 memory_type=mt,
                 page_size=100,
             )
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Failed to fetch memories for type {mt}: {e}")
             items = []
         for item in items or []:
             if (item.get("memory_id") or item.get("id")) == memory_id:

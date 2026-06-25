@@ -6,7 +6,6 @@ AI 增强功能服务
 import os
 import json
 import re
-import datetime
 from typing import List, Dict, Optional, Tuple
 import httpx
 from services.evermem_service import EverMemService
@@ -285,7 +284,6 @@ class AIService:
                                 data_str = line[6:]
                                 if data_str == "[DONE]":
                                     break
-                                import json
                                 try:
                                     data = json.loads(data_str)
                                     reasoning_chunk, content_chunk = self._extract_stream_text_parts(data)
@@ -941,7 +939,6 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         AI 对话练习 (流式输出)
         Flow: Store user msg → Retrieve context → Stream response → Store assistant msg
         """
-        import json
 
         system_prompt, last_user_msg, user_memory_saved, memories_retrieved = (
             await self._prepare_evermem_context(

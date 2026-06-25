@@ -79,8 +79,8 @@ class DatabaseManager:
         if conn is not None:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error closing DB connection: {e}")
             self._local.connection = None
 
     def execute(self, query, params=(), fetch=False, commit=True):

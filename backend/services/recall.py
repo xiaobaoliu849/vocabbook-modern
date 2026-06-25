@@ -12,8 +12,11 @@ wrappers so that existing callers (tests, chat orchestration) continue to
 work without edits; those wrappers will be removed once callers migrate.
 """
 import datetime
+import logging
 import re
 from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class RecallEngine:
@@ -625,7 +628,7 @@ class RecallEngine:
                 )
                 score += max(0.0, 1.0 - min(age_days, 30.0) / 30.0)
             except Exception:
-                pass
+                logger.debug(f"Failed to parse timestamp for scoring: {timestamp}")
         return score
 
     def score_review_memory(
@@ -646,7 +649,7 @@ class RecallEngine:
                 )
                 score += max(0.0, 1.0 - min(age_days, 14.0) / 14.0)
             except Exception:
-                pass
+                logger.debug(f"Failed to parse timestamp for review scoring: {timestamp}")
         return score
 
     @staticmethod
@@ -661,6 +664,7 @@ class RecallEngine:
                 )
                 return parsed.timestamp()
             except Exception:
+                logger.debug(f"Failed to parse timestamp for sorting: {timestamp}")
                 return float("-inf")
 
         return sorted(memories, key=sort_key, reverse=True)
