@@ -792,14 +792,9 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
             try {
                 // Try to load from Backend API
-                const response = await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
-                    headers: getCommonHeaders()
-                })
-                if (response.ok) {
-                    const dbSessions = await response.json()
-                    if (Array.isArray(dbSessions) && dbSessions.length > 0) {
-                        loadedSessions = dbSessions.filter((s: ChatSession) => isSessionInScope(s.id, chatScope))
-                    }
+                const dbSessions = await api.get(API_PATHS.AI_CHAT_SESSIONS)
+                if (Array.isArray(dbSessions) && dbSessions.length > 0) {
+                    loadedSessions = dbSessions.filter((s: ChatSession) => isSessionInScope(s.id, chatScope))
                 }
             } catch (err) {
                 console.error("Failed to load chat sessions from API", err)
@@ -1083,7 +1078,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     }
 
     const getApiHeaders = useCallback(() => {
-        const headers: Record<string, string> = getCommonHeaders()
+        // Only AI-specific headers; common auth/owner/EverMem headers handled by api.ts
+        const headers: Record<string, string> = {}
         if (provider) headers['X-AI-Provider'] = provider
         if (model) headers['X-AI-Model'] = model
 
@@ -1111,15 +1107,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || ''
         if (apiKey) headers['X-AI-Key'] = apiKey
 
-        if (evermemEnabled) {
-            headers['X-EverMem-Enabled'] = 'true'
-            const evermemUrl = localStorage.getItem('evermem_url')
-            const evermemKey = localStorage.getItem('evermem_key')
-            if (evermemUrl) headers['X-EverMem-Url'] = evermemUrl
-            if (evermemKey) headers['X-EverMem-Key'] = evermemKey
-        }
         return headers
-    }, [evermemEnabled, getCommonHeaders, model, provider])
+    }, [model, provider])
 
     const loadMemoryOverview = useCallback(async (
         options?: {
@@ -1156,13 +1145,9 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
         const request = (async () => {
             try {
-                const response = await fetch(`${API_BASE_URL}${API_PATHS.AI_MEMORY_OVERVIEW}`, {
+                const payload = await api.get(API_PATHS.AI_MEMORY_OVERVIEW, {
                     headers: getApiHeaders()
                 })
-                if (!response.ok) {
-                    throw new Error(t('chat.memory.panel.loadFailed'))
-                }
-                const payload = await response.json()
                 setMemoryOverview(payload)
                 setMemoryOverviewUpdatedAt(Date.now())
                 memoryOverviewLastFetchedAtRef.current = Date.now()
@@ -1274,10 +1259,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             try {
                 await flushSessionSyncs()
                 dropQueuedSessionSync(id)
-                await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSION_DELETE(id)}`, {
-                    method: 'DELETE',
-                    headers: getCommonHeaders()
-                })
+                await api.delete(API_PATHS.AI_CHAT_SESSION_DELETE(id))
             } catch (err) { console.error("Failed to delete session from DB", err) }
 
             setSessions(prev => {
@@ -1336,10 +1318,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         try {
             await flushSessionSyncs()
             clearQueuedSessionSyncs()
-            await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_SESSIONS}`, {
-                method: 'DELETE',
-                headers: getCommonHeaders()
-            })
+            await api.delete(API_PATHS.AI_CHAT_SESSIONS)
         } catch (error) {
             console.error('Failed to clear all chat sessions from DB', error)
         }
@@ -1361,9 +1340,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
     const dismissForesight = async (memoryId: string) => {
         try {
-            await fetch(`${API_BASE_URL}${API_PATHS.AI_FORESIGHT_DISMISS(memoryId)}`, {
-                method: 'DELETE',
-                headers: getApiHeaders(),
+            await api.delete(API_PATHS.AI_FORESIGHT_DISMISS(memoryId), {
+                headers: getApiHeaders()
             })
             memoryOverviewDirtyRef.current = true
             void loadMemoryOverview({ force: true, silent: true })
@@ -1470,7 +1448,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 return s
             }))
 
-            const response = await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_STREAM}`, {
+            const response = await api.raw(API_PATHS.AI_CHAT_STREAM, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

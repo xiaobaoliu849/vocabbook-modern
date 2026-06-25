@@ -442,6 +442,8 @@ async def evaluate_pronunciation(request: PronunciationRequest):
             audio_base64=request.audio_base64
         )
         return result
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pronunciation evaluation failed: {str(e)}")
 

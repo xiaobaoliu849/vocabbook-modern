@@ -983,23 +983,21 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
     async def evaluate_pronunciation(self, word: str, audio_base64: str) -> Dict:
         """
         发音评测（需要 OpenAI Whisper）
-        
+
         Args:
             word: 目标单词
             audio_base64: Base64 编码的音频
-        
+
         Returns:
             评测结果
+
+        Raises:
+            NotImplementedError: Whisper API 尚未配置
         """
-        # This is a placeholder - actual implementation would use Whisper API
-        # For now, return a mock result
-        return {
-            "word": word,
-            "recognized_text": word,  # Would be from Whisper
-            "score": 85,
-            "feedback": "发音基本正确，注意重音位置。",
-            "phonetic_issues": []
-        }
+        raise NotImplementedError(
+            "Pronunciation evaluation requires OpenAI Whisper API. "
+            "Set OPENAI_API_KEY and implement Whisper integration."
+        )
 
     async def translate(self, text: str, source_lang: str, target_lang: str) -> Tuple[str, str]:
         """

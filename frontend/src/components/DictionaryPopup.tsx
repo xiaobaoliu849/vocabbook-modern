@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { api, ApiError, API_BASE_URL, API_PATHS, getClientId, getOwnerTokenHeaders } from '../utils/api';
+import { api, ApiError, API_PATHS } from '../utils/api';
 import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors';
 import AudioButton from './AudioButton';
 import { useGlobalState } from '../context/GlobalStateContext';
 import { useShortcuts } from '../context/ShortcutContext';
 import { X, Search, Heart, Loader2, Plus, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../context/ToastContext';
 import { useFocusTrap } from '../hooks/useFocusTrap';
@@ -70,8 +69,6 @@ export default function DictionaryPopup() {
         setIsDragging(false);
         (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     };
-
-    const { token } = useAuth();
 
     useEffect(() => {
         setAutoPlay(localStorage.getItem('auto_play') !== 'false');
@@ -239,11 +236,10 @@ export default function DictionaryPopup() {
 
             const prompt = `请详细解析单词 '${word}'。要求：\n1. 核心词义与语境\n2. 常见搭配\n3. 巧妙的助记方法\n4. 两个典型的日常交流例句\n请保持排版清晰，解释生动自然，直接输出内容，不用寒暄。`;
 
-            const response = await fetch(`${API_BASE_URL}${API_PATHS.AI_CHAT_STREAM}`, {
+            const response = await api.raw(API_PATHS.AI_CHAT_STREAM, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Client-Id': getClientId(),
                     'X-AI-Provider': provider,
                     'X-AI-Key': apiKey,
                     'X-AI-Model': model,
@@ -251,8 +247,6 @@ export default function DictionaryPopup() {
                     'X-EverMem-Enabled': evermemEnabled,
                     'X-EverMem-Url': evermemUrl,
                     'X-EverMem-Key': evermemKey,
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                    ...getOwnerTokenHeaders(),
                 },
                 body: JSON.stringify({
                     messages: [{ role: 'user', content: prompt }],
