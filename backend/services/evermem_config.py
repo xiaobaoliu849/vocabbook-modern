@@ -66,21 +66,23 @@ def _load_persisted_config():
 
 
 def _schedule_timezone_init(service: EverMemService) -> None:
-    """Fire-and-forget coroutine to set Asia/Shanghai timezone on Evermind.
+    """Fire-and-forget coroutine to set timezone on Evermind.
 
     This ensures the server-side memory extraction engine understands
-    time-relative expressions ("today", "yesterday") correctly for users
-    in China Standard Time (UTC+8). Called once whenever a new API key
-    is registered so we don't hit the settings endpoint on every request.
+    time-relative expressions ("today", "yesterday") correctly.
+    Called once whenever a new API key is registered so we don't hit
+    the settings endpoint on every request.
     """
     if service.is_oss:
         return
 
+    timezone = os.getenv("VOCABBOOK_TIMEZONE", "Asia/Shanghai")
+
     async def _do_set_timezone():
         try:
-            result = await service.update_settings({"timezone": "Asia/Shanghai"})
+            result = await service.update_settings({"timezone": timezone})
             if result:
-                logger.info("[EverMem] Timezone initialized to Asia/Shanghai")
+                logger.info(f"[EverMem] Timezone initialized to {timezone}")
             else:
                 logger.warning("[EverMem] Timezone init returned no result (check API key/connectivity)")
         except Exception as exc:

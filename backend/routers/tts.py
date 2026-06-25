@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # 配置
-DEFAULT_VOICE = "en-US-JennyNeural"  # 标准英文女声
+DEFAULT_VOICE = os.environ.get("VOCABBOOK_TTS_VOICE", "en-US-JennyNeural")
 _DATA_DIR = os.environ.get("VOCABBOOK_DATA_DIR", os.path.dirname(os.path.dirname(__file__)))
 OUTPUT_DIR = os.path.join(_DATA_DIR, "temp_audio")
 RATE = "+0%"  # 正常语速

@@ -18,13 +18,25 @@ class LimitService:
     def __init__(self, db: DatabaseManager):
         self.db = db
         self.cloud_api_url = os.getenv('VOCABBOOK_CLOUD_API_URL', 'http://localhost:8001').rstrip('/')
-        # Free limits per day
+        # Free limits per day (configurable via env vars)
         self.LIMITS = {
-            'ai_chat': 10,
-            'tts': 30,
-            'ai_generate': 15,
-            'ai_translate': 20
+            'ai_chat': self._env_limit('VOCABBOOK_LIMIT_AI_CHAT', 10),
+            'tts': self._env_limit('VOCABBOOK_LIMIT_TTS', 30),
+            'ai_generate': self._env_limit('VOCABBOOK_LIMIT_AI_GENERATE', 15),
+            'ai_translate': self._env_limit('VOCABBOOK_LIMIT_AI_TRANSLATE', 20),
         }
+
+    @staticmethod
+    def _env_limit(env_var: str, default: int) -> int:
+        """Read a rate limit from env var, fall back to default on bad input."""
+        raw = os.getenv(env_var)
+        if raw is None:
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            logger.warning(f"[LimitService] Invalid {env_var}={raw!r}, using default {default}")
+            return default
 
     def _reset_if_needed(self, feature: str):
         """Reset limits if the date has changed"""

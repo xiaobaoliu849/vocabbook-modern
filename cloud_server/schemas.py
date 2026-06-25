@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import Optional, Literal
 from datetime import datetime
 
@@ -21,14 +21,13 @@ class UserLogin(UserBase):
     password: str
 
 class UserResponse(UserBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     is_active: bool
     tier: str
     license_expiry: Optional[datetime] = None
     created_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 # --- Payment ---
 class PayRequest(BaseModel):
@@ -40,6 +39,8 @@ class PayResponse(BaseModel):
 
 
 class OrderStatusResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     out_trade_no: str
     status: str
     amount_fen: int
@@ -47,9 +48,6 @@ class OrderStatusResponse(BaseModel):
     trade_no: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        from_attributes = True
 
 class MockPaySuccessRequest(BaseModel):
     out_trade_no: str
@@ -68,10 +66,9 @@ class AdminOrderStatusUpdateRequest(BaseModel):
 
 
 class AdminUserResponse(UserResponse):
-    is_superuser: bool
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
+    is_superuser: bool
 
 
 class AdminOrderResponse(BaseModel):

@@ -124,7 +124,12 @@ def test_terminal_status_never_overwrites_paid_order():
 
 
 def test_production_runtime_validation_blocks_unsafe_defaults():
-    settings = Settings(ENVIRONMENT="production", ADMIN_TOKEN="")
+    settings = Settings(
+        ENVIRONMENT="production",
+        ADMIN_TOKEN="",
+        ALIPAY_PRIVATE_KEY_PATH="/nonexistent/private.pem",
+        ALIPAY_PUBLIC_KEY_PATH="/nonexistent/public.pem",
+    )
 
     with pytest.raises(RuntimeError) as exc_info:
         settings.validate_runtime()
