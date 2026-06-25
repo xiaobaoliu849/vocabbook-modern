@@ -4,7 +4,7 @@ from functools import partial
 from typing import Any, Callable, TypeVar
 
 T = TypeVar("T")
-_DB_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="vocabbook-db")
+_DB_EXECUTOR = ThreadPoolExecutor(max_workers=3, thread_name_prefix="vocabbook-db")
 _IO_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="vocabbook-io")
 
 

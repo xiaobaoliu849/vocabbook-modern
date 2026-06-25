@@ -1,6 +1,7 @@
 import re
 import requests
 from bs4 import BeautifulSoup
+from collections import OrderedDict
 from datetime import datetime
 from functools import lru_cache
 from typing import Optional
@@ -14,8 +15,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# 内存缓存用于词典查询 (最多 500 个词，5分钟过期)
-_dict_cache = {}
+# 内存缓存用于词典查询 (最多 500 个词，5分钟过期，LRU 淘汰)
+_dict_cache: OrderedDict = OrderedDict()
 _cache_ttl = 300  # 5 minutes
 
 
@@ -24,6 +25,8 @@ def _get_cached(word: str):
     if word in _dict_cache:
         result, timestamp = _dict_cache[word]
         if time.time() - timestamp < _cache_ttl:
+            # Move to end (most recently used)
+            _dict_cache.move_to_end(word)
             return _clean_dict_entry(result)
         else:
             del _dict_cache[word]
@@ -34,12 +37,10 @@ def _set_cached(word: str, result: dict):
     """设置词典缓存"""
     # Clean before caching
     result = _clean_dict_entry(result)
-    
-    # 限制缓存大小
+
+    # 限制缓存大小 — LRU 淘汰最老的条目
     if len(_dict_cache) >= 500:
-        # 移除最旧的条目
-        oldest_key = min(_dict_cache.keys(), key=lambda k: _dict_cache[k][1])
-        del _dict_cache[oldest_key]
+        _dict_cache.popitem(last=False)
     _dict_cache[word] = (result, time.time())
 
 
@@ -248,11 +249,18 @@ class DictService:
         """Synchronous wrapper for AI dictionary fallback."""
         import asyncio
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(DictService._search_word_ai_fallback_async(word))
-            loop.close()
-            return result
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Already inside an async context — use a temporary thread
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    return pool.submit(asyncio.run, DictService._search_word_ai_fallback_async(word)).result(timeout=30)
+            else:
+                return asyncio.run(DictService._search_word_ai_fallback_async(word))
         except Exception as e:
             logger.error(f"Sync wrapper for AI fallback failed: {e}")
             return None
