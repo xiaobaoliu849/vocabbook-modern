@@ -35,7 +35,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                 try {
                     const order = await payService.getOrderStatus(orderNo);
                     if (order.status === 'SUCCESS') {
-                        await checkAuth(token);
+                        await checkAuth();
                         onClose();
                     }
                 } catch (err) {
@@ -83,7 +83,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                 }
             }
 
-            await checkAuth(token);
+            await checkAuth();
             onClose();
         } catch (err: any) {
             console.error(err);

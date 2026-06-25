@@ -27,6 +27,16 @@ export const useAuthStore = create<AuthState>()(
         }),
         {
             name: 'vocab-modern-auth',
+            // Migrate legacy token from old localStorage key on first load
+            onRehydrateStorage: () => (state) => {
+                if (state && !state.token) {
+                    const legacy = localStorage.getItem('vocab_token');
+                    if (legacy) {
+                        state.setToken(legacy);
+                        localStorage.removeItem('vocab_token');
+                    }
+                }
+            },
         }
     )
 );

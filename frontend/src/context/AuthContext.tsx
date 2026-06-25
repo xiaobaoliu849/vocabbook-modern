@@ -16,74 +16,60 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string) => Promise<void>;
     logout: () => void;
-    checkAuth: (tokenOverride?: string | null) => Promise<void>;
+    checkAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
-    const [token, setToken] = useState<string | null>(localStorage.getItem('vocab_token'));
     const [isLoading, setIsLoading] = useState(true);
-    const setStoreToken = useAuthStore((state) => state.setToken);
-    const setStoreUser = useAuthStore((state) => state.setUser);
-    const clearStoreAuth = useAuthStore((state) => state.logout);
+    // token comes from Zustand store (single source of truth)
+    const token = useAuthStore((state) => state.token);
 
-    const checkAuth = useCallback(async (tokenOverride?: string | null) => {
+    const checkAuth = useCallback(async () => {
         try {
-            const token = tokenOverride ?? localStorage.getItem('vocab_token');
-            if (token) {
-                setToken(token);
-                setStoreToken(token);
-                // If we have a token, fetch user details
+            const currentToken = useAuthStore.getState().token;
+            if (currentToken) {
                 try {
-                    const userData = await authService.getCurrentUser(token ?? undefined);
+                    const userData = await authService.getCurrentUser();
                     setUser(userData);
-                    setStoreUser(userData);
+                    useAuthStore.getState().setUser(userData);
                 } catch (e) {
-                     // Token might be expired
-                     console.warn("Token expired or invalid", e);
-                     localStorage.removeItem('vocab_token');
-                     setToken(null);
-                     setUser(null);
-                     clearStoreAuth();
+                    // Token expired or invalid
+                    console.warn("Token expired or invalid", e);
+                    useAuthStore.getState().logout();
+                    setUser(null);
                 }
             } else {
-                setToken(null);
+                useAuthStore.getState().logout();
                 setUser(null);
-                clearStoreAuth();
             }
         } catch (error) {
             console.error("Auth check failed:", error);
         } finally {
             setIsLoading(false);
         }
-    }, [clearStoreAuth, setStoreToken, setStoreUser]);
+    }, []);
 
     useEffect(() => {
         void checkAuth();
     }, [checkAuth]);
 
     const login = async (email: string, password: string) => {
-        const loginResult = await authService.login(email, password);
-        if (loginResult?.access_token) {
-            setToken(loginResult.access_token);
-            setStoreToken(loginResult.access_token);
-        }
-        await checkAuth(loginResult?.access_token ?? null);
+        // authService.login() writes token to Zustand store
+        await authService.login(email, password);
+        await checkAuth();
     };
 
     const register = async (email: string, password: string) => {
         await authService.register(email, password);
-        // Optional: Auto login after register?
-        // await login(email, password); 
     };
 
     const logout = () => {
+        // authService.logout() clears Zustand store
         authService.logout();
-        setToken(null);
         setUser(null);
-        clearStoreAuth();
     };
 
     return (

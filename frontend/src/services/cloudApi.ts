@@ -1,8 +1,10 @@
+import { useAuthStore } from '../stores/useAuthStore';
+
 const DEFAULT_CLOUD_API_URL = 'https://api.historyai.fun';
 const API_URL = import.meta.env.VITE_CLOUD_API_URL || DEFAULT_CLOUD_API_URL;
 
 function getToken(): string | null {
-    return localStorage.getItem('vocab_token');
+    return useAuthStore.getState().token;
 }
 
 async function request<T = any>(
@@ -41,7 +43,7 @@ export const authService = {
             body: params,
         });
         if (data.access_token) {
-            localStorage.setItem('vocab_token', data.access_token);
+            useAuthStore.getState().setToken(data.access_token);
         }
         return data;
     },
@@ -54,15 +56,11 @@ export const authService = {
     },
 
     logout: () => {
-        localStorage.removeItem('vocab_token');
+        useAuthStore.getState().logout();
     },
 
-    getCurrentUser: async (token?: string) => {
-        const headers: Record<string, string> = {};
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-        }
-        return request('/users/me', { headers });
+    getCurrentUser: async () => {
+        return request('/users/me');
     },
 };
 
