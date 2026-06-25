@@ -4,7 +4,8 @@
 """
 import re
 import time
-import requests
+import threading
+import httpx
 import json
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -13,32 +14,34 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# 全局共享 Session，复用 TCP 连接，提升性能
-_session = None
+# httpx.Client 不是线程安全的，使用 thread-local 为每个线程维护独立实例
+_thread_local = threading.local()
+
+# 默认请求头
+_DEFAULT_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+}
+
 # 数据库管理器引用（延迟初始化）
 _db_manager = None
 
 def get_session():
-    """获取共享的 requests Session"""
-    global _session
-    if _session is None:
-        _session = requests.Session()
-        _session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-        })
-        # 配置连接池大小
-        adapter = requests.adapters.HTTPAdapter(
-            pool_connections=10,
-            pool_maxsize=20,
-            max_retries=2
+    """获取当前线程的 httpx Client（线程安全，每线程独立实例）"""
+    client = getattr(_thread_local, 'client', None)
+    if client is None or client.is_closed:
+        client = httpx.Client(
+            headers=_DEFAULT_HEADERS,
+            timeout=httpx.Timeout(10.0),
+            follow_redirects=True,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            transport=httpx.HTTPTransport(retries=2),
         )
-        _session.mount('http://', adapter)
-        _session.mount('https://', adapter)
-    return _session
+        _thread_local.client = client
+    return client
 
 
 def get_db_manager():
