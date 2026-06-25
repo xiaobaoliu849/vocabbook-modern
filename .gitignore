@@ -56,3 +56,11 @@ Untitled-*.txt
 .claude/
 backend/test_ai.py
 frontend/apply_redesign.py
+
+# Debug / one-off scripts
+debug_*.py
+fix_*.py
+tts_test.py
+
+# Root-level screenshots
+/*.png
