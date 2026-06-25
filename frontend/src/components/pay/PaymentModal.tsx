@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2, CheckCircle2 } from 'lucide-react';
-import QRCode from 'react-qr-code';
+import { QRCodeSVG } from 'qrcode.react';
 import { payService } from '../../services/cloudApi';
 import { useAuth } from '../../context/AuthContext';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -89,7 +89,7 @@ export function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                             </div>
                         ) : qrCode ? (
                             <div className="bg-white p-2 rounded-lg">
-                                <QRCode value={qrCode} size={200} />
+                                <QRCodeSVG value={qrCode} size={200} />
                             </div>
                         ) : (
                             <p className="text-red-500">Failed to load QR Code</p>

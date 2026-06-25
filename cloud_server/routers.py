@@ -2,10 +2,10 @@ import json
 import time
 import secrets
 from decimal import Decimal, InvalidOperation
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -66,7 +66,7 @@ def _available_payment_plans() -> dict:
     return plans
 
 # --- Dependencies ---
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -98,7 +98,7 @@ async def require_admin_token(x_admin_token: str = Header(None, alias="X-Admin-T
 # --- Auth Routes ---
 
 @app_router.post("/register", response_model=UserResponse)
-async def register(user: UserCreate, db: Session = Depends(get_db)):
+async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
     hashed_pw = auth.get_password_hash(user.password)
     db_user = User(email=user.email, hashed_password=hashed_pw)
     try:
@@ -111,7 +111,7 @@ async def register(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
 
 @app_router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == form_data.username))
     user = result.scalars().first()
     
@@ -140,7 +140,7 @@ def _build_out_trade_no(prefix: str, user_id: str) -> str:
 
 
 def _activate_premium(user: User, days: int = 30) -> None:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     start_at = user.license_expiry if user.license_expiry and user.license_expiry > now else now
     user.tier = "premium"
     user.license_expiry = start_at + timedelta(days=days)
@@ -172,12 +172,12 @@ def _mark_order_success(order: Order, user: User | None, trade_no: str | None, l
     if order.status == ORDER_SUCCESS:
         if trade_no and not order.trade_no:
             order.trade_no = trade_no
-        order.updated_at = datetime.utcnow()
+        order.updated_at = datetime.now(timezone.utc)
         return False
 
     order.status = ORDER_SUCCESS
     order.trade_no = trade_no or order.trade_no
-    order.updated_at = datetime.utcnow()
+    order.updated_at = datetime.now(timezone.utc)
     if user:
         _activate_premium(user, days=license_days or _license_days_for_order(order))
         return True
@@ -188,7 +188,7 @@ def _mark_order_terminal(order: Order, status_value: str) -> None:
     if order.status == ORDER_SUCCESS:
         return
     order.status = status_value
-    order.updated_at = datetime.utcnow()
+    order.updated_at = datetime.now(timezone.utc)
 
 
 # Initialize Alipay
@@ -216,7 +216,7 @@ if settings.ALIPAY_APP_ID:
 async def _create_payment_order(
     req: PayRequest,
     current_user: User,
-    db: Session,
+    db: AsyncSession,
 ) -> PayResponse:
     plan = _resolve_payment_plan(req.plan_id)
     amount_fen = plan["amount_fen"]
@@ -281,12 +281,12 @@ async def _create_payment_order(
 
 
 @app_router.post("/api/pay/alipay/precreate", response_model=PayResponse)
-async def create_payment(req: PayRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def create_payment(req: PayRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     return await _create_payment_order(req, current_user, db)
 
 
 @app_router.post("/api/pay/native", response_model=PayResponse)
-async def create_native_payment(req: PayRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def create_native_payment(req: PayRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     return await _create_payment_order(req, current_user, db)
 
 
@@ -294,7 +294,7 @@ async def create_native_payment(req: PayRequest, current_user: User = Depends(ge
 async def get_order_status(
     out_trade_no: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         select(Order).where(
@@ -308,7 +308,7 @@ async def get_order_status(
     return order
 
 @app_router.post("/api/pay/alipay/notify")
-async def pay_notify(request: Request, db: Session = Depends(get_db)):
+async def pay_notify(request: Request, db: AsyncSession = Depends(get_db)):
     """Callback from Alipay Server"""
     form_data = await request.form()
     params = dict(form_data)
@@ -384,7 +384,7 @@ async def pay_notify(request: Request, db: Session = Depends(get_db)):
     return "success"
 
 @app_router.post("/api/pay/mock_success")
-async def mock_pay_success(req: MockPaySuccessRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def mock_pay_success(req: MockPaySuccessRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Mock endpoint for developers to mark a specific pending order as paid."""
     if not settings.DEBUG_PAYMENT_MOCKS:
         raise HTTPException(status_code=404, detail="Not found")
@@ -423,7 +423,7 @@ async def admin_payment_readiness(_: bool = Depends(require_admin_token)):
 @app_router.get("/admin/summary", response_model=AdminSummaryResponse)
 async def admin_summary(
     _: bool = Depends(require_admin_token),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     total_users = await db.scalar(select(func.count()).select_from(User)) or 0
     premium_users = await db.scalar(select(func.count()).select_from(User).where(User.tier == "premium")) or 0
@@ -440,7 +440,7 @@ async def admin_summary(
 @app_router.get("/admin/users", response_model=list[AdminUserResponse])
 async def admin_list_users(
     _: bool = Depends(require_admin_token),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     limit: int = 100,
 ):
     safe_limit = max(1, min(limit, 500))
@@ -455,7 +455,7 @@ async def admin_update_user_tier(
     user_id: str,
     payload: AdminUserTierUpdateRequest,
     _: bool = Depends(require_admin_token),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalars().first()
@@ -481,7 +481,7 @@ async def admin_update_user_tier(
 @app_router.get("/admin/orders", response_model=list[AdminOrderResponse])
 async def admin_list_orders(
     _: bool = Depends(require_admin_token),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     limit: int = 100,
 ):
     safe_limit = max(1, min(limit, 500))
@@ -519,7 +519,7 @@ async def admin_update_order_status(
     out_trade_no: str,
     payload: AdminOrderStatusUpdateRequest,
     _: bool = Depends(require_admin_token),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Order).where(Order.out_trade_no == out_trade_no))
     order = result.scalars().first()
@@ -542,7 +542,7 @@ async def admin_update_order_status(
         if order.status == ORDER_SUCCESS:
             raise HTTPException(status_code=400, detail="Paid orders cannot be moved back to PENDING")
         order.status = ORDER_PENDING
-        order.updated_at = datetime.utcnow()
+        order.updated_at = datetime.now(timezone.utc)
     else:
         _mark_order_terminal(order, payload.status)
 

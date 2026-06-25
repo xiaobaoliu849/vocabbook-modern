@@ -1,46 +1,56 @@
-import axios from 'axios';
-
 const DEFAULT_CLOUD_API_URL = 'https://api.historyai.fun';
 const API_URL = import.meta.env.VITE_CLOUD_API_URL || DEFAULT_CLOUD_API_URL;
 
-const api = axios.create({
-    baseURL: API_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
-});
+function getToken(): string | null {
+    return localStorage.getItem('vocab_token');
+}
 
-// Add a request interceptor to attach the JWT token
-api.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem('vocab_token');
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
-);
+async function request<T = any>(
+    path: string,
+    options: RequestInit = {},
+): Promise<T> {
+    const token = getToken();
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string> || {}),
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const resp = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers,
+    });
+
+    if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        throw new Error(`Cloud API ${resp.status}: ${body}`);
+    }
+    return resp.json();
+}
 
 export const authService = {
     login: async (username: string, password: string) => {
         const params = new URLSearchParams();
         params.append('username', username);
         params.append('password', password);
-        const response = await api.post('/token', params, {
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
+        const data = await request<{ access_token: string }>('/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params,
         });
-        if (response.data.access_token) {
-            localStorage.setItem('vocab_token', response.data.access_token);
+        if (data.access_token) {
+            localStorage.setItem('vocab_token', data.access_token);
         }
-        return response.data;
+        return data;
     },
 
     register: async (email: string, password: string) => {
-        const response = await api.post('/register', { email, password });
-        return response.data;
+        return request('/register', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+        });
     },
 
     logout: () => {
@@ -48,24 +58,23 @@ export const authService = {
     },
 
     getCurrentUser: async (token?: string) => {
-        const response = await api.get('/users/me', token ? {
-            headers: { Authorization: `Bearer ${token}` },
-        } : undefined);
-        return response.data;
-    }
+        const headers: Record<string, string> = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        return request('/users/me', { headers });
+    },
 };
 
 export const payService = {
     createNativeOrder: async (planId = 'premium_monthly') => {
-        const response = await api.post('/api/pay/native', { plan_id: planId });
-        return response.data; // { code_url, out_trade_no }
+        return request('/api/pay/native', {
+            method: 'POST',
+            body: JSON.stringify({ plan_id: planId }),
+        });
     },
 
     getOrderStatus: async (outTradeNo: string) => {
-        const response = await api.get(`/api/orders/${encodeURIComponent(outTradeNo)}`);
-        return response.data;
+        return request(`/api/orders/${encodeURIComponent(outTradeNo)}`);
     },
-
 };
-
-export default api;

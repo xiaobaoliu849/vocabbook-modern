@@ -1,6 +1,6 @@
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -44,7 +44,7 @@ def make_user() -> User:
         email="buyer@example.com",
         hashed_password="hash",
         tier="free",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
 
@@ -57,8 +57,8 @@ def make_order(status: str = ORDER_PENDING) -> Order:
         amount_fen=plan["amount_fen"],
         status=status,
         description=plan["description"],
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
 
 
