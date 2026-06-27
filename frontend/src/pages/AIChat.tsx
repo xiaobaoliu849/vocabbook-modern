@@ -1173,11 +1173,11 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         void loadMemoryOverview({ force: true, silent: true })
     }, [loadMemoryOverview])
 
-    const getDisplaySessionTitle = (title: string) => {
+    const getDisplaySessionTitle = useCallback((title: string) => {
         if (isDefaultNewChatTitle(title)) return t('chat.session.newChat')
         if (title === LEGACY_MIGRATED_CHAT_TITLE) return t('chat.session.migratedChat')
         return title
-    }
+    }, [t])
 
     const formatSessionTimestamp = (timestamp: number) => {
         const date = new Date(timestamp)
@@ -1206,7 +1206,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             getDisplaySessionTitle(s.title).toLowerCase().includes(q) ||
             s.messages.some(m => m.content.toLowerCase().includes(q))
         )
-    }, [sessions, searchQuery, t])
+    }, [sessions, searchQuery, getDisplaySessionTitle])
 
     const groupedSessions = useMemo(() => {
         const sorted = [...filteredSessions].sort((a, b) => b.updatedAt - a.updatedAt)

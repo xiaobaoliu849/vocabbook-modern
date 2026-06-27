@@ -5,7 +5,7 @@ import { ErrorBoundary } from '../ErrorBoundary'
 // Mock i18n to avoid initialization issues
 vi.mock('../../i18n', () => ({
     default: {
-        t: (key: string, fallback: string) => fallback,
+        t: (_key: string, fallback: string) => fallback,
         on: vi.fn(),
         off: vi.fn(),
     },
