@@ -578,13 +578,13 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                     <div
                         className="h-full bg-linear-to-r from-primary-500 to-accent-500 transition-all duration-300"
-                        style={{ width: `${((currentIndex + 1) / dueWords.length) * 100}%` }}
+                        style={{ width: `${((currentIndex + 1) / progressTotal) * 100}%` }}
                     />
                 </div>
             </div>
 
             {/* Review Workspace */}
-            <div className={`flex-1 min-h-0 flex flex-col ${showBottomDock ? 'gap-4 mb-8' : 'gap-2 mb-2'}`}>
+            <div className="flex-1 min-h-0 flex flex-col mb-2">
                 <div className="flex-1 min-h-0 w-full perspective-container">
                     {/* Choice Mode - 选择题 */}
                     {reviewMode === 'choice' && (
@@ -620,10 +620,10 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                     {(reviewMode === 'flashcard' || reviewMode === 'spelling') && (
                         <div
                             key={`flip-${reviewMode}-${currentWord.id}`}
-                            className="w-full h-full min-h-0 glass-card overflow-hidden"
+                            className="w-full h-full min-h-0 glass-card overflow-hidden flex flex-col"
                         >
                         <div
-                            className={`w-full h-full min-h-0 cursor-pointer flip-card ${isFlipped ? 'flipped' : ''}`}
+                            className={`flex-1 min-h-0 cursor-pointer flip-card ${isFlipped ? 'flipped' : ''}`}
                             onClick={(event) => {
                                 const target = event.target as HTMLElement | null
                                 if (target?.closest('input, textarea, button, [data-review-scroll="true"]')) return
@@ -633,21 +633,21 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                         >
                             <div className="flip-card-inner relative w-full h-full">
                                 {/* Front */}
-                                <div className={`flip-card-front absolute inset-0 bg-white dark:bg-slate-800 p-6 flex flex-col items-center justify-center backface-hidden ${isFlipped ? 'pointer-events-none' : 'pointer-events-auto'}`}>
+                                <div className={`flip-card-front absolute inset-0 bg-white dark:bg-slate-800 flex flex-col overflow-hidden backface-hidden ${isFlipped ? 'pointer-events-none' : 'pointer-events-auto'}`}>
                                     {reviewMode === 'flashcard' ? (
-                                        <>
-                                            <h3 className="text-5xl font-bold text-slate-800 dark:text-white mb-6 text-center">
+                                        <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-6 py-4">
+                                            <h3 className="text-5xl font-bold text-slate-800 dark:text-white mb-4 text-center">
                                                 {currentWord.word}
                                             </h3>
                                             {currentWord.phonetic && (
-                                                <p className="text-2xl text-slate-500 mb-4 font-mono">{currentWord.phonetic}</p>
+                                                <p className="text-2xl text-slate-500 mb-3 font-mono">{currentWord.phonetic}</p>
                                             )}
                                             <AudioButton
                                                 word={currentWord.word}
                                                 className="!w-16 !h-16 !text-2xl !bg-secondary-100 hover:!bg-secondary-200 text-secondary-700 dark:!bg-secondary-900/30 dark:text-secondary-400 border-none"
                                                 size={28}
                                             />
-                                        </>
+                                        </div>
                                     ) : reviewMode === 'spelling' ? (
                                         // Spelling Mode Front
                                         <div className="w-full h-full flex flex-col relative overflow-hidden">
@@ -720,16 +720,16 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
                                 {/* Back */}
                                 <div className={`flip-card-back absolute inset-0 bg-white dark:bg-slate-800 flex flex-col overflow-hidden backface-hidden ${isFlipped ? 'pointer-events-auto' : 'pointer-events-none'}`}>
-                                    {/* Fixed Header */}
-                                    <div className="flex-none bg-white dark:bg-slate-800 py-4 px-8 z-10 border-b border-slate-100 dark:border-slate-700/50 shadow-sm dark:shadow-slate-900/20">
-                                        <h3 className="text-4xl font-bold text-slate-800 dark:text-white text-center">
+                                    {/* Compact header — keep word visible without stealing scroll space */}
+                                    <div className="flex-none bg-white dark:bg-slate-800 py-2.5 px-6 z-10 border-b border-slate-100 dark:border-slate-700/50">
+                                        <h3 className="text-2xl font-bold text-slate-800 dark:text-white text-center">
                                             {currentWord.word}
                                         </h3>
                                     </div>
 
-                                    {/* Scrollable Content */}
-                                    <div ref={answerScrollRef} data-review-scroll="true" className="flex-1 overflow-y-auto px-8 py-6 pb-20 custom-scrollbar">
-                                        <div className="max-w-4xl mx-auto space-y-8 pb-6">
+                                    {/* Scrollable Content — fills all space above the integrated footer */}
+                                    <div ref={answerScrollRef} data-review-scroll="true" className="flex-1 min-h-0 overflow-y-auto px-6 py-4 custom-scrollbar">
+                                        <div className="max-w-4xl mx-auto space-y-6">
                                             {/* Meaning Section */}
                                             <div className="text-xl text-slate-700 dark:text-slate-300 text-left leading-relaxed font-medium">
                                                 {currentWord.meaning.split('\n').map((line, i) => {
@@ -775,73 +775,73 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Integrated footer — hint / rating inside the card to reclaim vertical space */}
+                        {showBottomDock && (
+                            <div className="flex-none shrink-0 border-t border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 px-4 py-2.5">
+                                {isFlipped ? (
+                                    <div className="flex justify-center gap-2 w-full max-w-4xl mx-auto animate-slide-up">
+                                        <button
+                                            onClick={() => handleRating(1)}
+                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
+                                                bg-white dark:bg-[#1f1f1f] hover:bg-red-50 dark:hover:bg-red-900/20
+                                                hover:border-red-200 dark:hover:border-red-800
+                                                text-stone-600 dark:text-stone-400 hover:text-red-600 dark:hover:text-red-400
+                                                font-medium text-sm transition-all duration-150"
+                                        >
+                                            {t('review.rating.1')}
+                                        </button>
+                                        <button
+                                            onClick={() => handleRating(2)}
+                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
+                                                bg-white dark:bg-[#1f1f1f] hover:bg-orange-50 dark:hover:bg-orange-900/20
+                                                hover:border-orange-200 dark:hover:border-orange-800
+                                                text-stone-600 dark:text-stone-400 hover:text-orange-600 dark:hover:text-orange-400
+                                                font-medium text-sm transition-all duration-150"
+                                        >
+                                            {t('review.rating.2')}
+                                        </button>
+                                        <button
+                                            onClick={() => handleRating(3)}
+                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
+                                                bg-white dark:bg-[#1f1f1f] hover:bg-amber-50 dark:hover:bg-amber-900/20
+                                                hover:border-amber-200 dark:hover:border-amber-800
+                                                text-stone-600 dark:text-stone-400 hover:text-amber-600 dark:hover:text-amber-400
+                                                font-medium text-sm transition-all duration-150"
+                                        >
+                                            {t('review.rating.3')}
+                                        </button>
+                                        <button
+                                            onClick={() => handleRating(4)}
+                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
+                                                bg-white dark:bg-[#1f1f1f] hover:bg-blue-50 dark:hover:bg-blue-900/20
+                                                hover:border-blue-200 dark:hover:border-blue-800
+                                                text-stone-600 dark:text-stone-400 hover:text-blue-600 dark:hover:text-blue-400
+                                                font-medium text-sm transition-all duration-150"
+                                        >
+                                            {t('review.rating.4')}
+                                        </button>
+                                        <button
+                                            onClick={() => handleRating(5)}
+                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
+                                                bg-white dark:bg-[#1f1f1f] hover:bg-green-50 dark:hover:bg-green-900/20
+                                                hover:border-green-200 dark:hover:border-green-800
+                                                text-stone-600 dark:text-stone-400 hover:text-green-600 dark:hover:text-green-400
+                                                font-medium text-sm transition-all duration-150"
+                                        >
+                                            {t('review.rating.5')}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-slate-400 text-sm text-center animate-pulse">
+                                        {bottomHintText}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         </div>
                     )}
                 </div>
-
-                {/* Rating Buttons - Fixed Height Area */}
-                {showBottomDock && (
-                    <div className="flex-none h-16 flex items-center justify-center relative z-20">
-                        {isFlipped ? (
-                            <div className="flex justify-center gap-2 w-full max-w-4xl animate-slide-up">
-                                <button
-                                    onClick={() => handleRating(1)}
-                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
-                                        bg-white dark:bg-[#1f1f1f] hover:bg-red-50 dark:hover:bg-red-900/20
-                                        hover:border-red-200 dark:hover:border-red-800
-                                        text-stone-600 dark:text-stone-400 hover:text-red-600 dark:hover:text-red-400
-                                        font-medium text-sm transition-all duration-150"
-                                >
-                                    {t('review.rating.1')}
-                                </button>
-                                <button
-                                    onClick={() => handleRating(2)}
-                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
-                                        bg-white dark:bg-[#1f1f1f] hover:bg-orange-50 dark:hover:bg-orange-900/20
-                                        hover:border-orange-200 dark:hover:border-orange-800
-                                        text-stone-600 dark:text-stone-400 hover:text-orange-600 dark:hover:text-orange-400
-                                        font-medium text-sm transition-all duration-150"
-                                >
-                                    {t('review.rating.2')}
-                                </button>
-                                <button
-                                    onClick={() => handleRating(3)}
-                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
-                                        bg-white dark:bg-[#1f1f1f] hover:bg-amber-50 dark:hover:bg-amber-900/20
-                                        hover:border-amber-200 dark:hover:border-amber-800
-                                        text-stone-600 dark:text-stone-400 hover:text-amber-600 dark:hover:text-amber-400
-                                        font-medium text-sm transition-all duration-150"
-                                >
-                                    {t('review.rating.3')}
-                                </button>
-                                <button
-                                    onClick={() => handleRating(4)}
-                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
-                                        bg-white dark:bg-[#1f1f1f] hover:bg-blue-50 dark:hover:bg-blue-900/20
-                                        hover:border-blue-200 dark:hover:border-blue-800
-                                        text-stone-600 dark:text-stone-400 hover:text-blue-600 dark:hover:text-blue-400
-                                        font-medium text-sm transition-all duration-150"
-                                >
-                                    {t('review.rating.4')}
-                                </button>
-                                <button
-                                    onClick={() => handleRating(5)}
-                                    className="flex-1 h-10 rounded-lg border border-stone-200 dark:border-stone-700
-                                        bg-white dark:bg-[#1f1f1f] hover:bg-green-50 dark:hover:bg-green-900/20
-                                        hover:border-green-200 dark:hover:border-green-800
-                                        text-stone-600 dark:text-stone-400 hover:text-green-600 dark:hover:text-green-400
-                                        font-medium text-sm transition-all duration-150"
-                                >
-                                    {t('review.rating.5')}
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="text-slate-400 text-sm animate-pulse">
-                                {bottomHintText}
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
         </div >
     )
