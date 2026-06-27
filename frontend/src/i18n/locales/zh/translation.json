@@ -454,6 +454,8 @@
       "difficultDesc": "没有标记为困难的单词，继续加油！",
       "practiceDesc": "正在加载单词...",
       "normalDesc": "暂无待复习的单词，休息一下吧！",
+      "pendingTitle": "正在准备复习",
+      "pendingDesc": "检测到还有 {{count}} 个待复习单词，正在加载复习列表…",
       "refresh": "刷新",
       "practiceMode": "练习模式",
       "difficultMode": "困难词本",

@@ -446,6 +446,8 @@
       "difficultDesc": "No words are marked as difficult yet. Keep it up!",
       "practiceDesc": "Loading words...",
       "normalDesc": "No words are due for review right now. Take a break!",
+      "pendingTitle": "Preparing your review",
+      "pendingDesc": "{{count}} words are still due. Loading your review queue…",
       "refresh": "Refresh",
       "practiceMode": "Practice Mode",
       "difficultMode": "Difficult Words",

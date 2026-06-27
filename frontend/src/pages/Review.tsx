@@ -31,6 +31,15 @@ interface ReviewSubmitResponse {
     remaining_due_count?: number
 }
 
+interface DueWordsResponse {
+    words: ReviewWord[]
+    count?: number
+    total_due?: number
+}
+
+/** Backend /api/review/due allows up to 100 per request */
+const MAX_DUE_WORDS_PER_BATCH = 100
+
 function shuffleWords<T>(words: T[]): T[] {
     const shuffled = [...words]
     for (let index = shuffled.length - 1; index > 0; index -= 1) {
@@ -58,6 +67,8 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     // Spelling mode state
     // Session ratings tracking
     const [sessionRatings, setSessionRatings] = useState<WordRating[]>([])
+    /** Total due queue at session start — used for progress when it exceeds the first loaded batch */
+    const [sessionQueueTotal, setSessionQueueTotal] = useState(0)
 
     const [spellingInput, setSpellingInput] = useState('')
     const [spellingStatus, setSpellingStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle')
@@ -66,9 +77,9 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const answerScrollRef = useRef<HTMLDivElement>(null)
     const currentLoadModeRef = useRef<'normal' | 'practice' | 'difficult'>('normal')
     const loadAbortControllerRef = useRef<AbortController | null>(null)
-    const wasActiveRef = useRef(false)
+    const emptyLoadRetryRef = useRef(0)
 
-    const { refreshDueCount } = useGlobalState()
+    const { refreshDueCount, dueCount } = useGlobalState()
 
     const resetInteractionState = useCallback(() => {
         setIsFlipped(false)
@@ -89,14 +100,14 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         setDifficultMode(mode === 'difficult')
 
         try {
-            let path = `${API_PATHS.REVIEW_DUE}?limit=50`
+            let path = `${API_PATHS.REVIEW_DUE}?limit=${MAX_DUE_WORDS_PER_BATCH}&include_total=true`
             if (mode === 'practice') {
                 path = `${API_PATHS.WORDS}?limit=50`
             } else if (mode === 'difficult') {
                 path = `${API_PATHS.REVIEW_DIFFICULT}?limit=50`
             }
 
-            const data = await api.get(path, { signal: controller.signal })
+            const data = await api.get<DueWordsResponse>(path, { signal: controller.signal })
             if (controller.signal.aborted) return
 
             const words = Array.isArray(data.words) ? data.words : []
@@ -105,10 +116,20 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 : words
 
             setDueWords(nextWords)
+            emptyLoadRetryRef.current = 0
+            setSessionQueueTotal(
+                mode === 'normal' && typeof data.total_due === 'number'
+                    ? data.total_due
+                    : 0
+            )
             setCurrentIndex(0)
             resetInteractionState()
             setSessionStats({ reviewed: 0, startTime: Date.now() })
             setSessionRatings([])
+
+            if (mode === 'normal' && typeof data.total_due === 'number') {
+                void refreshDueCount(data.total_due)
+            }
         } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
                 return
@@ -120,23 +141,23 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 setLoading(false)
             }
         }
-    }, [resetInteractionState])
+    }, [refreshDueCount, resetInteractionState])
 
+    // Reload whenever the review tab becomes visible (page stays mounted while hidden)
     useEffect(() => {
-        const nowActive = Boolean(isActive)
-        const becameActive = nowActive && !wasActiveRef.current
-        wasActiveRef.current = nowActive
-
-        if (becameActive) {
-            void fetchDueWords(currentLoadModeRef.current)
-        }
+        if (!isActive) return
+        void fetchDueWords(currentLoadModeRef.current)
     }, [fetchDueWords, isActive])
 
+    // Recover when sidebar due count and loaded queue disagree (e.g. aborted first fetch)
     useEffect(() => {
-        return () => {
-            loadAbortControllerRef.current?.abort()
-        }
-    }, [])
+        if (!isActive || loading || practiceMode || difficultMode) return
+        if (dueWords.length > 0 || dueCount <= 0) return
+        if (emptyLoadRetryRef.current >= 3) return
+
+        emptyLoadRetryRef.current += 1
+        void fetchDueWords('normal')
+    }, [dueCount, dueWords.length, difficultMode, fetchDueWords, isActive, loading, practiceMode])
 
     const switchReviewMode = useCallback((mode: ReviewMode) => {
         setReviewMode(mode)
@@ -144,6 +165,9 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     }, [resetInteractionState])
 
     const currentWord = dueWords[currentIndex]
+    const progressTotal = !practiceMode && !difficultMode && sessionQueueTotal > 0
+        ? sessionQueueTotal
+        : dueWords.length
     const reviewModes: {
         key: ReviewMode
         icon: LucideIcon
@@ -198,6 +222,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
         try {
             const nextReviewedCount = sessionStats.reviewed + 1
+            const isLastInBatch = currentIndex >= dueWords.length - 1
 
             setSessionRatings(prev => [...prev, {
                 word: currentWord,
@@ -380,14 +405,28 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     }
 
     if (dueWords.length === 0) {
+        const hasPendingDue = !practiceMode && !difficultMode && dueCount > 0
+
         return (
             <div className="animate-fade-in text-center py-16">
-                <span className="text-slate-400 dark:text-slate-500">{difficultMode ? <Dumbbell size={48} /> : practiceMode ? <BookOpen size={48} /> : <Trophy size={48} />}</span>
+                <span className="text-slate-400 dark:text-slate-500">{difficultMode ? <Dumbbell size={48} /> : practiceMode ? <BookOpen size={48} /> : hasPendingDue ? <BookOpen size={48} /> : <Trophy size={48} />}</span>
                 <h2 className="text-2xl font-bold mt-4 text-slate-800 dark:text-white">
-                    {difficultMode ? t('review.empty.difficultTitle') : practiceMode ? t('review.empty.practiceTitle') : t('review.empty.normalTitle')}
+                    {difficultMode
+                        ? t('review.empty.difficultTitle')
+                        : practiceMode
+                            ? t('review.empty.practiceTitle')
+                            : hasPendingDue
+                                ? t('review.empty.pendingTitle')
+                                : t('review.empty.normalTitle')}
                 </h2>
                 <p className="text-slate-500 mt-2">
-                    {difficultMode ? t('review.empty.difficultDesc') : practiceMode ? t('review.empty.practiceDesc') : t('review.empty.normalDesc')}
+                    {difficultMode
+                        ? t('review.empty.difficultDesc')
+                        : practiceMode
+                            ? t('review.empty.practiceDesc')
+                            : hasPendingDue
+                                ? t('review.empty.pendingDesc', { count: dueCount })
+                                : t('review.empty.normalDesc')}
                 </p>
                 <div className="flex justify-center gap-4 mt-6">
                     <button
@@ -494,7 +533,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                             )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
-                            <span>{t('review.progress', { current: currentIndex + 1, total: dueWords.length, reviewed: sessionStats.reviewed })}</span>
+                            <span>{t('review.progress', { current: currentIndex + 1, total: progressTotal, reviewed: sessionStats.reviewed })}</span>
                             <span className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600" />
                             <span className="text-slate-400 dark:text-slate-500">{reviewModes.find(mode => mode.key === reviewMode)?.label}</span>
                         </div>
