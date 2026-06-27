@@ -156,6 +156,10 @@ async def process_import(entries: List[dict], auto_lookup: bool, tag: str) -> Im
         # 保存到数据库
         try:
             if word_data["meaning"]:  # 只有有释义才保存
+                from services.audio_service import AudioService
+                audio_path = await run_io_blocking(AudioService.ensure_audio, word)
+                if audio_path:
+                    word_data["audio"] = audio_path
                 await run_db_blocking(db.add_word, word_data)
                 results["success"] += 1
                 results["details"].append({

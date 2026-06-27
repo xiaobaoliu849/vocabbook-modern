@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, type CSSProperties, type Poin
 import { X, BookOpen, Languages, Check, Loader2, ExternalLink, Copy, Sprout, RefreshCw, Sparkles } from 'lucide-react'
 import AudioButton from './AudioButton'
 import { api, ApiError, API_PATHS, getClientId } from '../utils/api'
+import { getPlaybackAudioUrl } from '../utils/audio'
 import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
@@ -432,7 +433,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                 </div>
                                 <AudioButton
                                     word={wordData.word}
-                                    audioSrc={displayData?.audio}
+                                    audioSrc={getPlaybackAudioUrl(wordData.word, displayData?.audio || wordData.audio)}
                                     size={18}
                                     className="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/30 dark:hover:bg-primary-900/50"
                                 />
@@ -537,7 +538,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                     {wordData?.word && (
                                         <AudioButton
                                             word={wordData.word}
-                                            audioSrc={displayData?.audio}
+                                            audioSrc={getPlaybackAudioUrl(wordData.word, displayData?.audio || wordData.audio)}
                                             size={18}
                                             className="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/30 dark:hover:bg-primary-900/50"
                                         />

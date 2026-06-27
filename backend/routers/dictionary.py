@@ -37,6 +37,12 @@ async def search_word(word: str, sources: Optional[str] = None):
     if not result:
         raise HTTPException(status_code=404, detail=f"Word '{trimmed}' not found in dictionary")
 
+    from services.audio_service import AudioService
+
+    audio_path = await run_io_blocking(AudioService.ensure_audio, trimmed)
+    if audio_path:
+        result["audio"] = audio_path
+
     return result
 
 
@@ -52,19 +58,38 @@ async def translate_text(request: TranslateRequest):
     return {"original": request.text, "translation": result}
 
 
-from urllib.parse import quote
+from fastapi.responses import FileResponse
+from services.audio_service import AudioService
 
 
 @router.get("/audio/{word}")
-async def get_audio_url(word: str, accent: str = Query("us", pattern="^(us|uk)$")):
-    """获取单词发音 URL"""
+async def get_word_audio(word: str, accent: str = Query("us", pattern="^(us|uk)$")):
+    """获取并缓存单词发音音频，返回本地 MP3 文件"""
     trimmed = word.strip()
-    if accent == "uk":
-        url = f"https://dict.youdao.com/dictvoice?audio={quote(trimmed)}&type=1"
-    else:
-        url = f"https://dict.youdao.com/dictvoice?audio={quote(trimmed)}&type=2"
+    if not trimmed:
+        raise HTTPException(status_code=400, detail="Word is required")
 
-    return {"word": trimmed, "accent": accent, "audio_url": url}
+    normalized_accent = AudioService.normalize_accent(accent)
+    filepath = await run_io_blocking(AudioService.get_cached_filepath, trimmed, normalized_accent)
+
+    if not filepath:
+        api_path = await run_io_blocking(AudioService.ensure_audio, trimmed, normalized_accent)
+        if not api_path:
+            raise HTTPException(status_code=404, detail=f"Audio not available for '{trimmed}'")
+        filepath = await run_io_blocking(AudioService.get_cached_filepath, trimmed, normalized_accent)
+
+    if not filepath:
+        raise HTTPException(status_code=404, detail=f"Audio file not found for '{trimmed}'")
+
+    cache_status = "HIT" if filepath else "MISS"
+    return FileResponse(
+        filepath,
+        media_type="audio/mpeg",
+        headers={
+            "Content-Disposition": f"inline; filename={trimmed}.mp3",
+            "X-Cache": cache_status,
+        },
+    )
 
 
 @router.get("/family/{word}")

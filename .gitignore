@@ -40,6 +40,7 @@ Thumbs.db
 *.db-wal
 *.sqlite3
 backend/temp_audio/
+backend/word_audio/
 cloud_server/*.pem
 *公钥私钥*.txt
 

@@ -7,8 +7,9 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, field_validator
 from datetime import datetime
 
-from services.blocking_io import run_db_blocking
+from services.blocking_io import run_db_blocking, run_io_blocking
 from services.multi_dict_service import clean_chinese_text
+from services.audio_service import AudioService
 
 router = APIRouter()
 
@@ -24,6 +25,7 @@ class WordCreate(BaseModel):
     tags: str = ""
     roots: str = ""
     synonyms: str = ""
+    audio: str = ""
 
     @field_validator('word')
     @classmethod
@@ -42,6 +44,7 @@ class WordUpdate(BaseModel):
     roots: Optional[str] = None
     synonyms: Optional[str] = None
     note: Optional[str] = None
+    audio: Optional[str] = None
 
 
 class WordResponse(BaseModel):
@@ -65,6 +68,7 @@ class WordResponse(BaseModel):
     roots: str
     synonyms: str
     note: str = ""
+    audio: str = ""
 
 
 class WordListResponse(BaseModel):
@@ -79,6 +83,13 @@ def get_db():
     """获取数据库实例"""
     from utils.db import get_db as _get_db
     return _get_db()
+
+
+async def _ensure_word_audio_field(word: str, existing_audio: str = "") -> str:
+    if existing_audio:
+        return existing_audio
+    audio_path = await run_io_blocking(AudioService.ensure_audio, word)
+    return audio_path or ""
 
 
 def _clean_word_data(word_data: dict) -> dict:
@@ -159,6 +170,12 @@ async def get_word(word: str):
     word_data = await run_db_blocking(db.get_word, word)
     if not word_data:
         raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
+
+    audio_path = await _ensure_word_audio_field(word, word_data.get("audio", ""))
+    if audio_path and audio_path != word_data.get("audio"):
+        await run_db_blocking(db.update_word, word, {"audio": audio_path})
+        word_data["audio"] = audio_path
+
     return _clean_word_data(word_data)
 
 
@@ -172,6 +189,8 @@ async def add_word(word_data: WordCreate):
     if existing:
         raise HTTPException(status_code=409, detail=f"Word '{word_data.word}' already exists")
     
+    audio_path = word_data.audio or await _ensure_word_audio_field(word_data.word)
+
     data = {
         "word": word_data.word,
         "phonetic": word_data.phonetic,
@@ -182,11 +201,12 @@ async def add_word(word_data: WordCreate):
         "tags": word_data.tags,
         "roots": word_data.roots,
         "synonyms": word_data.synonyms,
+        "audio": audio_path,
         "date": datetime.now().strftime('%Y-%m-%d')
     }
     
     await run_db_blocking(db.add_word, data)
-    return {"message": "Word added successfully", "word": word_data.word}
+    return {"message": "Word added successfully", "word": word_data.word, "audio": audio_path}
 
 
 @router.put("/{word}")
@@ -221,6 +241,32 @@ async def delete_word(word: str):
     
     await run_db_blocking(db.delete_word, word)
     return {"message": "Word deleted successfully", "word": word}
+
+
+@router.post("/backfill-audio")
+async def backfill_audio():
+    """为所有缺少音频的单词补全本地发音缓存"""
+    db = get_db()
+    words = await run_db_blocking(db.get_all_words)
+
+    cached = 0
+    failed = 0
+    for entry in words:
+        if entry.get("audio"):
+            continue
+        audio_path = await _ensure_word_audio_field(entry["word"])
+        if audio_path:
+            await run_db_blocking(db.update_word, entry["word"], {"audio": audio_path})
+            cached += 1
+        else:
+            failed += 1
+
+    return {
+        "total": len(words),
+        "cached": cached,
+        "failed": failed,
+        "already_cached": sum(1 for entry in words if entry.get("audio")),
+    }
 
 
 @router.post("/{word}/master")

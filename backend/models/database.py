@@ -275,6 +275,10 @@ class DatabaseManager:
                 logger.info("Adding 'note' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN note TEXT")
 
+            if 'audio' not in columns:
+                logger.info("Adding 'audio' column to words table...")
+                cursor.execute("ALTER TABLE words ADD COLUMN audio TEXT")
+
             cursor.execute("PRAGMA table_info(review_history)")
             review_history_columns = [info[1] for info in cursor.fetchall()]
             if 'reviewed_at' not in review_history_columns:

@@ -8,6 +8,30 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:80
 export const CLOUD_API_BASE_URL = import.meta.env.VITE_CLOUD_API_URL || 'https://api.historyai.fun'
 const CLIENT_ID_STORAGE_KEY = 'vocabbook_client_id'
 
+export type PronunciationAccent = 'us' | 'uk'
+
+export function getPreferredAccent(): PronunciationAccent {
+    try {
+        return localStorage.getItem('preferred_accent') === 'uk' ? 'uk' : 'us'
+    } catch {
+        return 'us'
+    }
+}
+
+/** Resolve stored/API audio path to a playable URL */
+export function resolveAudioSrc(audio?: string): string | undefined {
+    if (!audio) return undefined
+    if (audio.startsWith('http://') || audio.startsWith('https://')) return audio
+    if (audio.startsWith('/')) return `${API_BASE_URL}${audio}`
+    return audio
+}
+
+/** Local cached pronunciation endpoint (downloads + caches on first request) */
+export function getWordAudioUrl(word: string, accent?: PronunciationAccent): string {
+    const resolvedAccent = accent ?? getPreferredAccent()
+    return `${API_BASE_URL}/api/dict/audio/${encodeURIComponent(word.trim())}?accent=${resolvedAccent}`
+}
+
 export function getOwnerTokenHeaders(): Record<string, string> {
     const ownerToken = localStorage.getItem('owner_token') || ''
     return ownerToken ? { 'X-Owner-Token': ownerToken } : {}
@@ -193,6 +217,7 @@ export const API_PATHS = {
     WORD: (word: string) => `/api/words/${encodeURIComponent(word)}`,
     WORD_TAGS: '/api/words/tags',
     WORD_MASTER: (word: string) => `/api/words/${encodeURIComponent(word)}/master`,
+    WORDS_BACKFILL_AUDIO: '/api/words/backfill-audio',
 
     // Review
     REVIEW_DUE: '/api/review/due',
@@ -204,6 +229,7 @@ export const API_PATHS = {
     // Dictionary
     DICT_SEARCH: (word: string, sources?: string) =>
         `/api/dict/search/${encodeURIComponent(word)}${sources ? `?sources=${sources}` : ''}`,
+    DICT_FAMILY: (word: string) => `/api/dict/family/${encodeURIComponent(word)}`,
 
     // Stats
     STATS_HEATMAP: '/api/stats/heatmap',

@@ -19,8 +19,8 @@ class WordsRepository:
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                INSERT INTO words (word, phonetic, meaning, example, context_en, context_cn, roots, synonyms, tags, date_added, next_review_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO words (word, phonetic, meaning, example, context_en, context_cn, roots, synonyms, tags, audio, date_added, next_review_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 data['word'],
                 data.get('phonetic', ''),
@@ -31,6 +31,7 @@ class WordsRepository:
                 data.get('roots', ''),
                 data.get('synonyms', ''),
                 data.get('tags', ''),
+                data.get('audio', ''),
                 data.get('date', datetime.now().strftime('%Y-%m-%d')),
                 time.time()
             ))
@@ -49,7 +50,7 @@ class WordsRepository:
             d = dict(row)
             d['mastered'] = bool(d['mastered'])
             d['date'] = d['date_added']
-            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note']:
+            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note', 'audio']:
                 if d.get(key) is None:
                     d[key] = ""
             return d
@@ -67,7 +68,7 @@ class WordsRepository:
             d = dict(row)
             d['mastered'] = bool(d['mastered'])
             d['date'] = d['date_added']
-            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note']:
+            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note', 'audio']:
                 if d.get(key) is None:
                     d[key] = ""
             result.append(d)
@@ -152,7 +153,7 @@ class WordsRepository:
 
         valid_columns = {
             'phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'note',
-            'roots', 'synonyms', 'tags', 'mastered', 'stage'
+            'roots', 'synonyms', 'tags', 'audio', 'mastered', 'stage'
         }
 
         set_clauses = []
@@ -258,7 +259,7 @@ class WordsRepository:
             d = dict(row)
             d['mastered'] = bool(d['mastered'])
             d['date'] = d['date_added']
-            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note']:
+            for key in ['phonetic', 'meaning', 'example', 'context_en', 'context_cn', 'roots', 'synonyms', 'tags', 'note', 'audio']:
                 if d.get(key) is None:
                     d[key] = ""
             result.append(d)

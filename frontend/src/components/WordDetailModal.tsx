@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import AudioButton from './AudioButton'
 import { X, Check, GripHorizontal, Sparkles } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
+import { getPlaybackAudioUrl, playWordAudio } from '../utils/audio'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { splitExamples, extractEnglish } from '../utils/textUtils'
@@ -31,7 +32,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
      modalRef.current = node;
      (trapRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
    }, [trapRef])
-   const audioSrc = word.audio || undefined
+   const audioSrc = getPlaybackAudioUrl(word.word, word.audio)
    
    const [note, setNote] = useState(word.note || '')
    const [isSavingNote, setIsSavingNote] = useState(false)
@@ -54,7 +55,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
      let active = true
      const fetchFamily = async () => {
        try {
-         const res = await api.get(`/api/dictionary/family/${word.word}`)
+         const res = await api.get(API_PATHS.DICT_FAMILY(word.word))
          if (active) {
            setWordFamily(res)
          }
@@ -116,13 +117,11 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
    useEffect(() => {
      if (word && word.word) {
        const timer = setTimeout(() => {
-         const url = audioSrc || `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word.word.trim())}&type=2`
-         const audio = new Audio(url)
-         audio.play().catch(err => console.warn('Auto-play failed:', err))
+         playWordAudio(word.word).catch(err => console.warn('Auto-play failed:', err))
        }, 300)
        return () => clearTimeout(timer)
      }
-   }, [word, audioSrc])
+   }, [word])
  
    // Dragging logic
    useEffect(() => {

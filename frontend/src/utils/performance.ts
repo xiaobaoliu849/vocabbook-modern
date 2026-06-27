@@ -3,6 +3,7 @@
  */
 
 import { useRef, useCallback, useEffect, useState } from 'react'
+import { getWordAudioUrl } from './audio'
 
 /**
  * Debounce 函数
@@ -140,9 +141,8 @@ export function useAudio() {
         return audioPool.play(src)
     }, [])
 
-    const playWord = useCallback((word: string, type: 1 | 2 = 2) => {
-        const src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${type}`
-        return audioPool.play(src)
+    const playWord = useCallback((word: string) => {
+        return audioPool.play(getWordAudioUrl(word))
     }, [])
 
     return { play, playWord }

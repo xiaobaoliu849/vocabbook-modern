@@ -31,6 +31,17 @@ export function GlobalStateProvider({ children }: { children: ReactNode }) {
         return () => clearInterval(interval);
     }, [fetchDueCount]);
 
+    useEffect(() => {
+        const backfillKey = 'audio_backfill_v1';
+        if (localStorage.getItem(backfillKey) === 'done') return;
+
+        api.post(API_PATHS.WORDS_BACKFILL_AUDIO)
+            .then(() => localStorage.setItem(backfillKey, 'done'))
+            .catch((error) => {
+                console.warn('Background audio backfill failed:', error);
+            });
+    }, []);
+
     const refreshDueCount = useCallback(async (nextCount?: number) => {
         if (typeof nextCount === 'number') {
             setDueCount(nextCount)

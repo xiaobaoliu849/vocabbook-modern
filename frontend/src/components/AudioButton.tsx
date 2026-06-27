@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Volume2 } from 'lucide-react'
-import { API_BASE_URL } from '../utils/api'
+import { getTtsUrl, getWordAudioUrl, resolveAudioSrc } from '../utils/audio'
 import { useTranslation } from 'react-i18next'
 import { extractEnglish } from '../utils/textUtils'
 
@@ -22,7 +22,6 @@ export default function AudioButton({
   className = '',
   size = 20,
   autoPlay = false,
-  useTTS = false,
   isExample = false
 }: AudioButtonProps) {
   const { t } = useTranslation()
@@ -122,21 +121,16 @@ export default function AudioButton({
     setIsPlaying(false)
     setIsLoading(true)
 
-    // 按优先级构建音频来源列表
     const sources: string[] = []
-    if (audioSrc) {
-      // 自定义音频源最优先
-      sources.push(audioSrc)
-    } else if (word) {
-      const w = encodeURIComponent(word.trim())
-      // Level 1: 有道词典 US 音（最自然）
-      sources.push(`https://dict.youdao.com/dictvoice?audio=${w}&type=2`)
-      // Level 2: Free Dictionary API 真人录音
-      sources.push(`https://api.dictionaryapi.dev/media/pronunciations/en/${encodeURIComponent(word.toLowerCase())}-us.mp3`)
+    const resolvedAudio = resolveAudioSrc(audioSrc)
+    if (resolvedAudio) {
+      sources.push(resolvedAudio)
+    } else if (word && !isExample) {
+      // Local API downloads, caches, and serves pronunciation with fallbacks
+      sources.push(getWordAudioUrl(word))
+    } else if (textToSpeak) {
+      sources.push(getTtsUrl(textToSpeak))
     }
-    // Level 3: 本地 Edge-TTS（始终可用，高质量合成）
-    sources.push(`${API_BASE_URL}/api/tts/speak?text=${encodeURIComponent(textToSpeak)}`)
-    // Level 4 (fallback): 浏览器 SpeechSynthesis（见下方）
 
     const tryPlay = (index: number): void => {
       if (index >= sources.length) {
@@ -175,7 +169,7 @@ export default function AudioButton({
     }
 
     tryPlay(0)
-  }, [getTextToSpeak, audioSrc, word, useTTS, isExample, speakWithBrowser, stopCurrentPlayback])
+  }, [getTextToSpeak, audioSrc, word, speakWithBrowser, stopCurrentPlayback])
 
   // Track previous word/text to detect actual content changes
   const prevTextRef = useRef<string>('')

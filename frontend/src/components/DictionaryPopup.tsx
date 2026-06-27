@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, ApiError, API_PATHS } from '../utils/api';
+import { getPlaybackAudioUrl, playWordAudio } from '../utils/audio';
 import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors';
 import AudioButton from './AudioButton';
 import { useGlobalState } from '../context/GlobalStateContext';
@@ -87,7 +88,7 @@ export default function DictionaryPopup() {
             if (!silent) toast(t('addWord.alerts.failed', 'Failed to add word'), 'error');
             return 'error';
         }
-    }, [notifyWordAdded, t]);
+    }, [notifyWordAdded, t, toast]);
 
     const fetchDefinition = useCallback(async (searchWord: string) => {
         setLoading(true);
@@ -109,9 +110,7 @@ export default function DictionaryPopup() {
             setResult(data);
 
             if (autoPlay) {
-                const audioSrc = `https://dict.youdao.com/dictvoice?audio=${data.word}&type=2`;
-                const audio = new Audio(audioSrc);
-                audio.play().catch(e => console.error("Auto-play blocked:", e));
+                playWordAudio(data.word).catch(e => console.error("Auto-play blocked:", e));
             }
 
             if (autoSave) {
@@ -223,11 +222,18 @@ export default function DictionaryPopup() {
         try {
             // Re-fetch ai settings right before call to ensure latest
             const provider = localStorage.getItem('ai_provider') || 'dashscope';
-            const keysMap = JSON.parse(localStorage.getItem('ai_api_keys_map') || '{}');
+            const parseSettingsMap = (key: string) => {
+                try {
+                    return JSON.parse(localStorage.getItem(key) || '{}');
+                } catch {
+                    return {};
+                }
+            };
+            const keysMap = parseSettingsMap('ai_api_keys_map');
             const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || '';
-            const modelsMap = JSON.parse(localStorage.getItem('ai_models_map') || '{}');
+            const modelsMap = parseSettingsMap('ai_models_map');
             const model = modelsMap[provider] || localStorage.getItem('ai_model') || 'qwen-plus';
-            const basesMap = JSON.parse(localStorage.getItem('ai_bases_map') || '{}');
+            const basesMap = parseSettingsMap('ai_bases_map');
             const apiBase = basesMap[provider] || '';
 
             const evermemEnabled = localStorage.getItem('evermem_enabled') || 'false';
@@ -352,7 +358,7 @@ export default function DictionaryPopup() {
                             <div className="flex items-center gap-1">
                                 <AudioButton
                                     word={result.word}
-                                    audioSrc={displayData?.audio}
+                                    audioSrc={getPlaybackAudioUrl(result.word, displayData?.audio || result.audio)}
                                     className="!p-1.5"
                                     size={16}
                                 />

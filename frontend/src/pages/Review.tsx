@@ -6,6 +6,7 @@ import { splitExamples, extractEnglish } from '../utils/textUtils'
 import { ChoiceMode, DictationMode, SessionSummary } from '../components/review'
 import type { ReviewMode, WordRating, SessionSummaryData } from '../components/review'
 import { api, API_PATHS } from '../utils/api'
+import { playWordAudio } from '../utils/audio'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useShortcuts } from '../context/ShortcutContext'
 
@@ -237,26 +238,39 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             })
 
             setSessionStats(prev => ({ ...prev, reviewed: nextReviewedCount }))
-
-            setCurrentIndex(prev => prev + 1)
             resetInteractionState()
+            void refreshDueCount(result.remaining_due_count)
 
-            if (currentIndex >= dueWords.length - 1) {
-                void logSession(nextReviewedCount)
+            const remainingDue = result.remaining_due_count ?? 0
+            if (isLastInBatch && !practiceMode && !difficultMode && remainingDue > 0) {
+                try {
+                    const more = await api.get<DueWordsResponse>(
+                        `${API_PATHS.REVIEW_DUE}?limit=${Math.min(remainingDue, MAX_DUE_WORDS_PER_BATCH)}`
+                    )
+                    const existingIds = new Set(dueWords.map(word => word.id))
+                    const newWords = (more.words ?? []).filter(word => !existingIds.has(word.id))
+                    if (newWords.length > 0) {
+                        setDueWords(prev => [...prev, ...newWords])
+                        setCurrentIndex(currentIndex + 1)
+                        return
+                    }
+                } catch (error) {
+                    console.error('Failed to load more due words:', error)
+                }
             }
 
-            // Refresh global due count
-            void refreshDueCount(result.remaining_due_count)
+            setCurrentIndex(prev => prev + 1)
+            if (isLastInBatch) {
+                void logSession(nextReviewedCount)
+            }
         } catch (error) {
             console.error('Failed to submit review:', error)
         }
-    }, [currentIndex, currentWord, dueWords.length, logSession, refreshDueCount, resetInteractionState, sessionStats.reviewed])
+    }, [currentIndex, currentWord, difficultMode, dueWords, logSession, practiceMode, refreshDueCount, resetInteractionState, sessionStats.reviewed])
 
     const playAudio = useCallback(() => {
         if (currentWord) {
-            const accent = (localStorage.getItem('preferred_accent') || 'us') === 'uk' ? '1' : '2'
-            const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${currentWord.word}&type=${accent}`)
-            audio.play().catch(e => console.warn("Audio play failed", e))
+            playWordAudio(currentWord.word).catch(e => console.warn("Audio play failed", e))
         }
     }, [currentWord])
 

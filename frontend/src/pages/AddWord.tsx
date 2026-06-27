@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import AudioButton from '../components/AudioButton'
 import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2, Upload, Star, AlertTriangle } from 'lucide-react'
 import { api, ApiError, API_PATHS } from '../utils/api'
+import { getPlaybackAudioUrl, playWordAudio } from '../utils/audio'
 import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useShortcuts } from '../context/ShortcutContext'
@@ -41,7 +42,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
         // 合并额外例句 (AI 生成的)
         if (extraSentences.length > 0) {
             const aiContent = "\n\n" + extraSentences.join("\n\n");
-            if (!data.example.includes(extraSentences[0])) {
+            if (!(data.example || "").includes(extraSentences[0])) {
                 data.example = (data.example || "") + aiContent;
             }
         }
@@ -62,7 +63,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             if (!silent) toast(t('addWord.alerts.failed'), 'error')
             return 'error'
         }
-    }, [notifyWordAdded, t])
+    }, [notifyWordAdded, t, toast])
 
     const handleSearch = useCallback(async (overrideWord?: string) => {
         const wordToSearch = (overrideWord || searchWord).trim()
@@ -86,9 +87,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             setActiveTab('youdao')
 
             if (autoPlay) {
-                const audioSrc = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(data.word.trim())}&type=2`;
-                const audio = new Audio(audioSrc)
-                audio.play().catch(e => console.error("Auto-play blocked:", e))
+                playWordAudio(data.word).catch(e => console.error("Auto-play blocked:", e))
             }
 
             if (autoSave) {
@@ -176,9 +175,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             if (matches(e, 'add.playAudio')) {
                 e.preventDefault()
                 if (searchResult && !searchResult.error) {
-                    const audioSrc = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(searchResult.word.trim())}&type=2`
-                    const audio = new Audio(audioSrc)
-                    audio.play().catch(err => console.warn('Audio play failed:', err))
+                    playWordAudio(searchResult.word).catch(err => console.warn('Audio play failed:', err))
                 }
                 return
             }
@@ -305,7 +302,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                                             {currentData.phonetic || searchResult.phonetic}
                                             <AudioButton
                                                 word={searchResult.word}
-                                                audioSrc={currentData.audio}
+                                                audioSrc={getPlaybackAudioUrl(searchResult.word, currentData.audio || searchResult.audio)}
                                                 className="bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/30 dark:hover:bg-primary-900/50 text-primary-600 shadow-sm"
                                                 size={20}
                                             />

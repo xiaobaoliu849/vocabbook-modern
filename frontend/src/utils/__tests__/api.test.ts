@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ApiError, getClientId, getOwnerTokenHeaders, API_BASE_URL, API_PATHS } from '../api'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { ApiError, getClientId, getOwnerTokenHeaders, API_BASE_URL, API_PATHS, getWordAudioUrl, resolveAudioSrc } from '../api'
 
 describe('ApiError', () => {
     it('stores status and body', () => {
@@ -64,5 +64,35 @@ describe('API_PATHS', () => {
 describe('API_BASE_URL', () => {
     it('defaults to localhost:8000', () => {
         expect(API_BASE_URL).toBe('http://localhost:8000')
+    })
+})
+
+describe('getWordAudioUrl', () => {
+    beforeEach(() => {
+        localStorage.clear()
+    })
+
+    it('builds local cached audio endpoint', () => {
+        const url = getWordAudioUrl('hello')
+        expect(url).toBe(`${API_BASE_URL}/api/dict/audio/${encodeURIComponent('hello')}?accent=us`)
+    })
+
+    it('respects preferred accent', () => {
+        localStorage.setItem('preferred_accent', 'uk')
+        const url = getWordAudioUrl('hello')
+        expect(url).toContain('accent=uk')
+    })
+})
+
+describe('resolveAudioSrc', () => {
+    it('prefixes API paths with API_BASE_URL', () => {
+        expect(resolveAudioSrc('/api/dict/audio/hello?accent=us')).toBe(
+            `${API_BASE_URL}/api/dict/audio/hello?accent=us`
+        )
+    })
+
+    it('returns absolute URLs unchanged', () => {
+        const absolute = 'https://example.com/audio.mp3'
+        expect(resolveAudioSrc(absolute)).toBe(absolute)
     })
 })

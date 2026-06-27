@@ -4,6 +4,7 @@ import AudioButton from '../components/AudioButton'
 import { Trash2, CheckCircle, BookOpen, Loader2, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, AlertTriangle } from 'lucide-react'
 import { useDebounce } from '../utils/performance'
 import { api, API_PATHS } from '../utils/api'
+import { playWordAudio } from '../utils/audio'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
@@ -127,7 +128,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
         } catch (error) {
             console.error('Failed to delete word:', error)
         }
-    }, [getDeleteConfirmMessage, notifyWordDeleted, selectedWord?.word])
+    }, [confirmDialog, getDeleteConfirmMessage, notifyWordDeleted, selectedWord?.word])
 
     const handleMarkMastered = useCallback(async (word: string, e: React.MouseEvent) => {
         e.stopPropagation()
@@ -241,9 +242,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                 if (selectedIndex >= 0 && selectedIndex < words.length) {
                     e.preventDefault()
                     const word = words[selectedIndex]
-                    const accent = (localStorage.getItem('preferred_accent') || 'us') === 'uk' ? '1' : '2'
-                    const audio = new Audio(`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word.word.trim())}&type=${accent}`)
-                    audio.play().catch(err => console.warn('Audio play failed:', err))
+                    playWordAudio(word.word).catch(err => console.warn('Audio play failed:', err))
                 }
             } else if (matches(e, 'list.previousPage')) {
                 // Previous page
@@ -260,7 +259,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [getDeleteConfirmMessage, handleDelete, handleMarkMastered, isActive, isFetching, matches, notifyWordDeleted, notifyWordUpdated, scrollToSelected, selectedIndex, selectedWord, totalPages, words])
+    }, [confirmDialog, getDeleteConfirmMessage, handleDelete, handleMarkMastered, isActive, isFetching, matches, notifyWordDeleted, notifyWordUpdated, scrollToSelected, selectedIndex, selectedWord, totalPages, words])
 
     // Reset selection and page when filters change
     useEffect(() => {
