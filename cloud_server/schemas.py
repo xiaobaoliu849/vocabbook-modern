@@ -59,6 +59,12 @@ class AdminUserTierUpdateRequest(BaseModel):
     extend_days: Optional[int] = None
 
 
+class AdminBatchTierRequest(BaseModel):
+    user_ids: list[str]
+    tier: Literal["free", "premium"]
+    extend_days: Optional[int] = 30
+
+
 class AdminOrderStatusUpdateRequest(BaseModel):
     status: Literal["PENDING", "SUCCESS", "FAIL", "EXPIRED"]
     trade_no: Optional[str] = None

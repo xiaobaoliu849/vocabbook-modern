@@ -90,6 +90,98 @@
       "subtitle": "Recent registered accounts and their current membership state",
       "email": "Email",
       "tier": "Tier",
+{
+  "app": {
+    "title": "VocabBook",
+    "brand": "Smart VocabBook"
+  },
+  "sidebar": {
+    "add": "Vocabulary Hub",
+    "addTooltip": "Search and add new words",
+    "import": "Batch Import",
+    "importTooltip": "Import TXT / CSV in bulk",
+    "list": "Word List",
+    "listTooltip": "Manage saved words",
+    "review": "Smart Review",
+    "reviewTooltip": "Review with the SM-2 algorithm",
+    "stats": "Statistics",
+    "statsTooltip": "View learning progress and heatmap",
+    "translation": "Translator",
+    "translationTooltip": "Multilingual AI translation assistant",
+    "chat": "AI Partner",
+    "chatTooltip": "Conversation practice with long-term memory",
+    "admin": "Admin",
+    "adminTooltip": "Manage cloud users, tiers, and orders",
+    "settings": "Settings",
+    "settingsTooltip": "App Settings",
+    "loginRegister": "Login / Sign Up",
+    "loginNow": "Login Now",
+    "premiumMember": "Premium Member",
+    "freeAccount": "Free Account",
+    "accountSettings": "Account Settings",
+    "upgradeToPremium": "Upgrade to Premium",
+    "unlockPremiumFeatures": "Unlock all premium features",
+    "logout": "Log Out"
+  },
+  "shortcuts": {
+    "title": "⌨️ Keyboard Shortcuts",
+    "globalNavigation": "Global Navigation",
+    "global": "Global",
+    "reviewMode": "Review Mode",
+    "common": "Common",
+    "showHideWindow": "Show / Hide Window",
+    "toggleHelp": "Show / Hide Help",
+    "closeModal": "Close Dialog",
+    "flipCard": "Flip Card",
+    "flipCardDetailed": "Reveal Answer / Flip Card",
+    "flipBack": "Flip Back",
+    "reviewScore": "Rate Memory (1 forgotten - 5 perfect)",
+    "rateMemory": "Rate Memory Strength",
+    "rate1": "Rate 1",
+    "rate2": "Rate 2",
+    "rate3": "Rate 3",
+    "rate4": "Rate 4",
+    "rate5": "Rate 5",
+    "chooseOption1": "Choose Option 1",
+    "chooseOption2": "Choose Option 2",
+    "chooseOption3": "Choose Option 3",
+    "chooseOption4": "Choose Option 4",
+    "playPronunciation": "Play Pronunciation",
+    "switchReviewMode": "Switch Review / Spelling Mode",
+    "showSpellingHint": "Show Spelling Hint",
+    "selectWord": "Select Word",
+    "selectPreviousWord": "Select Previous Word",
+    "selectNextWord": "Select Next Word",
+    "viewDetails": "View Details",
+    "deleteWord": "Delete Word",
+    "markMastered": "Mark as Mastered",
+    "quickSearch": "Quick Search",
+    "previousPage": "Previous Page",
+    "nextPage": "Next Page",
+    "addToVocabBook": "Add to VocabBook",
+    "generateExample": "Generate Example with AI",
+    "searchConfirm": "Search / Confirm"
+  },
+  "admin": {
+    "title": "Cloud Admin",
+    "subtitle": "Manage registered users, membership state, and order data",
+    "token": {
+      "placeholder": "Enter admin token",
+      "connect": "Connect",
+      "refresh": "Refresh",
+      "clear": "Clear"
+    },
+    "summary": {
+      "totalUsers": "Total Users",
+      "premiumUsers": "Premium Users",
+      "totalOrders": "Total Orders",
+      "paidOrders": "Paid Orders"
+    },
+    "users": {
+      "title": "Users",
+      "subtitle": "Recent registered accounts and their current membership state",
+      "email": "Email",
+      "tier": "Tier",
       "expiry": "Expiry",
       "createdAt": "Created",
       "actions": "Actions",
@@ -99,7 +191,10 @@
       "free": "Free",
       "updating": "Updating...",
       "upgrade30": "+30d Premium",
-      "setFree": "Set Free"
+      "setFree": "Set Free",
+      "year": "yr",
+      "permanent": "∞",
+      "searchPlaceholder": "Search by email..."
     },
     "orders": {
       "title": "Orders",
@@ -828,9 +923,16 @@
       "alreadyPremium": "Already Premium",
       "subscribeWithAlipay": "Subscribe with Alipay",
       "scanWithAlipay": "Scan with Alipay",
-      "checkStatus": "I have completed payment",
+      "checkStatus": "I Have Paid",
       "checking": "Checking...",
-      "cancelPayment": "Cancel payment"
+      "cancelPayment": "Cancel Payment"
+    },
+    "altMethods": {
+      "title": "Alternative Methods",
+      "email": "Email Admin",
+      "wechat": "WeChat: vocabbook",
+      "copied": "Copied!",
+      "hint": "After contacting the admin, your premium access will be activated within 24 hours."
     },
     "payment": {
       "orderNo": "Order No: {{orderNo}}"
@@ -913,5 +1015,16 @@
     "pageInfo": "Page {{page}}",
     "close": "Close",
     "refresh": "Refresh"
+  },
+  "upgrade": {
+    "banner": {
+      "loginTitle": "Sign in to sync & unlock",
+      "loginDesc": "Create a free account to save your chats and vocab.",
+      "loginBtn": "Sign in",
+      "upgradeTitle": "Upgrade to Premium",
+      "freeLeft": "{{count}} left",
+      "upgradeDesc": "Unlimited chats, cloud sync, and all AI models.",
+      "upgradeBtn": "Upgrade"
+    }
   }
 }

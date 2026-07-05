@@ -5,6 +5,8 @@ import { Send, Trash2, Sparkles, Plus, MessageSquare, Menu, Edit2, MoreHorizonta
 import { api, API_PATHS, API_BASE_URL, getClientId, getOwnerTokenHeaders } from '../utils/api'
 import AudioButton from '../components/AudioButton'
 import MemoryManagementModal from '../components/MemoryManagementModal'
+import LoginModal from '../components/LoginModal'
+import SubscriptionModal from '../components/SubscriptionModal'
 import EvermemLogo from '../assets/evermind-powered.svg'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -609,6 +611,8 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const { token } = useAuth()
     const [sessions, setSessions] = useState<ChatSession[]>([])
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
+    const [showLoginModal, setShowLoginModal] = useState(false)
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false)
     const [isInitialized, setIsInitialized] = useState(false)
     const [chatScope, setChatScope] = useState(() => resolveChatScope(token))
     const [input, setInput] = useState('')
@@ -1467,6 +1471,14 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 try {
                     const parsed = raw ? JSON.parse(raw) : null
                     const detail = parsed?.detail
+                    if (response.status === 403 && detail?.required_tier === 'premium') {
+                        if (!token) {
+                            setShowLoginModal(true)
+                        } else {
+                            setShowUpgradeModal(true)
+                        }
+                        throw new Error(detail.message || "Premium required")
+                    }
                     if (typeof detail === 'string' && detail.trim()) {
                         detailedMessage = detail
                     } else if (detail?.message && typeof detail.message === 'string') {
@@ -2484,6 +2496,9 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                     </div>
                 </div>
             </div>
+            
+            <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
+            <SubscriptionModal isOpen={showUpgradeModal} onClose={() => setShowUpgradeModal(false)} />
         </div>
     )
 }
