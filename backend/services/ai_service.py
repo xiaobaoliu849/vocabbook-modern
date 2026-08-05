@@ -10,6 +10,7 @@ from typing import List, Dict, Optional, Tuple
 import httpx
 from services.evermem_service import EverMemService
 from services.recall import RecallEngine
+from services.http_client import get_http_client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -207,100 +208,100 @@ class AIService:
     async def _call_llm(self, messages: List[Dict], temperature: float = 0.7, enable_thinking: Optional[bool] = None) -> str:
         """调用 LLM API"""
         config = self._get_client_config()
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            if self.provider in ["openai", "custom", "dashscope", "ollama", "gemini"]:
-                try:
-                    payload = {
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": temperature
+
+        client = get_http_client()
+        if self.provider in ["openai", "custom", "dashscope", "ollama", "gemini"]:
+            try:
+                payload = {
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": temperature
+                }
+                if self.provider == "ollama":
+                    payload["think"] = True if enable_thinking is None else bool(enable_thinking)
+                elif self.provider == "dashscope" and enable_thinking is not None:
+                    payload["extra_body"] = {
+                        "enable_thinking": bool(enable_thinking)
                     }
-                    if self.provider == "ollama":
-                        payload["think"] = True if enable_thinking is None else bool(enable_thinking)
-                    elif self.provider == "dashscope" and enable_thinking is not None:
-                        payload["extra_body"] = {
-                            "enable_thinking": bool(enable_thinking)
-                        }
-                    response = await client.post(
-                        f"{config['base_url']}/chat/completions",
-                        headers=config['headers'],
-                        json=payload
-                    )
-                    response.raise_for_status()
-                    data = response.json()
-                    return data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                except Exception as e:
-                    logger.error(f"LLM API Error: {e}")
-                    if 'response' in locals():
-                        logger.debug(f"Response status: {response.status_code}")
-                        logger.debug(f"Response content: {response.text}")
-                    return ""
-                
-            elif self.provider == "anthropic":
                 response = await client.post(
-                    f"{config['base_url']}/messages",
+                    f"{config['base_url']}/chat/completions",
                     headers=config['headers'],
-                    json={
-                        "model": self.model or "claude-3-sonnet-20240229",
-                        "max_tokens": 1024,
-                        "messages": messages,
-                        "temperature": temperature
-                    }
+                    json=payload
                 )
+                response.raise_for_status()
                 data = response.json()
-                return data.get("content", [{}])[0].get("text", "")
-                
+                return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            except Exception as e:
+                logger.error(f"LLM API Error: {e}")
+                if 'response' in locals():
+                    logger.debug(f"Response status: {response.status_code}")
+                    logger.debug(f"Response content: {response.text}")
+                return ""
+
+        elif self.provider == "anthropic":
+            response = await client.post(
+                f"{config['base_url']}/messages",
+                headers=config['headers'],
+                json={
+                    "model": self.model or "claude-3-sonnet-20240229",
+                    "max_tokens": 1024,
+                    "messages": messages,
+                    "temperature": temperature
+                }
+            )
+            data = response.json()
+            return data.get("content", [{}])[0].get("text", "")
+
         return ""
 
     async def _call_llm_stream(self, messages: List[Dict], temperature: float = 0.7, enable_thinking: Optional[bool] = None):
         """流式调用 LLM API"""
         config = self._get_client_config()
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            if self.provider in ["openai", "custom", "dashscope", "ollama", "gemini"]:
-                try:
-                    payload = {
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": temperature,
-                        "stream": True  # Enable streaming
+
+        client = get_http_client()
+        if self.provider in ["openai", "custom", "dashscope", "ollama", "gemini"]:
+            try:
+                payload = {
+                    "model": self.model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "stream": True  # Enable streaming
+                }
+                if self.provider == "ollama":
+                    payload["think"] = True if enable_thinking is None else bool(enable_thinking)
+                elif self.provider == "dashscope" and enable_thinking is not None:
+                    payload["extra_body"] = {
+                        "enable_thinking": bool(enable_thinking)
                     }
-                    if self.provider == "ollama":
-                        payload["think"] = True if enable_thinking is None else bool(enable_thinking)
-                    elif self.provider == "dashscope" and enable_thinking is not None:
-                        payload["extra_body"] = {
-                            "enable_thinking": bool(enable_thinking)
-                        }
-                    async with client.stream(
-                        "POST",
-                        f"{config['base_url']}/chat/completions",
-                        headers=config['headers'],
-                        json=payload
-                    ) as response:
-                        response.raise_for_status()
-                        async for line in response.aiter_lines():
-                            if line.startswith("data: "):
-                                data_str = line[6:]
-                                if data_str == "[DONE]":
-                                    break
-                                try:
-                                    data = json.loads(data_str)
-                                    reasoning_chunk, content_chunk = self._extract_stream_text_parts(data)
-                                    if reasoning_chunk:
-                                        yield {"type": "reasoning", "content": reasoning_chunk}
-                                    if content_chunk:
-                                        yield {"type": "token", "content": content_chunk}
-                                except json.JSONDecodeError:
-                                    continue
-                except Exception as e:
-                    logger.error(f"LLM Stream API Error: {e}")
-                    yield {"type": "token", "content": f"对话失败，API报错：{str(e)}。请检查模型配置或 API Key。"}
-            
-            # Streaming for anthropic is not fully implemented here as dashscope/openai/ollama are primary
-            else:
-                content = await self._call_llm(messages, temperature)
-                if content:
+                async with client.stream(
+                    "POST",
+                    f"{config['base_url']}/chat/completions",
+                    headers=config['headers'],
+                    json=payload
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:]
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                data = json.loads(data_str)
+                                reasoning_chunk, content_chunk = self._extract_stream_text_parts(data)
+                                if reasoning_chunk:
+                                    yield {"type": "reasoning", "content": reasoning_chunk}
+                                if content_chunk:
+                                    yield {"type": "token", "content": content_chunk}
+                            except json.JSONDecodeError:
+                                continue
+            except Exception as e:
+                logger.error(f"LLM Stream API Error: {e}")
+                yield {"type": "token", "content": f"对话失败，API报错：{str(e)}。请检查模型配置或 API Key。"}
+
+        # Streaming for anthropic is not fully implemented here as dashscope/openai/ollama are primary
+        else:
+            content = await self._call_llm(messages, temperature)
+            if content:
                     yield {"type": "token", "content": content}
     
     async def generate_sentences(self, word: str, count: int = 3, difficulty: str = "intermediate") -> List[str]:
@@ -1084,37 +1085,37 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         """
         config = self._get_client_config()
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    f"{config['base_url']}/chat/completions",
-                    headers=config['headers'],
-                    json={
-                        "model": self.model,
-                        "messages": [{"role": "user", "content": "Hello, please reply with 'OK' if you can hear me."}],
-                        "temperature": 0.1
-                    }
-                )
-                if response.status_code != 200:
-                    error_body = response.text[:200]
-                    return {
-                        "success": False,
-                        "message": f"API 返回 {response.status_code}",
-                        "details": f"Provider: {self.provider}, Model: {self.model}\n{error_body}"
-                    }
-                data = response.json()
-                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                if content and len(content.strip()) > 0:
-                    return {
-                        "success": True,
-                        "message": "连接成功！",
-                        "details": f"AI 响应: {content[:50]}..."
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "message": "AI 响应为空",
-                        "details": f"Provider: {self.provider}, Model: {self.model}\n响应: {str(data)[:200]}"
-                    }
+            client = get_http_client()
+            response = await client.post(
+                f"{config['base_url']}/chat/completions",
+                headers=config['headers'],
+                json={
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": "Hello, please reply with 'OK' if you can hear me."}],
+                    "temperature": 0.1
+                }
+            )
+            if response.status_code != 200:
+                error_body = response.text[:200]
+                return {
+                    "success": False,
+                    "message": f"API 返回 {response.status_code}",
+                    "details": f"Provider: {self.provider}, Model: {self.model}\n{error_body}"
+                }
+            data = response.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if content and len(content.strip()) > 0:
+                return {
+                    "success": True,
+                    "message": "连接成功！",
+                    "details": f"AI 响应: {content[:50]}..."
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "AI 响应为空",
+                    "details": f"Provider: {self.provider}, Model: {self.model}\n响应: {str(data)[:200]}"
+                }
         except Exception as e:
             return {
                 "success": False,

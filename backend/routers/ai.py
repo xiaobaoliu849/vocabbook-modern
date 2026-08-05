@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from repositories.chat_repository import ChatSessionRepository
 from repositories.review_repository import ReviewRepository
 from services.blocking_io import run_db_blocking, run_io_blocking
+from services.http_client import get_http_client
 from utils.db import get_db
 from utils.evermem_helpers import (
     extract_bearer_token,
@@ -80,12 +81,12 @@ async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Opt
 
     # Prefer verified identity from cloud auth service; fallback to token-derived scope.
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{cloud_api_url}/users/me",
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=3.0
-            )
+        client = get_http_client()
+        resp = await client.get(
+            f"{cloud_api_url}/users/me",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=3.0
+        )
         if resp.status_code == 200:
             email = resp.json().get("email")
             if isinstance(email, str) and email.strip():
@@ -825,10 +826,10 @@ async def get_ollama_models(
         base = base[:-3]
 
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{base}/api/tags", timeout=5.0)
-            resp.raise_for_status()
-            data = resp.json()
+        client = get_http_client()
+        resp = await client.get(f"{base}/api/tags", timeout=5.0)
+        resp.raise_for_status()
+        data = resp.json()
 
         models = []
         for m in data.get("models", []):

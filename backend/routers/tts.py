@@ -20,10 +20,40 @@ _DATA_DIR = os.environ.get("VOCABBOOK_DATA_DIR", os.path.dirname(os.path.dirname
 OUTPUT_DIR = os.path.join(_DATA_DIR, "temp_audio")
 RATE = "+0%"  # 正常语速
 
+# 缓存上限：超过后按最久未使用（mtime 最旧）淘汰
+CACHE_MAX_FILES = int(os.environ.get("VOCABBOOK_TTS_CACHE_MAX_FILES", "500"))
+CACHE_MAX_BYTES = int(os.environ.get("VOCABBOOK_TTS_CACHE_MAX_MB", "200")) * 1024 * 1024
+
 def ensure_output_dir():
     """确保音频输出目录存在"""
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
+
+def enforce_cache_limits():
+    """淘汰最旧的缓存音频，直到文件数和总大小都回落到上限内。"""
+    try:
+        entries = [
+            os.path.join(OUTPUT_DIR, name)
+            for name in os.listdir(OUTPUT_DIR)
+            if name.endswith(".mp3")
+        ]
+    except OSError:
+        return
+
+    entries.sort(key=os.path.getmtime)
+    total_bytes = sum(os.path.getsize(p) for p in entries)
+    removed = 0
+    for path in entries:
+        if len(entries) - removed <= CACHE_MAX_FILES and total_bytes <= CACHE_MAX_BYTES:
+            break
+        try:
+            total_bytes -= os.path.getsize(path)
+            os.remove(path)
+            removed += 1
+        except OSError:
+            continue
+    if removed:
+        logger.info(f"[TTS] Cache eviction removed {removed} files")
 
 def clean_text_for_tts(text: str) -> str:
     """
@@ -150,7 +180,8 @@ async def text_to_speech(
         
         if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
             raise HTTPException(status_code=500, detail="Failed to generate audio")
-        
+
+        enforce_cache_limits()
         logger.debug(f"[TTS] Generated: {filename}")
         
         return FileResponse(
