@@ -1,7 +1,0 @@
----
-pid: 11252
-cwd: "D:\Projects\vocabbook-modern"
-command: "& \"D:\\Projects\\vocabbook-modern\\.venv-win\\Scripts\\python.exe\" \"D:\\Projects\\vocabbook-modern\\scripts\\dev_runner.py\""
-started_at: 2026-06-27T15:49:02.422Z
-running_for_ms: 550010   
----
