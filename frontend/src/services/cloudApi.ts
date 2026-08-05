@@ -32,6 +32,30 @@ async function request<T = any>(
     return resp.json();
 }
 
+/**
+ * Admin endpoints are gated by a static X-Admin-Token instead of user JWTs.
+ * Kept separate from `request` so the user token is never mixed in.
+ */
+export async function adminRequest<T = any>(
+    path: string,
+    adminToken: string,
+    options: RequestInit = {},
+): Promise<T> {
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+        ...(options.headers as Record<string, string> || {}),
+    };
+
+    const resp = await fetch(`${API_URL}${path}`, { ...options, headers });
+
+    if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        throw new Error(body || `Admin request failed: ${resp.status}`);
+    }
+    return resp.json();
+}
+
 export const authService = {
     login: async (username: string, password: string) => {
         const params = new URLSearchParams();

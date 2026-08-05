@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crown, KeyRound, RefreshCw, Search, Shield, ShoppingCart, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { CLOUD_API_BASE_URL } from '../utils/api'
+import { adminRequest } from '../services/cloudApi'
 
 const ADMIN_TOKEN_STORAGE_KEY = 'cloud_admin_token'
 
@@ -41,24 +41,6 @@ type LoadingTarget = {
     id: string
 } | null
 
-async function adminFetch<T>(path: string, adminToken: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(`${CLOUD_API_BASE_URL}${path}`, {
-        ...init,
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Admin-Token': adminToken,
-            ...(init?.headers || {}),
-        },
-    })
-
-    if (!response.ok) {
-        const text = await response.text()
-        throw new Error(text || `Admin request failed: ${response.status}`)
-    }
-
-    return response.json() as Promise<T>
-}
-
 function formatDateTime(value?: string | null) {
     if (!value) return '—'
     const date = new Date(value)
@@ -88,6 +70,7 @@ export default function AdminPanel() {
     const [errorMessage, setErrorMessage] = useState('')
     const [searchQuery, setSearchQuery] = useState('')
     const searchTimeoutRef = useRef<number | undefined>(undefined)
+    const initializedRef = useRef(false)
 
     const premiumRate = useMemo(() => {
         if (!summary?.total_users) return 0
@@ -105,9 +88,9 @@ export default function AdminPanel() {
         setErrorMessage('')
         try {
             const [summaryData, userData, orderData] = await Promise.all([
-                adminFetch<AdminSummary>('/admin/summary', token),
-                adminFetch<AdminUser[]>(`/admin/users?limit=100${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ''}`, token),
-                adminFetch<AdminOrder[]>('/admin/orders?limit=100', token),
+                adminRequest<AdminSummary>('/admin/summary', token),
+                adminRequest<AdminUser[]>(`/admin/users?limit=100${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ''}`, token),
+                adminRequest<AdminOrder[]>('/admin/orders?limit=100', token),
             ])
             setSummary(summaryData)
             setUsers(userData)
@@ -119,6 +102,19 @@ export default function AdminPanel() {
             setErrorMessage(error instanceof Error ? error.message : t('admin.errors.loadFailed', 'Failed to load admin data.'))
         } finally {
             setIsLoading(false)
+        }
+    }, [activeAdminToken, searchQuery, t])
+
+    const searchUsers = useCallback(async () => {
+        if (!activeAdminToken) return
+        try {
+            const userData = await adminRequest<AdminUser[]>(
+                `/admin/users?limit=100${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ''}`,
+                activeAdminToken
+            )
+            setUsers(userData)
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : t('admin.errors.loadFailed', 'Failed to load admin data.'))
         }
     }, [activeAdminToken, searchQuery, t])
 
@@ -148,7 +144,7 @@ export default function AdminPanel() {
         setLoadingTarget({ type: 'user', id: userId })
         setErrorMessage('')
         try {
-            await adminFetch<AdminUser>(`/admin/users/${encodeURIComponent(userId)}/tier`, activeAdminToken, {
+            await adminRequest<AdminUser>(`/admin/users/${encodeURIComponent(userId)}/tier`, activeAdminToken, {
                 method: 'POST',
                 body: JSON.stringify(
                     tier === 'premium'
@@ -165,13 +161,16 @@ export default function AdminPanel() {
     }
 
     useEffect(() => {
+        if (initializedRef.current) return
+        initializedRef.current = true
         const savedToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || ''
         setAdminTokenInput(savedToken)
         setActiveAdminToken(savedToken)
         if (savedToken) {
             void loadAdminData(savedToken)
         }
-    }, [loadAdminData])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     return (
         <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
@@ -273,7 +272,7 @@ export default function AdminPanel() {
                                     onChange={(e) => {
                                         setSearchQuery(e.target.value)
                                         if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current)
-                                        searchTimeoutRef.current = window.setTimeout(() => { loadAdminData() }, 500)
+                                        searchTimeoutRef.current = window.setTimeout(() => { searchUsers() }, 500)
                                     }}
                                     placeholder={t('admin.users.searchPlaceholder', 'Search by email...')}
                                     className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 pl-9 pr-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100 dark:focus:ring-primary-900/30"
@@ -329,7 +328,7 @@ export default function AdminPanel() {
                                                             disabled={isBusy}
                                                             className="rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
                                                         >
-                                                            {isBusy && !isPremium ? t('admin.users.updating', 'Updating...') : '+30d'}
+                                                            {isBusy ? t('admin.users.updating', 'Updating...') : '+30d'}
                                                         </button>
                                                         <button
                                                             onClick={() => updateTier(user.id, 'premium', 90)}
