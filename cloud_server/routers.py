@@ -27,6 +27,7 @@ from schemas import (
     OrderStatusResponse,
     MockPaySuccessRequest,
     AdminUserTierUpdateRequest,
+    AdminBatchTierRequest,
     AdminOrderStatusUpdateRequest,
     AdminUserResponse,
     AdminOrderResponse,
@@ -444,10 +445,14 @@ async def admin_list_users(
     _: bool = Depends(require_admin_token),
     db: AsyncSession = Depends(get_db),
     limit: int = 100,
+    search: str = "",
 ):
     safe_limit = max(1, min(limit, 500))
+    query = select(User)
+    if search.strip():
+        query = query.where(User.email.ilike(f"%{search.strip()}%"))
     result = await db.execute(
-        select(User).order_by(User.created_at.desc()).limit(safe_limit)
+        query.order_by(User.created_at.desc()).limit(safe_limit)
     )
     return result.scalars().all()
 
@@ -478,6 +483,31 @@ async def admin_update_user_tier(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@app_router.post("/admin/users/batch-tier")
+async def admin_batch_update_tier(
+    payload: AdminBatchTierRequest,
+    _: bool = Depends(require_admin_token),
+    db: AsyncSession = Depends(get_db),
+):
+    """Batch update tier for multiple users at once."""
+    results = []
+    for uid in payload.user_ids:
+        result = await db.execute(select(User).where(User.id == uid))
+        user = result.scalars().first()
+        if not user:
+            results.append({"user_id": uid, "status": "not_found"})
+            continue
+        if payload.tier == "free":
+            user.tier = "free"
+            user.license_expiry = None
+        else:
+            _activate_premium(user, days=payload.extend_days or 30)
+        db.add(user)
+        results.append({"user_id": uid, "status": "updated", "tier": user.tier})
+    await db.commit()
+    return {"results": results}
 
 
 @app_router.get("/admin/orders", response_model=list[AdminOrderResponse])

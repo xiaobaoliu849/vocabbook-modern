@@ -128,7 +128,7 @@ class MultiDictService:
     # 持久化缓存 TTL（二级缓存，24小时）
     _db_cache_ttl = 86400
     # 聚合查询整体等待上限，超时后返回已拿到的部分结果
-    _aggregate_timeout = 12
+    _aggregate_timeout = 8
 
     @classmethod
     def get_cached(cls, word, source):

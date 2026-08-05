@@ -1,0 +1,12 @@
+---
+pid: 11132
+cwd: "D:\Projects\vocabbook-modern"
+command: "cd \"D:\\Projects\\vocabbook-modern\\backend\" && python -m uvicorn main:app --host 127.0.0.1 --port 8002 2>&1"
+started_at: 2026-06-27T15:45:09.989Z
+running_for_ms: 779990   
+---
+INFO:     Started server process [18536]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8002 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56258 - "GET /api/dict/audio/hello?accent=us HTTP/1.1" 200 OK

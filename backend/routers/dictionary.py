@@ -2,6 +2,8 @@
 Dictionary API Router
 词典查询服务
 """
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List
@@ -22,26 +24,41 @@ def get_dictionary_repository() -> DictionaryRepository:
     return DictionaryRepository(main_get_db())
 
 
+def _get_db():
+    from main import get_db as main_get_db
+    return main_get_db()
+
+
 @router.get("/search/{word}")
 async def search_word(word: str, sources: Optional[str] = None):
     """
     在线词典搜索单词
     sources: comma separated list of enabled dicts (e.g. "youdao,cambridge,bing")
+    Parallelizes dictionary search with audio pre-fetch and is_saved check.
     """
     from services.dict_service import DictService
+    from services.audio_service import AudioService
 
     trimmed = word.strip()
     source_list = sources.split(",") if sources else None
 
-    result = await run_io_blocking(DictService.search_word, trimmed, source_list)
+    # 并行执行：词典查询 + 音频预取 + 是否已保存查询
+    dict_task = run_io_blocking(DictService.search_word, trimmed, source_list)
+    audio_task = run_io_blocking(AudioService.ensure_audio, trimmed)
+    saved_task = run_db_blocking(_get_db().get_word, trimmed)
+
+    result, audio_path, saved_word = await asyncio.gather(
+        dict_task, audio_task, saved_task
+    )
+
     if not result:
         raise HTTPException(status_code=404, detail=f"Word '{trimmed}' not found in dictionary")
 
-    from services.audio_service import AudioService
-
-    audio_path = await run_io_blocking(AudioService.ensure_audio, trimmed)
     if audio_path:
         result["audio"] = audio_path
+
+    # 注入 is_saved 状态，消除前端二次请求
+    result["is_saved"] = saved_word is not None
 
     return result
 

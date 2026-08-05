@@ -172,6 +172,36 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                                         : t('subscription.actions.subscribeWithAlipay', 'Subscribe with Alipay'))}
                             </button>
                         </div>
+
+                        {/* Alternative: Contact Admin */}
+                        <div className="mt-6 pt-5 border-t border-white/10">
+                            <p className="text-slate-400 text-sm mb-3 text-center">
+                                {t('subscription.altMethods.title', '其他开通方式')}
+                            </p>
+                            <div className="flex flex-col sm:flex-row justify-center gap-3">
+                                <a
+                                    href="mailto:381450393@qq.com"
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-sm hover:bg-white/10 transition-colors"
+                                >
+                                    <span>📧</span>
+                                    {t('subscription.altMethods.email', '邮件联系管理员')}
+                                </a>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText('xiaobaoliu849');
+                                        const el = document.getElementById('wechat-copy-hint');
+                                        if (el) { el.textContent = t('subscription.altMethods.copied', '已复制!'); setTimeout(() => { el.textContent = t('subscription.altMethods.wechat', '微信: xiaobaoliu849'); }, 2000); }
+                                    }}
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-sm hover:bg-white/10 transition-colors"
+                                >
+                                    <span>💬</span>
+                                    <span id="wechat-copy-hint">{t('subscription.altMethods.wechat', '微信: xiaobaoliu849')}</span>
+                                </button>
+                            </div>
+                            <p className="text-slate-500 text-xs mt-3 text-center">
+                                {t('subscription.altMethods.hint', '联系管理员后，将在 24 小时内为您开通会员权限')}
+                            </p>
+                        </div>
                     </>
                 ) : (
                     <div className="bg-white rounded-2xl p-8 flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">

@@ -191,6 +191,11 @@ class DatabaseManager:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_word_families_root ON word_families(root)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_word_families_word ON word_families(word)')
 
+        # Case-insensitive word lookup for word_families JOIN queries
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_words_lower_word ON words(LOWER(word))')
+        # Composite index for review queries filtering on mastered + next_review_time
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_words_mastered_review ON words(mastered, next_review_time)')
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS dict_cache (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

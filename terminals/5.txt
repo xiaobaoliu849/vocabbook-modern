@@ -1,0 +1,16 @@
+---
+pid: 26200
+cwd: "D:\Projects\vocabbook-modern"
+command: "& \"D:\\Projects\\vocabbook-modern\\.venv-win\\Scripts\\python.exe\" \"D:\\Projects\\vocabbook-modern\\scripts\\dev_runner.py\""
+started_at: 2026-06-27T15:49:10.104Z
+running_for_ms: 540000   
+---
+[21464:0627/234911.810:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: 拒绝访问。 (0x5)
+[21464:0627/234911.810:ERROR:net\disk_cache\disk_cache.cc:284] Unable to create cache
+[21464:0627/234911.810:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[21464:0627/234911.810:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: 拒绝访问。 (0x5)
+[21464:0627/234911.810:ERROR:net\disk_cache\disk_cache.cc:284] Unable to create cache
+[21464:0627/234911.810:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2
+[21464:0627/234911.810:ERROR:net\disk_cache\cache_util_win.cc:25] Unable to move the cache: 拒绝访问。 (0x5)
+[21464:0627/234911.810:ERROR:net\disk_cache\disk_cache.cc:284] Unable to create cache
+[21464:0627/234911.810:ERROR:gpu\ipc\host\gpu_disk_cache.cc:737] Gpu Cache Creation failed: -2

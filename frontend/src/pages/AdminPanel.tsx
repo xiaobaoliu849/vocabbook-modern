@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Crown, KeyRound, RefreshCw, Shield, ShoppingCart, Users } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Crown, KeyRound, RefreshCw, Search, Shield, ShoppingCart, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { CLOUD_API_BASE_URL } from '../utils/api'
 
@@ -86,6 +86,8 @@ export default function AdminPanel() {
     const [isLoading, setIsLoading] = useState(false)
     const [loadingTarget, setLoadingTarget] = useState<LoadingTarget>(null)
     const [errorMessage, setErrorMessage] = useState('')
+    const [searchQuery, setSearchQuery] = useState('')
+    const searchTimeoutRef = useRef<number | undefined>(undefined)
 
     const premiumRate = useMemo(() => {
         if (!summary?.total_users) return 0
@@ -104,7 +106,7 @@ export default function AdminPanel() {
         try {
             const [summaryData, userData, orderData] = await Promise.all([
                 adminFetch<AdminSummary>('/admin/summary', token),
-                adminFetch<AdminUser[]>('/admin/users?limit=100', token),
+                adminFetch<AdminUser[]>(`/admin/users?limit=100${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ''}`, token),
                 adminFetch<AdminOrder[]>('/admin/orders?limit=100', token),
             ])
             setSummary(summaryData)
@@ -118,7 +120,7 @@ export default function AdminPanel() {
         } finally {
             setIsLoading(false)
         }
-    }, [activeAdminToken, t])
+    }, [activeAdminToken, searchQuery, t])
 
     const saveTokenAndLoad = async () => {
         const token = adminTokenInput.trim()
@@ -141,7 +143,7 @@ export default function AdminPanel() {
         setErrorMessage('')
     }
 
-    const updateTier = async (userId: string, tier: 'free' | 'premium') => {
+    const updateTier = async (userId: string, tier: 'free' | 'premium', days: number = 30) => {
         if (!activeAdminToken) return
         setLoadingTarget({ type: 'user', id: userId })
         setErrorMessage('')
@@ -150,7 +152,7 @@ export default function AdminPanel() {
                 method: 'POST',
                 body: JSON.stringify(
                     tier === 'premium'
-                        ? { tier: 'premium', extend_days: 30 }
+                        ? { tier: 'premium', extend_days: days }
                         : { tier: 'free' }
                 ),
             })
@@ -263,6 +265,20 @@ export default function AdminPanel() {
                             <p className="text-xs text-slate-500 dark:text-slate-400">
                                 {t('admin.users.subtitle', 'Recent registered accounts and their current membership state.')}
                             </p>
+                            <div className="relative mt-2">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value)
+                                        if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current)
+                                        searchTimeoutRef.current = window.setTimeout(() => { loadAdminData() }, 500)
+                                    }}
+                                    placeholder={t('admin.users.searchPlaceholder', 'Search by email...')}
+                                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 pl-9 pr-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100 dark:focus:ring-primary-900/30"
+                                />
+                            </div>
                         </div>
                     </div>
                     <div className="overflow-x-auto">
@@ -307,20 +323,39 @@ export default function AdminPanel() {
                                                 <td className="px-5 py-4 text-slate-600 dark:text-slate-300">{formatDateTime(user.license_expiry)}</td>
                                                 <td className="px-5 py-4 text-slate-500 dark:text-slate-400">{formatDateTime(user.created_at)}</td>
                                                 <td className="px-5 py-4">
-                                                    <div className="flex justify-end gap-2">
+                                                    <div className="flex flex-wrap justify-end gap-1.5">
                                                         <button
-                                                            onClick={() => updateTier(user.id, 'premium')}
+                                                            onClick={() => updateTier(user.id, 'premium', 30)}
                                                             disabled={isBusy}
-                                                            className="rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            className="rounded-lg bg-amber-500 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
                                                         >
-                                                            {isBusy && !isPremium
-                                                                ? t('admin.users.updating', 'Updating...')
-                                                                : t('admin.users.upgrade30', '+30d Premium')}
+                                                            {isBusy && !isPremium ? t('admin.users.updating', 'Updating...') : '+30d'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => updateTier(user.id, 'premium', 90)}
+                                                            disabled={isBusy}
+                                                            className="rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                                        >
+                                                            +90d
+                                                        </button>
+                                                        <button
+                                                            onClick={() => updateTier(user.id, 'premium', 365)}
+                                                            disabled={isBusy}
+                                                            className="rounded-lg bg-purple-500 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                                        >
+                                                            +1{t('admin.users.year', 'yr')}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => updateTier(user.id, 'premium', 36500)}
+                                                            disabled={isBusy}
+                                                            className="rounded-lg bg-emerald-500 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                                        >
+                                                            {t('admin.users.permanent', '∞')}
                                                         </button>
                                                         <button
                                                             onClick={() => updateTier(user.id, 'free')}
                                                             disabled={isBusy}
-                                                            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                                                         >
                                                             {t('admin.users.setFree', 'Set Free')}
                                                         </button>

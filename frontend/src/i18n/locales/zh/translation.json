@@ -99,7 +99,10 @@
       "free": "免费版",
       "updating": "更新中...",
       "upgrade30": "升级 30 天",
-      "setFree": "设为免费"
+      "setFree": "设为免费",
+      "year": "年",
+      "permanent": "永久",
+      "searchPlaceholder": "按邮箱搜索用户..."
     },
     "orders": {
       "title": "订单列表",
@@ -840,6 +843,13 @@
       "checking": "检查中...",
       "cancelPayment": "取消支付"
     },
+    "altMethods": {
+      "title": "其他开通方式",
+      "email": "邮件联系管理员",
+      "wechat": "微信: vocabbook",
+      "copied": "已复制!",
+      "hint": "联系管理员后，将在 24 小时内为您开通会员权限"
+    },
     "payment": {
       "orderNo": "订单号：{{orderNo}}"
     },
@@ -921,5 +931,16 @@
     "pageInfo": "第 {{page}} 页",
     "close": "关闭",
     "refresh": "刷新"
+  },
+  "upgrade": {
+    "banner": {
+      "loginTitle": "登录以同步数据并解锁更多额度",
+      "loginDesc": "创建免费账户，保存您的对话记录和词汇。",
+      "loginBtn": "立即登录",
+      "upgradeTitle": "升级至 Premium 体验完整功能",
+      "freeLeft": "剩余 {{count}} 次",
+      "upgradeDesc": "无限次对话、云端同步、全部 AI 模型。",
+      "upgradeBtn": "升级 Premium"
+    }
   }
 }
