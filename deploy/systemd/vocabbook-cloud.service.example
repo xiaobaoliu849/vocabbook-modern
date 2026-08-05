@@ -1,16 +1,29 @@
+# Install as /etc/systemd/system/vocabbook-cloud.service
+# Provision the service user and ownership first (run as root):
+#   useradd --system --home-dir /var/www/vocabbook-cloud --shell /usr/sbin/nologin vocabbook
+#   chown -R vocabbook:vocabbook /var/www/vocabbook-cloud
+# Also grant vocabbook read access to the Alipay key files in /var/www/vocabbook-cloud/secure.
+# NOTE: every CHANGE_ME value below MUST be replaced; production startup
+# validation rejects CHANGE_ME-style placeholders.
+
 [Unit]
 Description=VocabBook Cloud API
 After=network.target
 
 [Service]
 Type=simple
-User=root
+User=vocabbook
 WorkingDirectory=/var/www/vocabbook-cloud/cloud_server
 Environment=ENVIRONMENT=production
 Environment=DATABASE_URL=sqlite+aiosqlite:////var/www/vocabbook-cloud/cloud_server/cloud_app.db
 Environment=SECRET_KEY=CHANGE_ME_TO_A_LONG_RANDOM_SECRET
 Environment=ADMIN_TOKEN=CHANGE_ME_TO_A_LONG_RANDOM_ADMIN_TOKEN
-Environment=CORS_ORIGINS=https://api.historyai.fun,null
+Environment=CORS_ORIGINS=https://api.historyai.fun
+# Auth rate limiting (per key, fixed window; set MAX to 0 to disable).
+Environment=RATE_LIMIT_LOGIN_MAX=10
+Environment=RATE_LIMIT_LOGIN_WINDOW_SECONDS=60
+Environment=RATE_LIMIT_REGISTER_MAX=5
+Environment=RATE_LIMIT_REGISTER_WINDOW_SECONDS=3600
 Environment=DEBUG_PAYMENT_MOCKS=false
 Environment=ENABLE_LIVE_TEST_PLAN=false
 Environment=ALIPAY_APP_ID=CHANGE_ME

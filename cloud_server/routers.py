@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.exc import IntegrityError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from alipay.aop.api.AlipayClientConfig import AlipayClientConfig
@@ -36,12 +36,20 @@ from schemas import (
 )
 import auth
 from config import settings
+from rate_limit import FixedWindowRateLimiter, enforce_rate_limit, get_client_ip
 
 logger = logging.getLogger(__name__)
 
 # --- Setup ---
 app_router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+login_rate_limiter = FixedWindowRateLimiter(
+    settings.RATE_LIMIT_LOGIN_MAX, settings.RATE_LIMIT_LOGIN_WINDOW_SECONDS
+)
+register_rate_limiter = FixedWindowRateLimiter(
+    settings.RATE_LIMIT_REGISTER_MAX, settings.RATE_LIMIT_REGISTER_WINDOW_SECONDS
+)
 
 ORDER_PENDING = "PENDING"
 ORDER_SUCCESS = "SUCCESS"
@@ -102,7 +110,12 @@ async def require_admin_token(x_admin_token: str = Header(None, alias="X-Admin-T
 # --- Auth Routes ---
 
 @app_router.post("/register", response_model=UserResponse)
-async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(user: UserCreate, request: Request, db: AsyncSession = Depends(get_db)):
+    enforce_rate_limit(
+        register_rate_limiter,
+        f"register:{get_client_ip(request)}",
+        "Too many registration attempts, please try again later",
+    )
     hashed_pw = auth.get_password_hash(user.password)
     db_user = User(email=user.email, hashed_password=hashed_pw)
     try:
@@ -115,7 +128,16 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
 
 @app_router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+async def login_for_access_token(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    enforce_rate_limit(
+        login_rate_limiter,
+        f"login:{get_client_ip(request)}:{form_data.username.strip().lower()}",
+        "Too many login attempts, please try again later",
+    )
     result = await db.execute(select(User).where(User.email == form_data.username))
     user = result.scalars().first()
     
@@ -186,6 +208,26 @@ def _mark_order_success(order: Order, user: User | None, trade_no: str | None, l
         _activate_premium(user, days=license_days or _license_days_for_order(order))
         return True
     return False
+
+
+async def _claim_order_success(db: AsyncSession, order: Order, trade_no: str | None) -> bool:
+    """Atomically transition an order to SUCCESS.
+
+    Uses a filtered UPDATE instead of read-modify-write so concurrent
+    Alipay callbacks race safely: only the first writer transitions the
+    row (rowcount == 1) and earns membership activation. Losers must not
+    touch the ORM object, or its stale state would be flushed back.
+    """
+    result = await db.execute(
+        update(Order)
+        .where(Order.id == order.id, Order.status != ORDER_SUCCESS)
+        .values(
+            status=ORDER_SUCCESS,
+            trade_no=trade_no or order.trade_no,
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+    return result.rowcount == 1
 
 
 def _mark_order_terminal(order: Order, status_value: str) -> None:
@@ -363,10 +405,20 @@ async def pay_notify(request: Request, db: AsyncSession = Depends(get_db)):
             return "fail"
         
         if order.status != ORDER_SUCCESS:
-            # 2. Update User License exactly once.
+            # 2. Update User License exactly once, even under concurrent retries.
             u_res = await db.execute(select(User).where(User.id == order.user_id))
             user = u_res.scalars().first()
-            _mark_order_success(order, user, trade_no, _license_days_for_order(order))
+            claimed = await _claim_order_success(db, order, trade_no)
+            if claimed:
+                _activate_premium(user, days=_license_days_for_order(order))
+            elif trade_no and not order.trade_no:
+                # Another callback won the race; only backfill the trade number
+                # via a statement (mutating the ORM object would flush stale state).
+                await db.execute(
+                    update(Order)
+                    .where(Order.id == order.id, Order.trade_no.is_(None))
+                    .values(trade_no=trade_no, updated_at=datetime.now(timezone.utc))
+                )
             await db.commit()
         else:
             _mark_order_success(order, None, trade_no)
