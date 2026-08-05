@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # 内存缓存用于词典查询 (最多 500 个词，5分钟过期，LRU 淘汰)
 _dict_cache: OrderedDict = OrderedDict()
-_cache_ttl = 300  # 5 minutes
+_cache_ttl = 1800  # 30 minutes — aligned with MultiDictService memory cache
 
 
 def _get_cached(word: str):
@@ -37,7 +37,7 @@ def _set_cached(word: str, result: dict):
     result = _clean_dict_entry(result)
 
     # 限制缓存大小 — LRU 淘汰最老的条目
-    if len(_dict_cache) >= 500:
+    if len(_dict_cache) >= 2000:
         _dict_cache.popitem(last=False)
     _dict_cache[word] = (result, time.time())
 

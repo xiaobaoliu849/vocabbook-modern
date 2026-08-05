@@ -53,21 +53,35 @@ class FamiliesRepository:
         if not roots:
             return []
 
+        # Single query for all roots instead of N+1 loop
+        root_list = [r[0] for r in roots]
+        root_meanings = {r[0]: r[1] for r in roots}
+        placeholders = ','.join('?' * len(root_list))
+        cursor.execute(f'''
+            SELECT wf.root, wf.word,
+                   CASE WHEN w.word IS NOT NULL THEN 1 ELSE 0 END as in_vocab
+            FROM word_families wf
+            LEFT JOIN words w ON LOWER(w.word) = wf.word
+            WHERE wf.root IN ({placeholders})
+            ORDER BY wf.root, wf.word
+        ''', root_list)
+        all_rows = cursor.fetchall()
+
+        # Group by root in Python
+        from itertools import groupby
+        from operator import itemgetter
+
         result = []
-        for root, root_meaning in roots:
-            cursor.execute('''
-                SELECT wf.word,
-                       CASE WHEN w.word IS NOT NULL THEN 1 ELSE 0 END as in_vocab
-                FROM word_families wf
-                LEFT JOIN words w ON LOWER(w.word) = wf.word
-                WHERE wf.root = ?
-                ORDER BY wf.word
-            ''', (root,))
-            family_words = cursor.fetchall()
+        for root_key, group in groupby(all_rows, key=itemgetter(0)):
+            family_words = [
+                {'word': row[1], 'in_vocab': bool(row[2])}
+                for row in group
+                if row[1] != word.lower()
+            ]
             result.append({
-                'root': root,
-                'root_meaning': root_meaning,
-                'words': [{'word': w[0], 'in_vocab': bool(w[1])} for w in family_words if w[0] != word.lower()]
+                'root': root_key,
+                'root_meaning': root_meanings.get(root_key, ''),
+                'words': family_words,
             })
 
         return result

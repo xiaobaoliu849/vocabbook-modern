@@ -39,7 +39,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
     const getDictionaryLabel = (source: string) => t(`addWord.dictionarySources.${source}`, { defaultValue: source })
 
     const saveWord = useCallback(async (data: any, silent = false, extraSentences: string[] = []) => {
-        // 合并额外例句 (AI 生成的)
+        // 合并额外例句 (AI 生成�?
         if (extraSentences.length > 0) {
             const aiContent = "\n\n" + extraSentences.join("\n\n");
             if (!(data.example || "").includes(extraSentences[0])) {
@@ -96,12 +96,8 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                     setIsSaved(true)
                 }
             } else {
-                try {
-                    const savedWord = await api.get(API_PATHS.WORD(data.word))
-                    setIsSaved(!!savedWord && !savedWord.error)
-                } catch {
-                    setIsSaved(false)
-                }
+                // is_saved is injected by backend search endpoint
+                setIsSaved(!!data.is_saved)
             }
         } catch (error) {
             setSearchResult({ error: getDictionarySearchErrorMessage(error, t) })
@@ -355,7 +351,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                                         const isActive = activeTab === source;
                                         const iconMap: Record<string, string> = {
                                             youdao: '🦜',
-                                            cambridge: '🏛️',
+                                            cambridge: '🏛�?,
                                             bing: '🔍',
                                             freedict: '📖'
                                         };
@@ -415,8 +411,8 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                                             </h4>
                                         </div>
                                         <div className="grid grid-cols-1 gap-4">
-                                            {currentData.example.split(/\n(?=[•*-])|\n{2,}/).filter((item: string) => item.trim().length > 5).map((example: string, index: number) => {
-                                                const lines = example.trim().replace(/^[•*-]\s*/, '').split('\n');
+                                            {currentData.example.split(/\n(?=[�?-])|\n{2,}/).filter((item: string) => item.trim().length > 5).map((example: string, index: number) => {
+                                                const lines = example.trim().replace(/^[�?-]\s*/, '').split('\n');
                                                 const enLine = lines.find((l: string) => !/[\u4e00-\u9fff]/.test(l)) || '';
                                                 
                                                 return (
@@ -459,7 +455,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                                 <div className="flex items-center justify-between mb-6">
                                     <div>
                                         <h4 className="font-bold text-lg text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                                            ✨ {t('addWord.aiExamples')}
+                                            �?{t('addWord.aiExamples')}
                                         </h4>
                                         <p className="text-sm text-slate-500 mt-1">Want more context? Let AI generate custom examples.</p>
                                     </div>
@@ -489,7 +485,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                                         {aiSentences.map((sentence, i) => (
                                             <div key={i} className="bg-gradient-to-r from-accent-50/80 to-purple-50/80 dark:from-accent-900/10 dark:to-purple-900/10 rounded-2xl p-5 border border-accent-100/50 dark:border-accent-800/30 text-slate-800 dark:text-slate-200 animate-slide-up shadow-sm flex items-start gap-4 group hover:shadow-md transition-shadow" style={{ animationDelay: `${i * 0.1}s` }}>
                                                 <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-accent-500 font-bold shrink-0 shadow-sm text-sm mt-0.5">
-                                                    ✨
+                                                    �?
                                                 </div>
                                                 <span className="flex-1 text-lg leading-relaxed">{sentence}</span>
                                                 <AudioButton
