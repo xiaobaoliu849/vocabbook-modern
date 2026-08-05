@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import Optional, Literal
 from datetime import datetime
 
@@ -56,19 +56,19 @@ class MockPaySuccessRequest(BaseModel):
 class AdminUserTierUpdateRequest(BaseModel):
     tier: Literal["free", "premium"]
     license_expiry: Optional[datetime] = None
-    extend_days: Optional[int] = None
+    extend_days: Optional[int] = Field(default=None, gt=0, le=36500)
 
 
 class AdminBatchTierRequest(BaseModel):
-    user_ids: list[str]
+    user_ids: list[str] = Field(max_length=100)
     tier: Literal["free", "premium"]
-    extend_days: Optional[int] = 30
+    extend_days: Optional[int] = Field(default=30, gt=0, le=36500)
 
 
 class AdminOrderStatusUpdateRequest(BaseModel):
     status: Literal["PENDING", "SUCCESS", "FAIL", "EXPIRED"]
     trade_no: Optional[str] = None
-    extend_days: Optional[int] = None
+    extend_days: Optional[int] = Field(default=None, gt=0, le=36500)
 
 
 class AdminUserResponse(UserResponse):

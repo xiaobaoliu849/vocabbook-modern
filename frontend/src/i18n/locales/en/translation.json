@@ -99,7 +99,10 @@
       "free": "Free",
       "updating": "Updating...",
       "upgrade30": "+30d Premium",
-      "setFree": "Set Free"
+      "setFree": "Set Free",
+      "searchPlaceholder": "Search by email...",
+      "year": "yr",
+      "permanent": "∞"
     },
     "orders": {
       "title": "Orders",
@@ -841,6 +844,13 @@
       "generic": "Something went wrong",
       "paymentPending": "Payment has not been received yet. Please wait a moment and try again.",
       "checkStatusFailed": "Failed to check payment status."
+    },
+    "altMethods": {
+      "title": "Other ways to activate",
+      "email": "Email the admin",
+      "wechat": "WeChat: xiaobaoliu849",
+      "copied": "Copied!",
+      "hint": "After contacting the admin, your membership will be activated within 24 hours."
     }
   },
   "wordDetail": {
@@ -913,5 +923,16 @@
     "pageInfo": "Page {{page}}",
     "close": "Close",
     "refresh": "Refresh"
+  },
+  "upgrade": {
+    "banner": {
+      "loginTitle": "Sign in to sync data and unlock more usage",
+      "loginDesc": "Create a free account to save your conversations and vocabulary.",
+      "loginBtn": "Sign In",
+      "upgradeTitle": "Upgrade to Premium for full access",
+      "freeLeft": "{{count}} free uses left",
+      "upgradeDesc": "Unlimited conversations, cloud sync, all AI models.",
+      "upgradeBtn": "Upgrade to Premium"
+    }
   }
 }
