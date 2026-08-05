@@ -26,6 +26,7 @@ from services.request_metrics import (
     resolve_route_label,
 )
 from services.blocking_io import shutdown_blocking_executors
+from services.http_client import close_http_client
 
 # Global database instance
 db: DatabaseManager = None
@@ -49,6 +50,7 @@ async def lifespan(app: FastAPI):
     shutdown_blocking_executors()
     if db:
         db.close_all_connections()
+    await close_http_client()
     logger.info("[VocabBook] API shutdown")
 
 

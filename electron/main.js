@@ -579,8 +579,9 @@ function setupAutoUpdater() {
     autoUpdater.autoDownload = false  // User manually triggers download
     autoUpdater.autoInstallOnAppQuit = true
 
-    // Logging for debugging
-    autoUpdater.logger = require('electron').app
+    // electron-updater expects a logger with info/warn/error methods;
+    // the console object satisfies that interface.
+    autoUpdater.logger = console
 
     // Event handlers
     autoUpdater.on('checking-for-update', () => {

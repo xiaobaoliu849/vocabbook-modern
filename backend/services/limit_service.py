@@ -4,6 +4,7 @@ import httpx
 from datetime import datetime
 from models.database import DatabaseManager
 from services.blocking_io import run_db_blocking
+from services.http_client import get_http_client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -92,15 +93,15 @@ class LimitService:
         # 1. Check token with Cloud Server
         if token:
             try:
-                async with httpx.AsyncClient() as client:
-                    resp = await client.get(
-                        f"{self.cloud_api_url}/users/me",
-                        headers={"Authorization": f"Bearer {token}"},
-                        timeout=3.0
-                    )
-                    if resp.status_code == 200:
-                        user_data = resp.json()
-                        tier = user_data.get('tier', 'free')
+                client = get_http_client()
+                resp = await client.get(
+                    f"{self.cloud_api_url}/users/me",
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=3.0
+                )
+                if resp.status_code == 200:
+                    user_data = resp.json()
+                    tier = user_data.get('tier', 'free')
             except Exception as e:
                 logger.error(f"Failed to check user tier: {e}")
                 # Fallback to free tier on error
