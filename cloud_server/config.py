@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200
     ADMIN_TOKEN: str = ""
 
+    # Rate limiting for auth endpoints (per key, fixed window).
+    # Set *_MAX to 0 to disable a limiter.
+    RATE_LIMIT_LOGIN_MAX: int = 10
+    RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = 60
+    RATE_LIMIT_REGISTER_MAX: int = 5
+    RATE_LIMIT_REGISTER_WINDOW_SECONDS: int = 3600
+
     # Alipay Configuration
     ALIPAY_APP_ID: str = "9021000161679538"
     ALIPAY_PRIVATE_KEY_PATH: str = "./alipay_private_key.pem"
@@ -40,9 +47,17 @@ class Settings(BaseSettings):
             return
 
         errors = []
-        if self.SECRET_KEY == PLACEHOLDER_SECRET_KEY or len(self.SECRET_KEY.strip()) < 32:
+        if (
+            self.SECRET_KEY == PLACEHOLDER_SECRET_KEY
+            or "CHANGE_ME" in self.SECRET_KEY.upper()
+            or len(self.SECRET_KEY.strip()) < 32
+        ):
             errors.append("SECRET_KEY must be set to a strong production secret.")
-        if not self.ADMIN_TOKEN.strip() or len(self.ADMIN_TOKEN.strip()) < 32:
+        if (
+            not self.ADMIN_TOKEN.strip()
+            or "CHANGE_ME" in self.ADMIN_TOKEN.upper()
+            or len(self.ADMIN_TOKEN.strip()) < 32
+        ):
             errors.append("ADMIN_TOKEN must be set to a strong production token.")
         if not self.ALIPAY_APP_ID.strip() or self.ALIPAY_APP_ID == PLACEHOLDER_ALIPAY_APP_ID:
             errors.append("ALIPAY_APP_ID must be set to the production Alipay app id.")

@@ -44,10 +44,11 @@ async def lifespan(app: FastAPI):
     db.close_connection()
     logger.info(f"[VocabBook] API started with database: {db_path}")
     yield
-    # Shutdown
-    if db:
-        db.close_connection()
+    # Shutdown: stop DB work first, then close every connection (including
+    # ones owned by executor threads).
     shutdown_blocking_executors()
+    if db:
+        db.close_all_connections()
     logger.info("[VocabBook] API shutdown")
 
 

@@ -19,12 +19,14 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
     const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
     const [orderNo, setOrderNo] = useState<string | null>(null);
     const [error, setError] = useState('');
+    const [wechatCopied, setWechatCopied] = useState(false);
 
     useEffect(() => {
         if (!isOpen) {
             setQrCodeUrl(null);
             setOrderNo(null);
             setError('');
+            setWechatCopied(false);
         }
     }, [isOpen]);
 
@@ -189,13 +191,13 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                                 <button
                                     onClick={() => {
                                         navigator.clipboard.writeText('xiaobaoliu849');
-                                        const el = document.getElementById('wechat-copy-hint');
-                                        if (el) { el.textContent = t('subscription.altMethods.copied', '已复制!'); setTimeout(() => { el.textContent = t('subscription.altMethods.wechat', '微信: xiaobaoliu849'); }, 2000); }
+                                        setWechatCopied(true);
+                                        setTimeout(() => setWechatCopied(false), 2000);
                                     }}
                                     className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-sm hover:bg-white/10 transition-colors"
                                 >
                                     <span>💬</span>
-                                    <span id="wechat-copy-hint">{t('subscription.altMethods.wechat', '微信: xiaobaoliu849')}</span>
+                                    <span>{wechatCopied ? t('subscription.altMethods.copied', '已复制!') : t('subscription.altMethods.wechat', '微信: xiaobaoliu849')}</span>
                                 </button>
                             </div>
                             <p className="text-slate-500 text-xs mt-3 text-center">

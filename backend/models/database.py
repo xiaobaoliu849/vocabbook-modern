@@ -41,6 +41,11 @@ class DatabaseManager:
         self.json_path = json_path
         self._local = _DatabaseLocal()
         self._lock = threading.Lock()
+        # Registry of every connection handed out, so shutdown/test teardown
+        # can close connections owned by executor threads (thread-local state
+        # cannot be enumerated from other threads).
+        self._all_connections: list[sqlite3.Connection] = []
+        self._conn_registry_lock = threading.Lock()
 
         self.words = WordsRepository(self)
         self.reviews = ReviewsRepository(self)
@@ -70,6 +75,8 @@ class DatabaseManager:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
             self._local.connection = conn
+            with self._conn_registry_lock:
+                self._all_connections.append(conn)
 
         return conn
 
@@ -82,6 +89,22 @@ class DatabaseManager:
             except Exception as e:
                 logger.debug(f"Error closing DB connection: {e}")
             self._local.connection = None
+
+    def close_all_connections(self):
+        """关闭所有已创建的连接（含其他线程的）。
+
+        仅应在进程关闭或测试清理时调用：关闭后其他线程的线程本地引用会失效，
+        下次 get_connection() 前必须确保没有并发数据库操作。
+        """
+        with self._conn_registry_lock:
+            connections = list(self._all_connections)
+            self._all_connections.clear()
+        for conn in connections:
+            try:
+                conn.close()
+            except Exception as e:
+                logger.debug(f"Error closing DB connection: {e}")
+        self._local.connection = None
 
     def execute(self, query, params=(), fetch=False, commit=True):
         """Helper to execute a single query with automatic connection handling."""

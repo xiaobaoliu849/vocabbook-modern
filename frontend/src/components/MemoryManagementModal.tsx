@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { X, Trash2, AlertTriangle, RefreshCcw, Database } from 'lucide-react'
-import { useAuthStore } from '../stores/useAuthStore'
 import {
     clearMemoriesApi,
     deleteMemoryApi,
@@ -44,7 +43,6 @@ function formatMemoryTimestamp(ts: number | null | undefined): string {
 
 export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagementModalProps) {
     const { t } = useTranslation()
-    const token = useAuthStore((s) => s.token)
     const [memoryType, setMemoryType] = useState<MemoryType>('episodic_memory')
     const [page, setPage] = useState(1)
     const [items, setItems] = useState<MemoryItem[]>([])
@@ -82,7 +80,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
         setLoading(!cached || force)
         setError(null)
         try {
-            const resp = await listMemoriesApi(token, type, p, PAGE_SIZE)
+            const resp = await listMemoriesApi(type, p, PAGE_SIZE)
             const nextItems = resp.items || []
             cacheRef.current.set(key, { items: nextItems, loadedAt: Date.now() })
             applyItems(nextItems)
@@ -96,7 +94,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
         } finally {
             setLoading(false)
         }
-    }, [applyItems, configured, getCacheKey, token])
+    }, [applyItems, configured, getCacheKey])
 
     useEffect(() => {
         if (!isOpen) return
@@ -126,7 +124,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
         if (!memoryId) return
         setDeletingId(memoryId)
         try {
-            await deleteMemoryApi(token, memoryId)
+            await deleteMemoryApi(memoryId)
             const removeDeleted = (prev: MemoryItem[]) => prev.filter((it) => it.memory_id !== memoryId)
             cacheRef.current.forEach((entry, key) => {
                 cacheRef.current.set(key, { ...entry, items: removeDeleted(entry.items) })
@@ -147,7 +145,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
     const handleClear = async () => {
         setClearing(true)
         try {
-            await clearMemoriesApi(token)
+            await clearMemoriesApi()
             cacheRef.current.clear()
             setItems([])
             setEmptyHint(true)

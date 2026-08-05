@@ -351,7 +351,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                                         const isActive = activeTab === source;
                                         const iconMap: Record<string, string> = {
                                             youdao: '🦜',
-                                            cambridge: '🏛�?,
+                                            cambridge: '🏛️',
                                             bing: '🔍',
                                             freedict: '📖'
                                         };

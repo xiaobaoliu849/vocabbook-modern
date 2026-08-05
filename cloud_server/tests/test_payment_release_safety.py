@@ -7,9 +7,9 @@ import pytest
 CLOUD_SERVER_DIR = os.path.dirname(os.path.dirname(__file__))
 _ORIGINAL_MODULES = {
     module_name: sys.modules.get(module_name)
-    for module_name in ("auth", "base", "config", "models", "routers", "schemas")
+    for module_name in ("auth", "base", "config", "models", "rate_limit", "routers", "schemas")
 }
-for module_name in ("auth", "base", "config", "models", "routers", "schemas"):
+for module_name in ("auth", "base", "config", "models", "rate_limit", "routers", "schemas"):
     sys.modules.pop(module_name, None)
 sys.path.insert(0, CLOUD_SERVER_DIR)
 
@@ -31,7 +31,7 @@ from routers import (
 )
 
 sys.path.remove(CLOUD_SERVER_DIR)
-for module_name in ("auth", "base", "config", "models", "routers", "schemas"):
+for module_name in ("auth", "base", "config", "models", "rate_limit", "routers", "schemas"):
     sys.modules.pop(module_name, None)
     original_module = _ORIGINAL_MODULES[module_name]
     if original_module is not None:

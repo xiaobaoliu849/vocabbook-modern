@@ -49,9 +49,14 @@ tmp-release-smoke-data/
 tmp-cloud-prod-smoke/
 tmp-cloud-rollback-test/
 *.patch
+*.diff
 *.orig
 *.rej
 Untitled-*.txt
+/优化.txt
+/新建 文本文档.txt
+terminals/
+.codex
 
 # Local scratch / tool config
 .claude/
