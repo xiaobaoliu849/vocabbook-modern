@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { api, ApiError, API_PATHS } from '../utils/api';
 import { getPlaybackAudioUrl, playWordAudio } from '../utils/audio';
 import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors';
@@ -6,10 +6,12 @@ import AudioButton from './AudioButton';
 import { useGlobalState } from '../context/GlobalStateContext';
 import { useShortcuts } from '../context/ShortcutContext';
 import { X, Search, Heart, Loader2, Plus, Sparkles } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../context/ToastContext';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+
+// 懒加载：react-markdown 只在 AI 解析展示时需要，不打进主 bundle
+const Markdown = lazy(() => import('./Markdown'));
 
 interface Position {
     top: number;
@@ -448,7 +450,9 @@ export default function DictionaryPopup() {
                                 </div>
                                 <div className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-headings:text-slate-700 dark:prose-headings:text-slate-300 prose-a:text-indigo-500 max-w-none text-[13px] text-slate-600 dark:text-slate-300">
                                     {aiContent ? (
-                                        <ReactMarkdown>{aiContent}</ReactMarkdown>
+                                        <Suspense fallback={null}>
+                                            <Markdown>{aiContent}</Markdown>
+                                        </Suspense>
                                     ) : (
                                         <div className="flex items-center gap-2 text-indigo-400/70 py-4 justify-center whitespace-pre">
                                             <Loader2 size={16} className="animate-spin" />
