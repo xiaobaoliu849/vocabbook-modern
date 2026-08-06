@@ -121,8 +121,10 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
 
         try {
             const aiProvider = localStorage.getItem('ai_provider') || 'dashscope'
-            const aiApiKey = localStorage.getItem('ai_api_key') || ''
-            const aiModel = localStorage.getItem('ai_model') || 'qwen-plus'
+            const parseMap = (k: string) => { try { return JSON.parse(localStorage.getItem(k) || '{}') } catch { return {} } }
+            const aiApiKey = parseMap('ai_api_keys_map')[aiProvider] || localStorage.getItem('ai_api_key') || ''
+            const aiModel = parseMap('ai_models_map')[aiProvider] || localStorage.getItem('ai_model') || 'qwen-plus'
+            const aiBase = parseMap('ai_bases_map')[aiProvider] || ''
 
             const data = await api.post(API_PATHS.AI_GENERATE_SENTENCES,
                 { word: searchWord.trim(), count: 3 },
@@ -130,7 +132,8 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
                     headers: {
                         'X-AI-Provider': aiProvider,
                         'X-AI-Key': aiApiKey,
-                        'X-AI-Model': aiModel
+                        'X-AI-Model': aiModel,
+                        ...(aiBase ? { 'X-AI-Base': aiBase } : {})
                     }
                 }
             )
