@@ -206,7 +206,7 @@ export default function AudioButton({
   return (
     <button
       onClick={playAudio}
-      className={`p-2 rounded-lg transition-all duration-300 relative group ${isPlaying
+      className={`p-2 rounded-lg transition-colors duration-300 relative group overflow-hidden ${isPlaying
         ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
         : isExample
           ? 'hover:bg-emerald-100 text-emerald-500 hover:text-emerald-600 dark:hover:bg-emerald-900/20 dark:text-emerald-400'
@@ -230,7 +230,7 @@ export default function AudioButton({
       )}
 
       {isPlaying && (
-        <span className="absolute inset-0 rounded-lg animate-ping bg-primary-400/20 pointer-events-none" />
+        <span className="absolute inset-0 rounded-lg bg-primary-400/20 pointer-events-none animate-pulse" />
       )}
     </button>
   )
