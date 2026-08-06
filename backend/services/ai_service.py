@@ -73,7 +73,8 @@ class AIService:
             self.api_key = os.environ.get("AI_API_KEY", "")
             
         self.api_base = api_base or os.environ.get("AI_API_BASE", "")
-        self.model = model or os.environ.get("AI_MODEL", "gpt-4o-mini")
+        default_model = "qwen3.7-flash" if self.provider == "dashscope" else "gpt-4o-mini"
+        self.model = model or os.environ.get("AI_MODEL", default_model)
         
         # EverMemOS setup
         self.evermem_enabled = evermem_enabled

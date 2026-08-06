@@ -67,8 +67,8 @@ export function ChatHeader({
                                 <span className="truncate max-w-[120px]">{model || t('chat.header.defaultModel')}</span>
                             </span>
                             {evermemEnabled && (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-500/10 text-[11px] font-black text-amber-600 dark:text-amber-400 border border-amber-500/20 dark:border-amber-800/20 tracking-wider uppercase">
-                                    <img src={EvermemLogo} className="w-3 h-3 object-contain" alt="Evermem" />
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 dark:bg-amber-400/10 text-[11px] font-bold text-amber-800 dark:text-amber-200 border border-amber-500/20 dark:border-amber-500/30 tracking-wider uppercase">
+                                    <img src={EvermemLogo} className="w-3.5 h-3.5 object-contain opacity-90" alt="Evermem" />
                                     EVERMIND ACTIVE
                                 </span>
                             )}
@@ -90,13 +90,13 @@ export function ChatHeader({
                     {evermemEnabled && (
                         <button
                             onClick={onToggleMemoryPanel}
-                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm ${memoryPanelOpen
-                                ? 'border-amber-300/50 bg-amber-50/50 text-amber-700 dark:border-amber-800/50 dark:bg-amber-900/30 dark:text-amber-300'
-                                : 'border-slate-200/50 bg-white/30 text-slate-600 hover:bg-white/60 hover:border-amber-300 dark:border-slate-700/50 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60'
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-xs ${memoryPanelOpen
+                                ? 'border-amber-300/60 bg-amber-50/80 text-amber-800 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200'
+                                : 'border-slate-200/50 bg-white/30 text-slate-600 hover:bg-white/60 hover:border-amber-300/50 dark:border-slate-700/50 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60'
                                 }`}
                             title={t('chat.memory.panel.title')}
                         >
-                            <Sparkles size={13} className={memoryPanelOpen ? 'text-amber-500' : 'text-slate-400'} />
+                            <Sparkles size={13} className={memoryPanelOpen ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'} />
                             <span className={`hidden ${sidebarOpen ? 'xl:inline' : 'sm:inline'}`}>{t('chat.memory.panel.button')}</span>
                         </button>
                     )}

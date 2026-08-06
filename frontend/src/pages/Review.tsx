@@ -10,6 +10,7 @@ import { playWordAudio } from '../utils/audio'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useToast } from '../context/ToastContext'
+import { getActiveAiModel } from '../utils/aiModels'
 
 interface ReviewWord {
     id: number
@@ -110,8 +111,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             }
             const keysMap = parseSettingsMap('ai_api_keys_map')
             const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || ''
-            const modelsMap = parseSettingsMap('ai_models_map')
-            const model = modelsMap[provider] || localStorage.getItem('ai_model') || 'qwen-plus'
+            const model = getActiveAiModel(provider)
             const basesMap = parseSettingsMap('ai_bases_map')
             const apiBase = basesMap[provider] || ''
 

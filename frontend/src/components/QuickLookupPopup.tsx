@@ -7,6 +7,7 @@ import { getDictionarySearchErrorMessage } from '../utils/dictionaryErrors'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import { getActiveAiModel } from '../utils/aiModels'
 
 type QuickLookupType = 'word' | 'translate' | 'explain'
 
@@ -30,14 +31,7 @@ function getAiSettings() {
     }
     if (!apiKey) apiKey = localStorage.getItem('ai_api_key') || ''
 
-    let model = ''
-    try {
-        const modelsMap = JSON.parse(localStorage.getItem('ai_models_map') || '{}')
-        model = modelsMap[provider] || ''
-    } catch {
-        // ignore malformed config
-    }
-    if (!model) model = localStorage.getItem('ai_model') || 'qwen-flash'
+    const model = getActiveAiModel(provider)
 
     let apiBase = ''
     try {

@@ -75,7 +75,7 @@ export function ChatMessages({
                         {evermemEnabled && memoryOverview?.review_focus && (
                             <div className="mt-6 flex items-center gap-2 text-xs">
                                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                <span className="text-amber-600 dark:text-amber-400 font-bold">
+                                <span className="text-amber-800 dark:text-amber-300 font-bold">
                                     {memoryOverview.review_focus.due_count} {t('chat.memory.dueToday', 'due words today')}
                                 </span>
                                 {memoryOverview.review_focus.difficult_count > 0 && (

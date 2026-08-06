@@ -8,6 +8,7 @@ import { useGlobalState } from '../context/GlobalStateContext'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../context/ToastContext'
+import { getActiveAiModel } from '../utils/aiModels'
 
 export default function AddWord({ onOpenImport }: { onOpenImport?: () => void }) {
     const { t } = useTranslation()
@@ -123,7 +124,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
             const aiProvider = localStorage.getItem('ai_provider') || 'dashscope'
             const parseMap = (k: string) => { try { return JSON.parse(localStorage.getItem(k) || '{}') } catch { return {} } }
             const aiApiKey = parseMap('ai_api_keys_map')[aiProvider] || localStorage.getItem('ai_api_key') || ''
-            const aiModel = parseMap('ai_models_map')[aiProvider] || localStorage.getItem('ai_model') || 'qwen-plus'
+            const aiModel = getActiveAiModel(aiProvider)
             const aiBase = parseMap('ai_bases_map')[aiProvider] || ''
 
             const data = await api.post(API_PATHS.AI_GENERATE_SENTENCES,

@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '../context/ToastContext';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 
+import { getActiveAiModel } from '../utils/aiModels';
+
 // 懒加载：react-markdown 只在 AI 解析展示时需要，不打进主 bundle
 const Markdown = lazy(() => import('./Markdown'));
 
@@ -233,8 +235,7 @@ export default function DictionaryPopup() {
             };
             const keysMap = parseSettingsMap('ai_api_keys_map');
             const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || '';
-            const modelsMap = parseSettingsMap('ai_models_map');
-            const model = modelsMap[provider] || localStorage.getItem('ai_model') || 'qwen-plus';
+            const model = getActiveAiModel(provider);
             const basesMap = parseSettingsMap('ai_bases_map');
             const apiBase = basesMap[provider] || '';
 

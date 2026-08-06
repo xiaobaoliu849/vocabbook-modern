@@ -48,9 +48,9 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
     return (
         <div className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
             {msg.role === 'assistant' && (
-                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md text-amber-600 dark:text-amber-400 shadow-lg shadow-slate-200/10 dark:shadow-black/20 border border-white/50 dark:border-slate-700/50 self-start mt-1">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-slate-100/90 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200/60 dark:border-slate-700/60 self-start mt-1">
                     {hasReasoning ? (
-                        <Brain className={`w-5 h-5 ${isStreaming && !displayContent ? 'animate-pulse' : ''}`} />
+                        <Brain className={`w-5 h-5 ${isStreaming && !displayContent ? 'animate-pulse text-indigo-500 dark:text-indigo-400' : ''}`} />
                     ) : (
                         <Bot className="w-5 h-5" />
                     )}
@@ -76,7 +76,7 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                                 >
                                     {attachment.fileType === 'document' ? (
                                         <div className="flex items-center gap-3 p-3">
-                                            <FileText className="h-8 w-8 flex-shrink-0 text-amber-600" />
+                                            <FileText className="h-8 w-8 flex-shrink-0 text-slate-500 dark:text-slate-400" />
                                             <div className="min-w-0 flex-1">
                                                 <div className="truncate text-sm font-medium">{attachment.name}</div>
                                                 <div className="text-xs opacity-60">{attachment.size ? `${(attachment.size / 1024).toFixed(0)} KB` : ''} · PDF</div>
@@ -96,20 +96,20 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                     {displayContent || hasReasoning ? (
                         <div className="space-y-3">
                             {msg.role === 'assistant' && hasReasoning && (
-                                <div className="rounded-xl border border-amber-200/40 dark:border-amber-700/30 bg-amber-50/40 dark:bg-amber-900/10 overflow-hidden">
+                                <div className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-900/40 overflow-hidden">
                                     <button
                                         type="button"
                                         onClick={() => onToggleReasoning(msg.id)}
-                                        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-amber-100/40 dark:hover:bg-amber-800/20 transition-colors"
+                                        className="w-full flex items-center justify-between gap-2 px-3.5 py-2 text-left hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition-colors"
                                     >
-                                        <span className="flex items-center gap-2 min-w-0 text-amber-700 dark:text-amber-300 text-[13px] font-bold">
+                                        <span className="flex items-center gap-2 min-w-0 text-slate-700 dark:text-slate-300 text-[13px] font-semibold">
                                             <ChevronRight
                                                 size={14}
-                                                className={`shrink-0 transition-transform duration-200 ${isReasoningExpanded ? 'rotate-90' : ''}`}
+                                                className={`shrink-0 text-slate-400 dark:text-slate-500 transition-transform duration-200 ${isReasoningExpanded ? 'rotate-90' : ''}`}
                                             />
                                             <span className="truncate">{reasoningTitle}</span>
                                         </span>
-                                        <span className="shrink-0 text-[10px] font-bold text-amber-400 dark:text-amber-500 uppercase tracking-wider">
+                                        <span className="shrink-0 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300">
                                             {isReasoningExpanded ? reasoningCollapse : reasoningExpand}
                                         </span>
                                     </button>
@@ -118,7 +118,7 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                                     >
                                         <div className="overflow-hidden">
                                             {isReasoningExpanded && (
-                                                <div className="border-t border-amber-200/40 dark:border-amber-700/30 px-3 py-2 text-[13px] leading-relaxed text-amber-700/80 dark:text-amber-200/80 max-h-[20rem] overflow-y-auto custom-scrollbar italic">
+                                                <div className="border-t border-slate-200/60 dark:border-slate-700/50 px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-600 dark:text-slate-300 max-h-[20rem] overflow-y-auto custom-scrollbar italic bg-white/40 dark:bg-slate-950/20">
                                                     <Suspense fallback={null}>
                                                         <Markdown gfm components={mdComponents}>
                                                             {(displayReasoning || '') + (isStreaming && !displayContent ? '▋' : '')}
@@ -154,11 +154,11 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                         msg.role === 'assistant' && showLoading && (
                             <div className="flex gap-2 items-center h-6">
                                 <div className="flex gap-1">
-                                    <div className="w-1.5 h-1.5 bg-amber-400 dark:bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                    <div className="w-1.5 h-1.5 bg-amber-400 dark:bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                    <div className="w-1.5 h-1.5 bg-amber-400 dark:bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                                 </div>
-                                <span className="text-xs font-bold text-amber-500/80 dark:text-amber-400/80 uppercase tracking-widest animate-pulse">
+                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest animate-pulse">
                                     {thinkingLabel}
                                 </span>
                             </div>
@@ -168,13 +168,13 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
 
                 <div className={`flex items-center gap-3 px-1 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.role === 'user' && msg.memorySaved && (
-                        <span className="text-[10px] text-amber-500/80 dark:text-amber-400/80 flex items-center gap-1 font-bold uppercase tracking-wider">
+                        <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80 flex items-center gap-1 font-semibold uppercase tracking-wider">
                             <div className="h-1 w-1 rounded-full bg-amber-500 animate-pulse" /> {memorySavedLabel}
                         </span>
                     )}
                     {msg.role === 'assistant' && (msg.memoriesUsed || 0) > 0 && (
-                        <span className="text-[10px] text-amber-500/80 dark:text-amber-400/80 flex items-center gap-1 font-bold uppercase tracking-wider">
-                            <Sparkles size={10} /> {memoryRetrievedLabel}
+                        <span className="text-[10px] text-amber-700/80 dark:text-amber-300/80 flex items-center gap-1 font-semibold uppercase tracking-wider">
+                            <Sparkles size={10} className="text-amber-500" /> {memoryRetrievedLabel}
                         </span>
                     )}
                 </div>

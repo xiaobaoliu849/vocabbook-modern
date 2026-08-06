@@ -3,25 +3,15 @@ import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../../context/ToastContext'
 import { API_BASE_URL, getOwnerTokenHeaders } from '../../../utils/api'
+import { getDefaultModel, PROVIDER_MODEL_PRESETS } from '../../../utils/aiModels'
 import MemoryManagementModal from '../../../components/MemoryManagementModal'
-
-function getDefaultModel(provider: string) {
-    switch (provider) {
-        case 'dashscope': return 'qwen-flash' // Latest Qwen native multimodal high-speed model
-        case 'openai': return 'gpt-4o-mini'
-        case 'anthropic': return 'claude-4.5-sonnet'
-        case 'gemini': return 'gemini-1.5-flash'
-        case 'ollama': return 'qwen2.5'
-        default: return ''
-    }
-}
 
 export default function AISection() {
     const { t } = useTranslation()
     const { toast } = useToast()
     const [aiProvider, setAiProvider] = useState('dashscope')
     const [aiApiKey, setAiApiKey] = useState('')
-    const [aiModel, setAiModel] = useState('qwen-flash')
+    const [aiModel, setAiModel] = useState('qwen3.7-flash')
     const [showApiKey, setShowApiKey] = useState(false)
     const [isTesting, setIsTesting] = useState(false)
     const [testResult, setTestResult] = useState<{ success: boolean; message: string; details?: string } | null>(null)
@@ -98,11 +88,11 @@ export default function AISection() {
         setApiKeys(keysMap)
 
         let loadedModel = modelsMap[provider] || getDefaultModel(provider)
-        // Auto-migrate legacy models to qwen-flash once
-        if (provider === 'dashscope' && (loadedModel === 'qwen-plus' || loadedModel === 'qwen3.5-flash' || loadedModel === 'qwen-flash-latest') && !localStorage.getItem('qwen_flash_migrated_v2')) {
-            loadedModel = 'qwen-flash'
+        // Auto-migrate legacy models to qwen3.7-flash once
+        if (provider === 'dashscope' && (loadedModel === 'qwen-flash' || loadedModel === 'qwen-plus' || loadedModel === 'qwen3.5-flash' || loadedModel === 'qwen-flash-latest' || !loadedModel) && !localStorage.getItem('qwen37_flash_migrated_v3')) {
+            loadedModel = 'qwen3.7-flash'
             modelsMap[provider] = loadedModel
-            localStorage.setItem('qwen_flash_migrated_v2', 'true')
+            localStorage.setItem('qwen37_flash_migrated_v3', 'true')
             localStorage.setItem('ai_models_map', JSON.stringify(modelsMap))
             localStorage.setItem('ai_model', loadedModel)
         }
@@ -354,16 +344,42 @@ export default function AISection() {
                                     )}
                                 </>
                             ) : (
-                                <input
-                                    type="text"
-                                    value={aiModel}
-                                    onChange={(e) => {
-                                        setAiModel(e.target.value)
-                                        setAiModels(prev => ({ ...prev, [aiProvider]: e.target.value }))
-                                    }}
-                                    placeholder={getDefaultModel(aiProvider)}
-                                    className="input-field w-full"
-                                />
+                                <div>
+                                    <input
+                                        type="text"
+                                        value={aiModel}
+                                        onChange={(e) => {
+                                            setAiModel(e.target.value)
+                                            setAiModels(prev => ({ ...prev, [aiProvider]: e.target.value }))
+                                        }}
+                                        placeholder={getDefaultModel(aiProvider)}
+                                        className="input-field w-full"
+                                    />
+                                    {PROVIDER_MODEL_PRESETS[aiProvider] && (
+                                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 mr-1">快捷预设模型:</span>
+                                            {PROVIDER_MODEL_PRESETS[aiProvider].map((preset) => {
+                                                const isSelected = aiModel === preset.id
+                                                return (
+                                                    <button
+                                                        key={preset.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setAiModel(preset.id)
+                                                            setAiModels(prev => ({ ...prev, [aiProvider]: preset.id }))
+                                                        }}
+                                                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border ${isSelected
+                                                            ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white shadow-xs'
+                                                            : 'bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                                                            }`}
+                                                    >
+                                                        {preset.name}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     )}

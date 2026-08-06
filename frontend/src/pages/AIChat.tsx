@@ -9,6 +9,7 @@ import { useChatSessionSync } from '../hooks/useChatSessionSync'
 import { useChatStreaming } from '../hooks/useChatStreaming'
 import { useMemoryOverview } from '../hooks/useMemoryOverview'
 import { generateId } from '../utils/generateId'
+import { getActiveAiModel } from '../utils/aiModels'
 import {
     resolveChatScope,
     getScopedStorageKey,
@@ -116,27 +117,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const loadConfig = useCallback(() => {
         const currentProvider = localStorage.getItem('ai_provider') || 'dashscope'
         setProvider(currentProvider)
-
-        const savedModelsStr = localStorage.getItem('ai_models_map')
-        let modelsMap: Record<string, string> = {}
-        if (savedModelsStr) {
-            try {
-                modelsMap = JSON.parse(savedModelsStr)
-            } catch {
-                // Ignore malformed saved model config.
-            }
-        }
-        let activeModel = modelsMap[currentProvider] || localStorage.getItem('ai_model') || ''
-
-        // Auto-migrate legacy models to qwen-flash immediately on load
-        if (currentProvider === 'dashscope' && (activeModel === 'qwen-plus' || activeModel === 'qwen3.5-flash' || activeModel === 'qwen-flash-latest' || !activeModel) && !localStorage.getItem('qwen_flash_migrated_v2')) {
-            activeModel = 'qwen-flash'
-            modelsMap[currentProvider] = activeModel
-            localStorage.setItem('qwen_flash_migrated_v2', 'true')
-            localStorage.setItem('ai_models_map', JSON.stringify(modelsMap))
-            localStorage.setItem('ai_model', activeModel)
-        }
-
+        const activeModel = getActiveAiModel(currentProvider)
         setModel(activeModel)
         setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
     }, [])
