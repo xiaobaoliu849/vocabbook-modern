@@ -1,7 +1,8 @@
 import { useAuthStore } from '../stores/useAuthStore';
 
-const DEFAULT_CLOUD_API_URL = 'https://api.historyai.fun';
-const API_URL = import.meta.env.VITE_CLOUD_API_URL || DEFAULT_CLOUD_API_URL;
+const DEFAULT_CLOUD_API_URL = 'http://localhost:8001';
+const envUrl = import.meta.env.VITE_CLOUD_API_URL;
+const API_URL = (envUrl && !envUrl.includes('historyai.fun')) ? envUrl : DEFAULT_CLOUD_API_URL;
 
 function getToken(): string | null {
     return useAuthStore.getState().token;

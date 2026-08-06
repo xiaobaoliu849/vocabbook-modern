@@ -5,7 +5,8 @@
 
 // API 基础 URL - 支持环境变量覆盖
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-export const CLOUD_API_BASE_URL = import.meta.env.VITE_CLOUD_API_URL || 'https://api.historyai.fun'
+const envCloudUrl = import.meta.env.VITE_CLOUD_API_URL;
+export const CLOUD_API_BASE_URL = (envCloudUrl && !envCloudUrl.includes('historyai.fun')) ? envCloudUrl : 'http://localhost:8001';
 const CLIENT_ID_STORAGE_KEY = 'vocabbook_client_id'
 
 export type PronunciationAccent = 'us' | 'uk'

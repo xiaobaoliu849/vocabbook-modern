@@ -10,16 +10,16 @@ BACKEND_DIR = os.path.join(PROJECT_ROOT, 'backend')
 CLOUD_DIR = os.path.join(PROJECT_ROOT, 'cloud_server')
 FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
 ELECTRON_DIR = os.path.join(PROJECT_ROOT, 'electron')
-DEFAULT_CLOUD_API_URL = 'https://api.historyai.fun'
+DEFAULT_CLOUD_API_URL = 'http://localhost:8001'
 PYTHON_BIN = sys.executable
 NEW_CONSOLE = getattr(subprocess, 'CREATE_NEW_CONSOLE', 0)
 
 def main():
     print(f'Starting VocabBook Modern from {PROJECT_ROOT}...')
     shared_env = os.environ.copy()
-    shared_env.setdefault('VOCABBOOK_CLOUD_API_URL', DEFAULT_CLOUD_API_URL)
-    shared_env.setdefault('VITE_CLOUD_API_URL', DEFAULT_CLOUD_API_URL)
-    start_local_cloud = str(shared_env.get('START_LOCAL_CLOUD', 'false')).strip().lower() == 'true'
+    shared_env['VOCABBOOK_CLOUD_API_URL'] = DEFAULT_CLOUD_API_URL
+    shared_env['VITE_CLOUD_API_URL'] = DEFAULT_CLOUD_API_URL
+    start_local_cloud = str(shared_env.get('START_LOCAL_CLOUD', 'true')).strip().lower() == 'true'
 
     # 1. Start Backend
     print('Starting Backend...')

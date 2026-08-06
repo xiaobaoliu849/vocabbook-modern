@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG_PAYMENT_MOCKS: bool = False
     ENABLE_LIVE_TEST_PLAN: bool = False
-    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,app://.,null,*"
 
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./cloud_app.db" # Default to local SQLite for easier dev
