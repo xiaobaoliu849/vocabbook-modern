@@ -221,7 +221,7 @@ export default function AudioButton({
     >
       <Volume2
         size={size}
-        className={`transition-opacity duration-200 shrink-0 ${isPlaying ? 'opacity-80' : ''}`}
+        className={`transition-all duration-200 shrink-0 ${isPlaying ? 'scale-110 text-primary-600 dark:text-primary-400 animate-pulse' : 'group-hover:scale-110'}`}
       />
 
       {isLoading && (
@@ -231,7 +231,7 @@ export default function AudioButton({
       )}
 
       {isPlaying && (
-        <span className="absolute inset-0 rounded-lg bg-primary-400/20 pointer-events-none animate-pulse" />
+        <span className="absolute inset-0 rounded-lg bg-primary-500/25 pointer-events-none animate-ping" />
       )}
     </button>
   )
