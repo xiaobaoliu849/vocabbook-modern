@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import AudioButton from '../components/AudioButton'
-import { BookOpen, CheckCircle, Dumbbell, Flame, Keyboard, Target, Trophy, Volume2, type LucideIcon } from 'lucide-react'
+import { BookOpen, CheckCircle, Dumbbell, Flame, Keyboard, Target, Trophy, Volume2, Sparkles, Loader2, Edit3, Check, type LucideIcon } from 'lucide-react'
 import { splitExamples, extractEnglish } from '../utils/textUtils'
 import { ChoiceMode, DictationMode, SessionSummary } from '../components/review'
 import type { ReviewMode, WordRating, SessionSummaryData } from '../components/review'
@@ -9,6 +9,7 @@ import { api, API_PATHS } from '../utils/api'
 import { playWordAudio } from '../utils/audio'
 import { useGlobalState } from '../context/GlobalStateContext'
 import { useShortcuts } from '../context/ShortcutContext'
+import { useToast } from '../context/ToastContext'
 
 interface ReviewWord {
     id: number
@@ -81,13 +82,103 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const emptyLoadRetryRef = useRef(0)
 
     const { refreshDueCount, dueCount } = useGlobalState()
+    const { toast } = useToast()
+    const [isEditingMeaning, setIsEditingMeaning] = useState(false)
+    const [customMeaningInput, setCustomMeaningInput] = useState('')
+    const [isAiCompleting, setIsAiCompleting] = useState(false)
 
     const resetInteractionState = useCallback(() => {
         setIsFlipped(false)
         setSpellingInput('')
         setSpellingStatus('idle')
         setShowSpellingHint(false)
+        setIsEditingMeaning(false)
     }, [])
+
+    const handleAiCompleteMeaning = async (wordToComplete: ReviewWord) => {
+        if (!wordToComplete || isAiCompleting) return
+        setIsAiCompleting(true)
+
+        try {
+            const provider = localStorage.getItem('ai_provider') || 'dashscope'
+            const parseSettingsMap = (key: string) => {
+                try {
+                    return JSON.parse(localStorage.getItem(key) || '{}')
+                } catch {
+                    return {}
+                }
+            }
+            const keysMap = parseSettingsMap('ai_api_keys_map')
+            const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || ''
+            const modelsMap = parseSettingsMap('ai_models_map')
+            const model = modelsMap[provider] || localStorage.getItem('ai_model') || 'qwen-plus'
+            const basesMap = parseSettingsMap('ai_bases_map')
+            const apiBase = basesMap[provider] || ''
+
+            const prompt = `请为英文词汇/专业术语/代码属性 "${wordToComplete.word}" 提供简明的中文释义与词性，直接输出词性与含义（如：n. 顶部元数据块），控制在 40 字以内，不要输出其他客套话。`
+
+            const response = await api.raw(API_PATHS.AI_CHAT_STREAM, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-AI-Provider': provider,
+                    'X-AI-Key': apiKey,
+                    'X-AI-Model': model,
+                    ...(apiBase ? { 'X-AI-Base': apiBase } : {}),
+                },
+                body: JSON.stringify({
+                    messages: [{ role: 'user', content: prompt }],
+                    context_word: wordToComplete.word
+                })
+            })
+
+            if (!response.ok) {
+                toast(t('review.aiCompleteFailed', 'AI 生成释义失败，请检查 AI 设置'), 'error')
+                setIsAiCompleting(false)
+                return
+            }
+
+            const reader = response.body?.getReader()
+            const decoder = new TextDecoder('utf-8')
+            let aiText = ''
+
+            if (reader) {
+                while (true) {
+                    const { value, done } = await reader.read()
+                    if (done) break
+                    const chunk = decoder.decode(value, { stream: true })
+                    aiText += chunk
+                }
+            }
+
+            const cleanMeaning = aiText.trim()
+            if (cleanMeaning) {
+                await api.put(API_PATHS.WORD(wordToComplete.word), { meaning: cleanMeaning })
+                setDueWords(prev => prev.map(w => w.id === wordToComplete.id ? { ...w, meaning: cleanMeaning } : w))
+                toast(t('review.aiCompleteSuccess', '已成功使用 AI 补全释义！'), 'success')
+            }
+        } catch (error) {
+            console.error("AI Complete Meaning error:", error)
+            toast(t('review.aiCompleteFailed', 'AI 生成释义失败，请检查网络配置'), 'error')
+        } finally {
+            setIsAiCompleting(false)
+        }
+    }
+
+    const handleSaveCustomMeaning = async (wordToUpdate: ReviewWord) => {
+        if (!wordToUpdate) return
+        const trimmed = customMeaningInput.trim()
+        const newMeaning = trimmed || '暂无释义'
+
+        try {
+            await api.put(API_PATHS.WORD(wordToUpdate.word), { meaning: newMeaning })
+            setDueWords(prev => prev.map(w => w.id === wordToUpdate.id ? { ...w, meaning: newMeaning } : w))
+            setIsEditingMeaning(false)
+            toast(t('review.meaningUpdated', '释义已更新'), 'success')
+        } catch {
+            toast(t('addWord.alerts.failed', '更新失败'), 'error')
+        }
+    }
 
     const fetchDueWords = useCallback(async (mode: 'normal' | 'practice' | 'difficult' = 'normal') => {
         currentLoadModeRef.current = mode
@@ -746,15 +837,94 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                         <div className="max-w-4xl mx-auto space-y-6">
                                             {/* Meaning Section */}
                                             <div className="text-xl text-slate-700 dark:text-slate-300 text-left leading-relaxed font-medium">
-                                                {currentWord.meaning.split('\n').map((line, i) => {
-                                                    const trimmed = line.trim()
-                                                    if (!trimmed) return null
-                                                    return (
-                                                        <div key={i} className="mb-2 pl-4 border-l-4 border-primary-200 dark:border-primary-800">
-                                                            {trimmed}
+                                                {isEditingMeaning ? (
+                                                    <div className="space-y-3 bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+                                                        <textarea
+                                                            value={customMeaningInput}
+                                                            onChange={e => setCustomMeaningInput(e.target.value)}
+                                                            placeholder="请输入或修改中文释义..."
+                                                            rows={3}
+                                                            className="w-full p-3 text-base rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                                                            autoFocus
+                                                        />
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsEditingMeaning(false)}
+                                                                className="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                                            >
+                                                                取消
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSaveCustomMeaning(currentWord)}
+                                                                className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-primary-600 hover:bg-primary-700 text-white transition-colors flex items-center gap-1 shadow-sm"
+                                                            >
+                                                                <Check size={14} />
+                                                                <span>保存释义</span>
+                                                            </button>
                                                         </div>
-                                                    )
-                                                })}
+                                                    </div>
+                                                ) : (!currentWord.meaning || currentWord.meaning.trim() === '暂无释义') ? (
+                                                    <div className="flex flex-col items-start gap-3 py-3 bg-slate-50/70 dark:bg-slate-900/40 p-5 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/60">
+                                                        <span className="text-slate-400 dark:text-slate-500 italic text-base">暂无释义（词典未能找到该词的定义）</span>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleAiCompleteMeaning(currentWord)}
+                                                                disabled={isAiCompleting}
+                                                                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-50 cursor-pointer"
+                                                            >
+                                                                {isAiCompleting ? (
+                                                                    <>
+                                                                        <Loader2 size={14} className="animate-spin" />
+                                                                        <span>AI 正在解析生成...</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Sparkles size={14} />
+                                                                        <span>✨ 一键 AI 补全释义</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setCustomMeaningInput('')
+                                                                    setIsEditingMeaning(true)
+                                                                }}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                                                            >
+                                                                <Edit3 size={14} />
+                                                                <span>手动添加释义</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="group relative">
+                                                        {currentWord.meaning.split('\n').map((line, i) => {
+                                                            const trimmed = line.trim()
+                                                            if (!trimmed) return null
+                                                            return (
+                                                                <div key={i} className="mb-2 pl-4 border-l-4 border-primary-200 dark:border-primary-800">
+                                                                    {trimmed}
+                                                                </div>
+                                                            )
+                                                        })}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setCustomMeaningInput(currentWord.meaning)
+                                                                setIsEditingMeaning(true)
+                                                            }}
+                                                            title="编辑释义"
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-2 -top-2 p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                                                        >
+                                                            <Edit3 size={14} />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Examples Section */}
