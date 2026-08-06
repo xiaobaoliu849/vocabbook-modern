@@ -373,9 +373,9 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
 
     return (
         <div ref={popupRef} style={popupStyle} data-selection-overlay="true" className="animate-scale-in">
-            <div className="overflow-hidden rounded-2xl border border-white/30 bg-white/95 shadow-2xl shadow-black/20 backdrop-blur-2xl dark:border-slate-600/50 dark:bg-slate-800/95 dark:shadow-black/50">
+            <div className="flex flex-col overflow-hidden rounded-2xl border border-white/30 bg-white/95 shadow-2xl shadow-black/20 backdrop-blur-2xl dark:border-slate-600/50 dark:bg-slate-800/95 dark:shadow-black/50">
                 <div
-                    className="flex cursor-move select-none items-center justify-between border-b border-slate-100 bg-gradient-to-r from-primary-500/10 to-accent-500/10 px-4 py-3 dark:border-slate-700/50 dark:from-primary-900/30 dark:to-accent-900/30"
+                    className="flex shrink-0 cursor-move select-none items-center justify-between border-b border-slate-100 bg-gradient-to-r from-primary-500/10 to-accent-500/10 px-4 py-3 dark:border-slate-700/50 dark:from-primary-900/30 dark:to-accent-900/30"
                     onPointerDown={handleDragStart}
                 >
                     <div className="flex items-center gap-2">
@@ -595,7 +595,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                 </div>
 
                 {!loading && !error && (
-                    <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-4 py-2 dark:border-slate-700/50 dark:bg-slate-800/50">
+                    <div className="flex shrink-0 items-center justify-between border-t border-slate-100 bg-slate-50/50 px-4 py-2 dark:border-slate-700/50 dark:bg-slate-800/50">
                         <div className="flex items-center gap-2 text-xs">
                             {showSavedBadge && (
                                 <>

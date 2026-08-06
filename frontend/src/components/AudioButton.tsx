@@ -205,26 +205,27 @@ export default function AudioButton({
 
   return (
     <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()}
       onClick={playAudio}
-      className={`p-2 rounded-lg transition-colors duration-300 relative group overflow-hidden ${isPlaying
+      className={`p-2 rounded-lg transition-colors duration-200 relative inline-flex items-center justify-center shrink-0 overflow-hidden ${isPlaying
         ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
         : isExample
           ? 'hover:bg-emerald-100 text-emerald-500 hover:text-emerald-600 dark:hover:bg-emerald-900/20 dark:text-emerald-400'
           : 'hover:bg-slate-100 text-slate-500 hover:text-primary-600 dark:hover:bg-slate-800 dark:text-slate-400'
-        } ${className}`}
+        } ${isPlaying || isLoading ? 'pointer-events-none' : ''} ${className}`}
       title={isExample
         ? t('audio.readExample', 'Read example aloud')
         : t('audio.playPronunciation', 'Play pronunciation')}
-      disabled={isPlaying || isLoading}
+      aria-disabled={isPlaying || isLoading}
     >
       <Volume2
         size={size}
-        className={`transition-transform duration-300 ${isPlaying ? 'scale-110 animate-pulse' : 'group-hover:scale-110'
-          }`}
+        className={`transition-opacity duration-200 shrink-0 ${isPlaying ? 'opacity-80' : ''}`}
       />
 
       {isLoading && (
-        <span className="absolute inset-0 flex items-center justify-center">
+        <span className="absolute inset-0 flex items-center justify-center bg-inherit">
           <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
         </span>
       )}

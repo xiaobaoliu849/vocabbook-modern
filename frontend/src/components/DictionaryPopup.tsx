@@ -333,7 +333,7 @@ export default function DictionaryPopup() {
             </div>
 
             {/* Content Area - Scrollable */}
-            <div className="p-4 overflow-y-auto flex-1 custom-scrollbar text-left items-start">
+            <div className="p-4 overflow-y-auto flex-1 custom-scrollbar text-left w-full">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center py-8 text-slate-400">
                         <Loader2 size={24} className="animate-spin mb-2" />
