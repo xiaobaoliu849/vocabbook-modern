@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, lazy, Suspense } from 'react'
 import { Brain, Bot, ChevronRight, FileText, Sparkles } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import AudioButton from '../AudioButton'
 import { createMarkdownComponents } from './markdownComponents'
 import type { Message } from './types'
+
+// 懒加载：react-markdown + remark-gfm 独立成 chunk，AIChat 页面首次渲染不阻塞
+const Markdown = lazy(() => import('../Markdown'))
 
 interface ChatMessageItemProps {
     msg: Message
@@ -118,9 +119,11 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                                         <div className="overflow-hidden">
                                             {isReasoningExpanded && (
                                                 <div className="border-t border-amber-200/40 dark:border-amber-700/30 px-3 py-2 text-[13px] leading-relaxed text-amber-700/80 dark:text-amber-200/80 max-h-[20rem] overflow-y-auto custom-scrollbar italic">
-                                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-                                                        {(displayReasoning || '') + (isStreaming && !displayContent ? '▋' : '')}
-                                                    </ReactMarkdown>
+                                                    <Suspense fallback={null}>
+                                                        <Markdown gfm components={mdComponents}>
+                                                            {(displayReasoning || '') + (isStreaming && !displayContent ? '▋' : '')}
+                                                        </Markdown>
+                                                    </Suspense>
                                                 </div>
                                             )}
                                         </div>
@@ -129,9 +132,11 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                             )}
                             {displayContent && (
                                 <div className="tracking-normal">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
-                                        {displayContent + (isStreaming ? '▋' : '')}
-                                    </ReactMarkdown>
+                                    <Suspense fallback={null}>
+                                        <Markdown gfm components={mdComponents}>
+                                            {displayContent + (isStreaming ? '▋' : '')}
+                                        </Markdown>
+                                    </Suspense>
                                 </div>
                             )}
                             {msg.role === 'assistant' && displayContent && !isStreaming && (

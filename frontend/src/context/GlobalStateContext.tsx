@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { api, API_PATHS } from '../utils/api';
 
 interface GlobalStateContextType {
@@ -65,15 +65,17 @@ export function GlobalStateProvider({ children }: { children: ReactNode }) {
         fetchDueCount();
     }, [fetchDueCount]);
 
+    const value = useMemo(() => ({
+        dueCount,
+        refreshDueCount,
+        notifyWordAdded,
+        notifyWordDeleted,
+        notifyWordUpdated,
+        lastUpdate
+    }), [dueCount, lastUpdate, refreshDueCount, notifyWordAdded, notifyWordDeleted, notifyWordUpdated]);
+
     return (
-        <GlobalStateContext.Provider value={{
-            dueCount,
-            refreshDueCount,
-            notifyWordAdded,
-            notifyWordDeleted,
-            notifyWordUpdated,
-            lastUpdate
-        }}>
+        <GlobalStateContext.Provider value={value}>
             {children}
         </GlobalStateContext.Provider>
     );
