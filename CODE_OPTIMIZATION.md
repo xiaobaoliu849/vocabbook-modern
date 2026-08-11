@@ -40,7 +40,7 @@
 ## Electron
 
 - [x] **18. 无后端就绪握手** — 窗口在 `ready-to-show` 即显示，后端还在启动，首屏抢跑报错。已改为：生产模式下 `ready-to-show` 后先轮询 `http://127.0.0.1:8000/health`（500ms 间隔，30s 超时，`AbortSignal.timeout(2000)` 防单次挂起），`status === healthy` 后才 `show()`；开发模式保持原行为。后端超时未就绪也照常显示窗口（前端有自身错误态兜底）。
-- [x] **19. 窗口隐藏到托盘后定时器继续跑** — 60s due-count 轮询不停。已改为：`GlobalStateContext` 监听 `visibilitychange`——隐藏（最小化/收进托盘）时 `clearInterval` 暂停，恢复可见时立即刷新一次并重建 60s 轮询；配套新增 2 个单测（隐藏期间推进 2 分钟零请求、恢复可见即时刷新+恢复轮询）。
+- [x] **19. 窗口隐藏到托盘后定时器继续跑** — 60s due-count 轮询不停。已改为：`GlobalStateContext` 监听 `visibilitychange`——隐藏（最小化/收进托盘）时 `clearInterval` 暂停，恢复可见时立即刷新一次并重建 60s 轮询；配套新增 2 个单测（隐藏期间推进 2 分钟零请求、恢复可见即时刷新+恢复轮询）。**扩展**：新增 `useRefreshOnVisible` hook（ref 防闭包过期 + 2s 限频 + 卸载清理），WordList（仅激活时，词表+标签）、StatisticsPage（统计+学习时长+热图）、Heatmap、TranslationPage（翻译历史）在窗口恢复可见时各刷新一次，兜底隐藏期间的失败/过期请求；Review（会重置进行中的复习会话）与 AIChat（`loadInitialData` 会清空会话状态）显式排除，AddWord/ImportWords/Settings/AdminPanel 无挂载期远程数据不接入。
 
 ## 已完成
 
@@ -69,6 +69,7 @@
 - 2026-08-11 第三轮：完成 #13/#14/#15（前端）；`npm run build` + 29 单测通过；期间修复一个 `Set<Page>` 类型收窄导致的 tsc 错误。
 - 2026-08-11 第四轮：完成 #8（后端）；`backend/tests` 108 passed（新增 12 个 word_tags 测试）；对抗性审查修复：批量插入返回值误计 word_tags 写入、极老库缺 tags 列时 backfill 崩溃风险（改为 check_schema_updates 之后执行）。
 - 2026-08-11 第五轮：完成 #17/#18/#19；前端 `npm run build`（tsc + vite）+ 31 个单测通过（新增 2 个 GlobalState 可见性暂停测试）；后端 `backend/tests` 108 passed；`node --check electron/main.js` 通过；对抗性审查确认：handleRating 所有分支清理提交锁、隐藏期间首次展示时 due-count 即时刷新与 #18 握手协同、开发模式行为不变。
+- 2026-08-11 第五轮扩展：`useRefreshOnVisible` 接入 4 个数据面；修复 Heatmap 中 hook 调用置于函数声明前的 TDZ 编译错误；前端 `npm run build` + 37 个单测通过（新增 6 个 hook 测试：挂载不触发/隐藏不触发/2s 限频/最新闭包/卸载清理/自定义间隔）；后端 108 passed 保持；对抗性审查确认：WordList 刷新仅小 loading 胶囊无全屏闪烁、Review/AIChat 因会话状态排除、各页面错误处理自行 catch 无未处理拒绝。
 - 备注：构建产物中 `mermaid-vendor` 单块约 3 MB（gzip 828 KB），但已按需动态导入，不影响首屏；若在意体积可后续评估拆包或替换。
 - 后端：`cd backend && ../.venv-win/Scripts/python.exe -m pytest tests -q`
 - 前端：`cd frontend && npm run build`
