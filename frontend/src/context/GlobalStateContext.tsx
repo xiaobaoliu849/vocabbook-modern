@@ -25,10 +25,41 @@ export function GlobalStateProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    // Poll the due count every 60s while the app is visible. When the window is
+    // hidden (minimized / closed to tray) the interval is paused and the count
+    // is refreshed once on the next show, so the badge stays fresh without
+    // burning background requests while hidden.
     useEffect(() => {
-        fetchDueCount();
-        const interval = setInterval(fetchDueCount, 60000);
-        return () => clearInterval(interval);
+        let interval: number | undefined;
+
+        const stopPolling = () => {
+            if (interval !== undefined) {
+                window.clearInterval(interval);
+                interval = undefined;
+            }
+        };
+
+        const startPolling = () => {
+            if (interval !== undefined) return;
+            void fetchDueCount();
+            interval = window.setInterval(fetchDueCount, 60000);
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                stopPolling();
+            } else {
+                startPolling();
+            }
+        };
+
+        startPolling();
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            stopPolling();
+        };
     }, [fetchDueCount]);
 
     useEffect(() => {
