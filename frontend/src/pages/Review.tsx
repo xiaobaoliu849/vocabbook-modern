@@ -194,7 +194,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         try {
             let path = `${API_PATHS.REVIEW_DUE}?limit=${MAX_DUE_WORDS_PER_BATCH}&include_total=true`
             if (mode === 'practice') {
-                path = `${API_PATHS.WORDS}?limit=50`
+                path = `${API_PATHS.WORDS}?page_size=50`
             } else if (mode === 'difficult') {
                 path = `${API_PATHS.REVIEW_DIFFICULT}?limit=50`
             }

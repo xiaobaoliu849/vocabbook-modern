@@ -3,7 +3,7 @@
  */
 
 import { useRef, useCallback, useEffect, useState } from 'react'
-import { getWordAudioUrl } from './audio'
+import { getWordAudioUrl } from './api'
 
 /**
  * Debounce 函数
