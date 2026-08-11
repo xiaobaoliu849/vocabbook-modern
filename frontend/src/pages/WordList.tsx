@@ -94,7 +94,8 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
     const fetchTags = useCallback(async () => {
         try {
-            const data = await api.get(API_PATHS.WORD_TAGS)
+            // Tags change rarely: 60s TTL + in-flight dedup avoids refetching on every lastUpdate
+            const data = await api.get(API_PATHS.WORD_TAGS, { ttl: 60_000 })
             setAllTags(data.tags || [])
         } catch (error) {
             console.error('Failed to fetch tags:', error)

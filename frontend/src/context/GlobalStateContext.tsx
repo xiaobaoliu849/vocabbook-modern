@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
-import { api, API_PATHS } from '../utils/api';
+import { api, API_PATHS, invalidateGetCache } from '../utils/api';
 
 interface GlobalStateContextType {
     dueCount: number;
@@ -53,16 +53,20 @@ export function GlobalStateProvider({ children }: { children: ReactNode }) {
     const notifyWordAdded = useCallback(() => {
         setLastUpdate(Date.now());
         fetchDueCount();
+        // Tags may have changed (e.g. new tag on an added word)
+        invalidateGetCache(API_PATHS.WORD_TAGS);
     }, [fetchDueCount]);
 
     const notifyWordDeleted = useCallback(() => {
         setLastUpdate(Date.now());
         fetchDueCount();
+        invalidateGetCache(API_PATHS.WORD_TAGS);
     }, [fetchDueCount]);
 
     const notifyWordUpdated = useCallback(() => {
         setLastUpdate(Date.now());
         fetchDueCount();
+        invalidateGetCache(API_PATHS.WORD_TAGS);
     }, [fetchDueCount]);
 
     const value = useMemo(() => ({

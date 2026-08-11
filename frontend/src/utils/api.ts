@@ -86,6 +86,34 @@ export class ApiError extends Error {
 
 import { useAuthStore } from '../stores/useAuthStore'
 
+// ---------------------------------------------------------------------------
+// In-memory GET cache: opt-in TTL caching + in-flight request dedup for
+// stable endpoints (e.g. tags). Keyed by the full path (query included).
+// ---------------------------------------------------------------------------
+interface GetCacheEntry {
+    value: unknown
+    expiresAt: number
+}
+
+const getCache = new Map<string, GetCacheEntry>()
+const pendingGets = new Map<string, Promise<unknown>>()
+
+/**
+ * Drop cached GET responses, optionally only those whose path starts with `prefix`.
+ * Call after mutations that change data served by cached endpoints.
+ */
+export function invalidateGetCache(prefix?: string): void {
+    if (!prefix) {
+        getCache.clear()
+        return
+    }
+    for (const key of getCache.keys()) {
+        if (key.startsWith(prefix)) {
+            getCache.delete(key)
+        }
+    }
+}
+
 /**
  * 封装的 fetch 请求方法
  */
@@ -113,9 +141,39 @@ export const api = {
     },
 
     /**
-     * GET 请求
+     * GET 请求。传入 `ttl`（毫秒）时启用内存缓存 + 并发去重。
      */
-    async get<T = any>(path: string, options?: RequestInit): Promise<T> {
+    async get<T = any>(path: string, options?: RequestInit & { ttl?: number }): Promise<T> {
+        const ttl = options?.ttl ?? 0
+        if (ttl > 0) {
+            const cached = getCache.get(path)
+            if (cached && cached.expiresAt > Date.now()) {
+                return cached.value as T
+            }
+
+            const inFlight = pendingGets.get(path)
+            if (inFlight) {
+                return inFlight as Promise<T>
+            }
+
+            const request = (async () => {
+                const response = await fetch(`${API_BASE_URL}${path}`, {
+                    ...options,
+                    method: 'GET',
+                    headers: this._getHeaders(options?.headers),
+                })
+                if (!response.ok) {
+                    throw new ApiError(response.status, await response.text())
+                }
+                const value: unknown = await response.json()
+                getCache.set(path, { value, expiresAt: Date.now() + ttl })
+                return value
+            })()
+            pendingGets.set(path, request)
+            void request.finally(() => pendingGets.delete(path)).catch(() => {})
+            return request as Promise<T>
+        }
+
         const response = await fetch(`${API_BASE_URL}${path}`, {
             ...options,
             method: 'GET',

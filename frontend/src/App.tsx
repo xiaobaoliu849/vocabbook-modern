@@ -11,6 +11,10 @@ import './App.css'
 
 type Page = 'add' | 'list' | 'review' | 'settings' | 'import' | 'translation' | 'stats' | 'chat' | 'admin'
 
+// How many recently-visited non-chat pages stay mounted (bounded LRU keep-alive).
+// The chat page is always preserved so conversations survive navigation.
+const MAX_KEPT_PAGES = 3
+
 const AddWordPage = lazy(() => import('./pages/AddWord'))
 const WordListPage = lazy(() => import('./pages/WordList'))
 const ReviewPage = lazy(() => import('./pages/Review'))
@@ -33,17 +37,26 @@ function AppContent() {
   const { t } = useTranslation()
   const { getBindings, isElectron, matches, platform } = useShortcuts()
   const [currentPage, setCurrentPage] = useState<Page>('add')
-  const [hasMountedChat, setHasMountedChat] = useState(false)
+  const [mountedPages, setMountedPages] = useState<Page[]>(['add'])
   const [showHelp, setShowHelp] = useState(false)
   const [settingsTab, setSettingsTab] = useState<string | undefined>(undefined)
 
+  // Bounded LRU keep-alive: visited pages stay mounted (preserving form/scroll
+  // state) until the non-chat cap is exceeded, then the least-recently-visited
+  // page is unmounted to bound memory. Chat is never evicted.
   useEffect(() => {
-    if (currentPage === 'chat') {
-      setHasMountedChat(true)
-    }
+    setMountedPages(prev => {
+      const next = prev.includes(currentPage) ? prev : [...prev, currentPage]
+      const nonChat = next.filter(page => page !== 'chat')
+      if (nonChat.length > MAX_KEPT_PAGES) {
+        const removed = new Set<Page>(nonChat.slice(0, nonChat.length - MAX_KEPT_PAGES))
+        return next.filter(page => !removed.has(page))
+      }
+      return next
+    })
   }, [currentPage])
 
-  const shouldRenderPage = (page: Page) => currentPage === page || (page === 'chat' && hasMountedChat)
+  const shouldRenderPage = (page: Page) => mountedPages.includes(page)
   const getPageClassName = (page: Page) => (currentPage === page ? '' : 'hidden')
 
   // Global keyboard shortcuts
