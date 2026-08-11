@@ -28,9 +28,9 @@
 ### 高优先级
 
 - [x] **12. 两套音频实现** — `utils/audio.ts` `playWordAudio` 每次 `new Audio()`，绕过 `performance.ts` 的 `AudioPool`。已改为走 `audioPool`。
-- [ ] **13. 页面从不卸载** — `App.tsx` 保留所有访问过的页面（聊天页常驻）。优化：keep-alive 上限，或窗口隐藏到托盘时暂停轮询/定时器。
-- [ ] **14. WordList 每次数据变化全量重拉** — 每次 `lastUpdate` 同时重发 `fetchWords` + 未防抖的 `fetchTags`。优化：标签缓存或随列表返回。
-- [ ] **15. 请求无去重/TTL 缓存** — `api.get` 不缓存，WordList 用 `_t=Date.now()` 禁止缓存。优化：稳定接口加内存 TTL 缓存。
+- [x] **13. 页面从不卸载** — `App.tsx` 改为有界 LRU keep-alive：最多保留 3 个最近访问的非聊天页（聊天页永不卸载，保留对话状态），超限卸载最久未访问的页面以限制内存；`WordList`/`Review` 仍靠 `isActive` 重新拉取保持新鲜。
+- [x] **14. WordList 每次数据变化全量重拉** — `fetchTags` 改用 60s TTL 缓存（命中缓存即不重发）；单词增删改时通过 `GlobalStateContext` 失效标签缓存，保证新鲜。
+- [x] **15. 请求无去重/TTL 缓存** — `api.get` 支持 `ttl` 选项：内存 TTL 缓存 + 并发请求去重（in-flight 合并），并导出 `invalidateGetCache(prefix)`；仅稳定接口（标签）启用，词表等需新鲜的请求保持直连。
 - [x] **16. 练习模式参数名不对齐** — `Review.tsx` 传 `limit=50`，后端参数是 `page_size`。已改为 `page_size=50`。
 
 ### 中等优先级
@@ -52,6 +52,9 @@
 - [x] #10 去掉 UPDATE 后多余 SELECT（后端）
 - [x] #11 SQLite PRAGMA 补充（后端）
 - [x] #12 音频播放统一走 AudioPool（前端）
+- [x] #13 页面有界 LRU keep-alive（前端）
+- [x] #14 WordList 标签 TTL 缓存 + 变更失效（前端）
+- [x] #15 api.get 支持 TTL 缓存与并发去重（前端）
 - [x] #16 练习模式请求参数对齐（前端）
 
 ## 验证记录
@@ -59,6 +62,7 @@
 - 2026-08-11：后端 `backend/tests` 96 passed（含新增 7 个测试）；前端 `npm run build` + 29 个单测通过；`main` 导入正常（60 条路由）。
 - 2026-08-11 第二轮：完成 #1/#2/#4/#5/#6/#7/#10/#11；未改动任何路由行为（`/api/words/all` 保留）。
 - 2026-08-11 对抗性审查：修复了导入逐词异常会整批 500 的回归（补了回归测试）、批量插入失败回退逐词插入、backfill 逐词容错、audio/performance 循环依赖；前端单测 29 passed。
+- 2026-08-11 第三轮：完成 #13/#14/#15（前端）；`npm run build` + 29 单测通过；期间修复一个 `Set<Page>` 类型收窄导致的 tsc 错误。
 - 备注：构建产物中 `mermaid-vendor` 单块约 3 MB（gzip 828 KB），但已按需动态导入，不影响首屏；若在意体积可后续评估拆包或替换。
 - 后端：`cd backend && ../.venv-win/Scripts/python.exe -m pytest tests -q`
 - 前端：`cd frontend && npm run build`
