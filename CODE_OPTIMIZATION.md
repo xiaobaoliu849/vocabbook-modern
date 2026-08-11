@@ -18,7 +18,7 @@
 
 ### 中等优先级
 
-- [ ] **8. 标签存为逗号分隔字符串** — `tags LIKE ?` 无法走索引且误匹配（`%art%` 命中 "smart"）；`get_all_tags` 每次全表扫描。优化：规范化为 `word_tags` 关联表。
+- [x] **8. 标签存为逗号分隔字符串** — 新增 `word_tags(word_id, tag)` 关联表：`words.tags` 列保留为展示源（前端/API 零改动），`word_tags` 作为精确筛选与标签列表的结构化索引。所有写入（add/update/delete/批量导入）在同一事务内双写（单一同步函数 `_sync_word_tags`）；`get_for_list`/`search` 的标签筛选由 `tags LIKE ?` 改为 `EXISTS(word_tags)` 精确匹配（不再误伤 `smart` 这类包含子串的词）；`get_all_tags` 改查 `SELECT DISTINCT tag`（空表时有防御性回退）。启动时一次性把旧逗号标签拆分回填（放在 `check_schema_updates` 之后，避免极老库缺 `tags` 列时崩溃）。
 - [ ] **9. `/api/words/all` 返回整表** — 前端未使用。决定：**保留**（避免破坏仓库外脚本/工具的隐式依赖），如确认无外部依赖再删。
 - [x] **10. `reviews_repo.py` UPDATE 后多余 SELECT id** — 改为单条 `INSERT ... SELECT id FROM words WHERE word = ?`，去掉独立 SELECT。
 - [x] **11. SQLite PRAGMA 补充** — `get_connection` 已加 `busy_timeout=5000` 和 `cache_size=-16000`（约 16MB 页缓存）。
@@ -49,6 +49,7 @@
 - [x] #3 复习提交减少串行 DB 往返（后端）
 - [x] #4 仓储层去重（后端）
 - [x] #5/#6/#7 词典服务：缓存加锁+LRU 上限、复用主 DB 实例、共享线程池（后端）
+- [x] #8 标签规范化 word_tags 关联表（后端）
 - [x] #10 去掉 UPDATE 后多余 SELECT（后端）
 - [x] #11 SQLite PRAGMA 补充（后端）
 - [x] #12 音频播放统一走 AudioPool（前端）
@@ -63,6 +64,7 @@
 - 2026-08-11 第二轮：完成 #1/#2/#4/#5/#6/#7/#10/#11；未改动任何路由行为（`/api/words/all` 保留）。
 - 2026-08-11 对抗性审查：修复了导入逐词异常会整批 500 的回归（补了回归测试）、批量插入失败回退逐词插入、backfill 逐词容错、audio/performance 循环依赖；前端单测 29 passed。
 - 2026-08-11 第三轮：完成 #13/#14/#15（前端）；`npm run build` + 29 单测通过；期间修复一个 `Set<Page>` 类型收窄导致的 tsc 错误。
+- 2026-08-11 第四轮：完成 #8（后端）；`backend/tests` 108 passed（新增 12 个 word_tags 测试）；对抗性审查修复：批量插入返回值误计 word_tags 写入、极老库缺 tags 列时 backfill 崩溃风险（改为 check_schema_updates 之后执行）。
 - 备注：构建产物中 `mermaid-vendor` 单块约 3 MB（gzip 828 KB），但已按需动态导入，不影响首屏；若在意体积可后续评估拆包或替换。
 - 后端：`cd backend && ../.venv-win/Scripts/python.exe -m pytest tests -q`
 - 前端：`cd frontend && npm run build`
