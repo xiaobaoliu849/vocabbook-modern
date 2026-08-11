@@ -9,6 +9,27 @@ if TYPE_CHECKING:
     from models.database import DatabaseManager
 
 
+def _split_tags(tags_str: str) -> list[str]:
+    """Parse a comma-separated tag string into stripped, non-empty tags."""
+    if not tags_str:
+        return []
+    return [t.strip() for t in tags_str.split(',') if t.strip()]
+
+
+def _sync_word_tags(cursor: sqlite3.Cursor, word_id: int, tags_str: str) -> None:
+    """Replace the word's word_tags rows to match the comma-separated string.
+
+    Keeps the structured index in sync with `words.tags`. Must run in the same
+    transaction as the words-table write.
+    """
+    cursor.execute('DELETE FROM word_tags WHERE word_id = ?', (word_id,))
+    for tag in _split_tags(tags_str):
+        cursor.execute(
+            'INSERT OR IGNORE INTO word_tags (word_id, tag) VALUES (?, ?)',
+            (word_id, tag),
+        )
+
+
 class WordsRepository:
 
     def __init__(self, db: DatabaseManager) -> None:
@@ -35,6 +56,7 @@ class WordsRepository:
                 data.get('date', datetime.now().strftime('%Y-%m-%d')),
                 time.time()
             ))
+            _sync_word_tags(cursor, cursor.lastrowid, data.get('tags', ''))
             conn.commit()
             return True
         except sqlite3.IntegrityError:
@@ -92,8 +114,8 @@ class WordsRepository:
             params.extend([f"%{keyword}%", f"%{keyword}%"])
 
         if tag:
-            where_clauses.append("tags LIKE ?")
-            params.append(f"%{tag}%")
+            where_clauses.append("EXISTS (SELECT 1 FROM word_tags wt WHERE wt.word_id = words.id AND wt.tag = ?)")
+            params.append(tag)
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -142,7 +164,11 @@ class WordsRepository:
         return found
 
     def add_words_batch(self, words_data: list[dict]) -> int:
-        """Insert many words in a single transaction; returns the number actually inserted."""
+        """Insert many words in a single transaction; returns the number actually inserted.
+
+        word_tags rows are synced only for words that are actually new, so the
+        tags of pre-existing words are never overwritten.
+        """
         if not words_data:
             return 0
         conn = self.db.get_connection()
@@ -165,8 +191,10 @@ class WordsRepository:
             )
             for d in words_data
         ]
-        before = conn.total_changes
         try:
+            # Existing words are skipped by INSERT OR IGNORE; only sync tags for new ones.
+            existing_words = set(self.get_existing_words([d['word'] for d in words_data]))
+            words_before = conn.total_changes
             cursor.executemany(
                 '''
                 INSERT OR IGNORE INTO words (
@@ -176,25 +204,57 @@ class WordsRepository:
                 ''',
                 params,
             )
+            inserted = conn.total_changes - words_before
+            new_words = [d for d in words_data if d['word'] not in existing_words]
+            if new_words:
+                id_map = self._word_ids_by_word(cursor, [d['word'] for d in new_words])
+                tag_rows = [
+                    (id_map[d['word']], tag)
+                    for d in new_words
+                    if d['word'] in id_map
+                    for tag in _split_tags(d.get('tags', ''))
+                ]
+                if tag_rows:
+                    cursor.executemany(
+                        'INSERT OR IGNORE INTO word_tags (word_id, tag) VALUES (?, ?)',
+                        tag_rows,
+                    )
             conn.commit()
         except Exception:
             conn.rollback()
             raise
-        return conn.total_changes - before
+        return inserted
+
+    @staticmethod
+    def _word_ids_by_word(cursor: sqlite3.Cursor, words: list[str]) -> dict[str, int]:
+        """Map words to their ids using chunked IN queries."""
+        result: dict[str, int] = {}
+        for start in range(0, len(words), 500):
+            chunk = words[start:start + 500]
+            placeholders = ",".join("?" * len(chunk))
+            cursor.execute(f"SELECT id, word FROM words WHERE word IN ({placeholders})", chunk)
+            for row in cursor.fetchall():
+                result[row[1]] = row[0]
+        return result
 
     def get_all_tags(self) -> list[str]:
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT tags FROM words WHERE tags IS NOT NULL AND tags != ""')
-        rows = cursor.fetchall()
-        tags_set = set()
-        for row in rows:
-            if row[0]:
-                for tag in row[0].split(','):
-                    tag = tag.strip()
-                    if tag:
-                        tags_set.add(tag)
-        return sorted(list(tags_set))
+        cursor.execute('SELECT DISTINCT tag FROM word_tags ORDER BY tag')
+        tags = [row[0] for row in cursor.fetchall()]
+        if not tags:
+            # Defensive fallback: legacy scan in case the one-time backfill
+            # never ran for this database.
+            cursor.execute('SELECT DISTINCT tags FROM words WHERE tags IS NOT NULL AND tags != ""')
+            tags_set = set()
+            for row in cursor.fetchall():
+                if row[0]:
+                    for tag in row[0].split(','):
+                        tag = tag.strip()
+                        if tag:
+                            tags_set.add(tag)
+            return sorted(tags_set)
+        return tags
 
     def update_context(self, word: str, en: str, cn: str) -> None:
         conn = self.db.get_connection()
@@ -229,14 +289,21 @@ class WordsRepository:
 
         try:
             cursor.execute(sql, tuple(params))
+            affected = cursor.rowcount
+            if 'tags' in update_data:
+                cursor.execute('SELECT id FROM words WHERE word = ?', (word,))
+                row = cursor.fetchone()
+                if row:
+                    _sync_word_tags(cursor, row[0], update_data['tags'] or '')
             conn.commit()
-            return cursor.rowcount > 0
+            return affected > 0
         except sqlite3.Error:
             return False
 
     def delete(self, word: str) -> None:
         conn = self.db.get_connection()
         cursor = conn.cursor()
+        cursor.execute('DELETE FROM word_tags WHERE word_id = (SELECT id FROM words WHERE word = ?)', (word,))
         cursor.execute('DELETE FROM words WHERE word = ?', (word,))
         conn.commit()
 
@@ -271,8 +338,8 @@ class WordsRepository:
             params.extend([like_pattern, like_pattern])
 
         if tag_filter:
-            conditions.append("tags LIKE ?")
-            params.append(f"%{tag_filter}%")
+            conditions.append("EXISTS (SELECT 1 FROM word_tags wt WHERE wt.word_id = words.id AND wt.tag = ?)")
+            params.append(tag_filter)
 
         if mastered_filter is not None:
             conditions.append("mastered = ?")

@@ -57,6 +57,7 @@ class DatabaseManager:
 
         self.init_db()
         self.check_schema_updates()
+        self.backfill_word_tags()
         self.migrate_from_json()
 
     # ------------------------------------------------------------------
@@ -179,6 +180,20 @@ class DatabaseManager:
             )
         ''')
 
+        # Structured tag index: one row per (word, tag).
+        # `words.tags` (comma-separated) remains the display source; this table
+        # provides exact tag filtering and an efficient tag list. Both are kept
+        # in sync by WordsRepository (single writer: _sync_word_tags).
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS word_tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                word_id INTEGER NOT NULL,
+                tag TEXT NOT NULL,
+                UNIQUE(word_id, tag)
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_word_tags_tag ON word_tags(tag)')
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS review_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -276,6 +291,33 @@ class DatabaseManager:
             )
         ''')
 
+        conn.commit()
+
+    def backfill_word_tags(self):
+        """One-time backfill: split legacy comma-separated tags into word_tags.
+
+        Runs after check_schema_updates so the `tags` column is guaranteed to
+        exist. Only acts when the tag table is empty but tagged words exist, so
+        it is a no-op after the first migration (and on fresh installs).
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM word_tags')
+        if cursor.fetchone()[0] > 0:
+            return
+        cursor.execute("SELECT COUNT(*) FROM words WHERE tags IS NOT NULL AND tags != ''")
+        if cursor.fetchone()[0] == 0:
+            return
+        logger.info("[Migration] Splitting legacy comma-separated tags into word_tags table...")
+        cursor.execute("SELECT id, tags FROM words WHERE tags IS NOT NULL AND tags != ''")
+        for word_id, tags_str in cursor.fetchall():
+            for tag in tags_str.split(','):
+                tag = tag.strip()
+                if tag:
+                    cursor.execute(
+                        'INSERT OR IGNORE INTO word_tags (word_id, tag) VALUES (?, ?)',
+                        (word_id, tag),
+                    )
         conn.commit()
 
     def check_schema_updates(self):
