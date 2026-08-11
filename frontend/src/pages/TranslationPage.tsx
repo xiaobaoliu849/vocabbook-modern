@@ -5,6 +5,7 @@ import AudioButton from '../components/AudioButton'
 import { useTranslation } from 'react-i18next'
 import { PageTitle } from '../components/PageTitle'
 import { useToast } from '../context/ToastContext'
+import { useRefreshOnVisible } from '../hooks/useRefreshOnVisible'
 
 interface TranslationRecord {
     id: number
@@ -110,6 +111,9 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
     useEffect(() => {
         fetchHistory()
     }, [fetchHistory])
+
+    // Keep the translation history fresh when the window is reopened.
+    useRefreshOnVisible(fetchHistory)
 
     const detectLanguage = useCallback((text: string): string => {
         const input = text.trim()

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../context/ThemeContext'
+import { useRefreshOnVisible } from '../hooks/useRefreshOnVisible'
 import { api, API_PATHS } from '../utils/api'
 import { AlertTriangle } from 'lucide-react'
 
@@ -43,6 +44,9 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
             setLoading(false)
         }
     }
+
+    // Keep the heatmap fresh when the window is reopened after being hidden.
+    useRefreshOnVisible(fetchHeatmapData)
 
     const lightColors = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
     const darkColors = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353']

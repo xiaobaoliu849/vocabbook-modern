@@ -10,6 +10,7 @@ import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { PageTitle } from '../components/PageTitle'
 import { useToast } from '../context/ToastContext'
+import { useRefreshOnVisible } from '../hooks/useRefreshOnVisible'
 
 interface Word {
     id: number
@@ -116,6 +117,16 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             void fetchTags()
         }
     }, [fetchTags, isActive, lastUpdate])
+
+    // Re-fetch the list and tags when the window is reopened (tray/minimize):
+    // data may have gone stale or earlier requests may have failed while the
+    // window was hidden. Skipped while this page is mounted-but-not-active —
+    // it refetches on activation anyway.
+    useRefreshOnVisible(() => {
+        if (isActive === false) return
+        void fetchWords()
+        void fetchTags()
+    })
 
     const handleDelete = useCallback(async (word: string, e: React.MouseEvent) => {
         e.stopPropagation()

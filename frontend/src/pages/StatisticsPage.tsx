@@ -5,6 +5,7 @@ import { api, API_PATHS } from '../utils/api'
 import { useTranslation } from 'react-i18next'
 import { PageTitle } from '../components/PageTitle'
 import { useTheme } from '../context/ThemeContext'
+import { useRefreshOnVisible } from '../hooks/useRefreshOnVisible'
 import {
     ResponsiveContainer,
     BarChart,
@@ -76,6 +77,15 @@ export default function StatisticsPage() {
         fetchStudyTime()
         fetchHeatmapData()
     }, [])
+
+    // Refresh the numbers when the window is reopened — due_today,
+    // reviewed_today and the study streak drift with time even without any
+    // user interaction, and earlier fetches may have failed while hidden.
+    useRefreshOnVisible(() => {
+        fetchStats()
+        fetchStudyTime()
+        fetchHeatmapData()
+    })
 
     const textColor = isDark ? '#94a3b8' : '#475569'
     const tooltipBg = isDark ? '#1e293b' : '#ffffff'
