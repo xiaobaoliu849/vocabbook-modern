@@ -13,6 +13,9 @@ const DEV_MODE = process.env.NODE_ENV === 'development'
 const FRONTEND_URL = DEV_MODE ? 'http://localhost:5173' : `file://${path.join(__dirname, '../frontend/dist/index.html')}`
 const BACKEND_PATH = path.join(__dirname, '../backend')
 const DEFAULT_GLOBAL_SHORTCUT = 'Ctrl+Alt+KeyV'
+const BACKEND_HEALTH_URL = 'http://127.0.0.1:8000/health'
+const HEALTH_POLL_INTERVAL_MS = 500
+const HEALTH_TIMEOUT_MS = 30000
 const ALLOWED_EXTERNAL_ORIGINS = new Set([
     'https://github.com',
     'https://console.evermind.ai'
@@ -236,9 +239,19 @@ function createWindow() {
         void openAllowedExternalUrl(url)
     })
 
-    // Show window when ready
+    // Show window when ready. In production the backend is spawned by this
+    // process, so keep the window hidden until /health responds — otherwise the
+    // first render races the server boot and errors out on the initial fetch.
     mainWindow.once('ready-to-show', () => {
-        mainWindow.show()
+        if (DEV_MODE) {
+            mainWindow.show()
+            return
+        }
+        waitForBackendReady().then(() => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.show()
+            }
+        })
     })
 
     // Context Menu for Right Click
@@ -280,6 +293,33 @@ function createWindow() {
     if (DEV_MODE) {
         // mainWindow.webContents.openDevTools()
     }
+}
+
+/**
+ * Poll the backend /health endpoint until it reports healthy (or timeout).
+ * Resolves true when the backend is ready, false if it never came up so the
+ * window still opens (the frontend surfaces its own error states then).
+ */
+async function waitForBackendReady() {
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < HEALTH_TIMEOUT_MS) {
+        try {
+            const response = await fetch(BACKEND_HEALTH_URL, {
+                signal: AbortSignal.timeout(2000)
+            })
+            if (response.ok) {
+                const data = await response.json().catch(() => null)
+                if (data && data.status === 'healthy') {
+                    return true
+                }
+            }
+        } catch (_error) {
+            // Backend not reachable yet — keep polling
+        }
+        await new Promise((resolve) => setTimeout(resolve, HEALTH_POLL_INTERVAL_MS))
+    }
+    console.warn('Backend health check timed out; showing window anyway')
+    return false
 }
 
 function createTray() {
