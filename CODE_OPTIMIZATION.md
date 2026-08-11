@@ -35,12 +35,12 @@
 
 ### 中等优先级
 
-- [ ] **17. `handleRating` 闭包过期风险** — 加载下一批单词时读取渲染时捕获的 `dueWords`/`currentIndex`，快速按键下可能重复追加。优化：函数式更新 / ref。
+- [x] **17. `handleRating` 闭包过期风险** — 加载下一批单词时读取渲染时捕获的 `dueWords`/`currentIndex`，快速按键下可能重复追加。已改为：新增 `dueWordsRef`/`currentIndexRef`/`sessionStatsRef`/`standardModeRef` 镜像 ref（渲染后同步 + 提交时即时更新），`handleRating` 全程读 ref；索引推进与批量追加全部函数式更新，追加前对已提交状态二次去重；新增 `submittingWordIdRef` 防同一单词在提交进行中被重复评分；并用单词身份检查避免并发切换模式重置牌堆后误推进索引；`logSession` 改为读 ref、依赖清空。
 
 ## Electron
 
-- [ ] **18. 无后端就绪握手** — 窗口在 `ready-to-show` 即显示，后端还在启动，首屏抢跑报错。优化：轮询 `/health` 后再显示，或前端启动重试。
-- [ ] **19. 窗口隐藏到托盘后定时器继续跑** — 60s due-count 轮询不停。优化：监听 `visibilitychange` 暂停。
+- [x] **18. 无后端就绪握手** — 窗口在 `ready-to-show` 即显示，后端还在启动，首屏抢跑报错。已改为：生产模式下 `ready-to-show` 后先轮询 `http://127.0.0.1:8000/health`（500ms 间隔，30s 超时，`AbortSignal.timeout(2000)` 防单次挂起），`status === healthy` 后才 `show()`；开发模式保持原行为。后端超时未就绪也照常显示窗口（前端有自身错误态兜底）。
+- [x] **19. 窗口隐藏到托盘后定时器继续跑** — 60s due-count 轮询不停。已改为：`GlobalStateContext` 监听 `visibilitychange`——隐藏（最小化/收进托盘）时 `clearInterval` 暂停，恢复可见时立即刷新一次并重建 60s 轮询；配套新增 2 个单测（隐藏期间推进 2 分钟零请求、恢复可见即时刷新+恢复轮询）。
 
 ## 已完成
 
@@ -57,6 +57,9 @@
 - [x] #14 WordList 标签 TTL 缓存 + 变更失效（前端）
 - [x] #15 api.get 支持 TTL 缓存与并发去重（前端）
 - [x] #16 练习模式请求参数对齐（前端）
+- [x] #17 复习评分闭包改 ref + 函数式更新 + 防重复提交（前端）
+- [x] #18 Electron 后端就绪握手（生产模式轮询 /health 后再显示窗口）
+- [x] #19 窗口隐藏到托盘时暂停 60s due-count 轮询（visibilitychange）
 
 ## 验证记录
 
@@ -65,6 +68,7 @@
 - 2026-08-11 对抗性审查：修复了导入逐词异常会整批 500 的回归（补了回归测试）、批量插入失败回退逐词插入、backfill 逐词容错、audio/performance 循环依赖；前端单测 29 passed。
 - 2026-08-11 第三轮：完成 #13/#14/#15（前端）；`npm run build` + 29 单测通过；期间修复一个 `Set<Page>` 类型收窄导致的 tsc 错误。
 - 2026-08-11 第四轮：完成 #8（后端）；`backend/tests` 108 passed（新增 12 个 word_tags 测试）；对抗性审查修复：批量插入返回值误计 word_tags 写入、极老库缺 tags 列时 backfill 崩溃风险（改为 check_schema_updates 之后执行）。
+- 2026-08-11 第五轮：完成 #17/#18/#19；前端 `npm run build`（tsc + vite）+ 31 个单测通过（新增 2 个 GlobalState 可见性暂停测试）；后端 `backend/tests` 108 passed；`node --check electron/main.js` 通过；对抗性审查确认：handleRating 所有分支清理提交锁、隐藏期间首次展示时 due-count 即时刷新与 #18 握手协同、开发模式行为不变。
 - 备注：构建产物中 `mermaid-vendor` 单块约 3 MB（gzip 828 KB），但已按需动态导入，不影响首屏；若在意体积可后续评估拆包或替换。
 - 后端：`cd backend && ../.venv-win/Scripts/python.exe -m pytest tests -q`
 - 前端：`cd frontend && npm run build`
