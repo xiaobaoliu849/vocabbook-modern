@@ -82,6 +82,32 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const loadAbortControllerRef = useRef<AbortController | null>(null)
     const emptyLoadRetryRef = useRef(0)
 
+    // Refs mirroring review state so async handlers never read stale
+    // render-time closures — rapid key presses between renders must act on
+    // the latest deck/position instead of a snapshot from the previous render.
+    const dueWordsRef = useRef<ReviewWord[]>([])
+    const currentIndexRef = useRef(0)
+    const sessionStatsRef = useRef(sessionStats)
+    const standardModeRef = useRef(true)
+    /** Word id currently being submitted — guards against submitting the same word twice on rapid key presses */
+    const submittingWordIdRef = useRef<number | null>(null)
+
+    useEffect(() => {
+        dueWordsRef.current = dueWords
+    }, [dueWords])
+
+    useEffect(() => {
+        currentIndexRef.current = currentIndex
+    }, [currentIndex])
+
+    useEffect(() => {
+        sessionStatsRef.current = sessionStats
+    }, [sessionStats])
+
+    useEffect(() => {
+        standardModeRef.current = !practiceMode && !difficultMode
+    }, [practiceMode, difficultMode])
+
     const { refreshDueCount, dueCount } = useGlobalState()
     const { toast } = useToast()
     const [isEditingMeaning, setIsEditingMeaning] = useState(false)
@@ -297,8 +323,8 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         },
     ]
 
-    const logSession = useCallback(async (reviewCount: number = sessionStats.reviewed) => {
-        const duration = Math.floor((Date.now() - sessionStats.startTime) / 1000)
+    const logSession = useCallback(async (reviewCount: number = sessionStatsRef.current.reviewed) => {
+        const duration = Math.floor((Date.now() - sessionStatsRef.current.startTime) / 1000)
         try {
             await api.post(API_PATHS.REVIEW_SESSION, {
                 duration,
@@ -307,42 +333,62 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         } catch (error) {
             console.error('Failed to log session:', error)
         }
-    }, [sessionStats.reviewed, sessionStats.startTime])
+    }, [])
 
     const handleRating = useCallback(async (quality: number) => {
-        if (!currentWord) return
+        const words = dueWordsRef.current
+        const index = currentIndexRef.current
+        const word = words[index]
+        if (!word) return
+
+        // Ignore key presses that arrive while this word is still being
+        // submitted (e.g. rapid 1-5 taps before the next render commits),
+        // which previously could double-submit and duplicate the next batch.
+        if (submittingWordIdRef.current === word.id) return
+        submittingWordIdRef.current = word.id
 
         try {
-            const nextReviewedCount = sessionStats.reviewed + 1
-            const isLastInBatch = currentIndex >= dueWords.length - 1
+            const nextReviewedCount = sessionStatsRef.current.reviewed + 1
+            const isLastInBatch = index >= words.length - 1
 
             setSessionRatings(prev => [...prev, {
-                word: currentWord,
+                word,
                 quality,
                 timestamp: Date.now()
             }])
 
             const result = await api.post<ReviewSubmitResponse>(API_PATHS.REVIEW_SUBMIT, {
-                word: currentWord.word,
+                word: word.word,
                 quality,
                 time_spent: 0
             })
 
-            setSessionStats(prev => ({ ...prev, reviewed: nextReviewedCount }))
+            // Keep the ref in sync with the state update so the next key press
+            // (even before React commits) sees the incremented count.
+            sessionStatsRef.current = { ...sessionStatsRef.current, reviewed: nextReviewedCount }
+            setSessionStats(prev => ({ ...prev, reviewed: prev.reviewed + 1 }))
             resetInteractionState()
             void refreshDueCount(result.remaining_due_count)
 
             const remainingDue = result.remaining_due_count ?? 0
-            if (isLastInBatch && !practiceMode && !difficultMode && remainingDue > 0) {
+            if (isLastInBatch && standardModeRef.current && remainingDue > 0) {
                 try {
                     const more = await api.get<DueWordsResponse>(
                         `${API_PATHS.REVIEW_DUE}?limit=${Math.min(remainingDue, MAX_DUE_WORDS_PER_BATCH)}`
                     )
-                    const existingIds = new Set(dueWords.map(word => word.id))
+                    const existingIds = new Set(dueWordsRef.current.map(word => word.id))
                     const newWords = (more.words ?? []).filter(word => !existingIds.has(word.id))
                     if (newWords.length > 0) {
-                        setDueWords(prev => [...prev, ...newWords])
-                        setCurrentIndex(currentIndex + 1)
+                        dueWordsRef.current = [...dueWordsRef.current, ...newWords]
+                        currentIndexRef.current = index + 1
+                        // Dedup again against the latest committed state before appending.
+                        setDueWords(prev => {
+                            const committedIds = new Set(prev.map(word => word.id))
+                            const toAppend = newWords.filter(word => !committedIds.has(word.id))
+                            return toAppend.length > 0 ? [...prev, ...toAppend] : prev
+                        })
+                        setCurrentIndex(prev => prev + 1)
+                        submittingWordIdRef.current = null
                         return
                     }
                 } catch (error) {
@@ -350,14 +396,22 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 }
             }
 
-            setCurrentIndex(prev => prev + 1)
+            // Only advance if the deck still shows the word we just rated — a
+            // concurrent mode-switch reload may have reset the deck while the
+            // submission was in flight.
+            if (dueWordsRef.current[index]?.id === word.id) {
+                currentIndexRef.current = index + 1
+                setCurrentIndex(prev => prev + 1)
+            }
             if (isLastInBatch) {
                 void logSession(nextReviewedCount)
             }
+            submittingWordIdRef.current = null
         } catch (error) {
             console.error('Failed to submit review:', error)
+            submittingWordIdRef.current = null
         }
-    }, [currentIndex, currentWord, difficultMode, dueWords, logSession, practiceMode, refreshDueCount, resetInteractionState, sessionStats.reviewed])
+    }, [logSession, refreshDueCount, resetInteractionState])
 
     const playAudio = useCallback(() => {
         if (currentWord) {
