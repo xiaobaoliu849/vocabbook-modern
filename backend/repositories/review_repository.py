@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -8,7 +7,7 @@ if TYPE_CHECKING:
 
 
 class ReviewRepository:
-    """Persistence boundary for review and learning-focus data."""
+    """Review-queue orchestration adapter (SQL lives in ReviewsRepository)."""
 
     def __init__(self, db: DatabaseManager):
         self.db = db
@@ -80,39 +79,7 @@ class ReviewRepository:
         )
 
     def get_difficult_words(self, limit: int) -> list[dict]:
-        conn = self.db.get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT * FROM words
-            WHERE error_count >= 1
-            ORDER BY error_count DESC, next_review_time ASC
-            LIMIT ?
-            """,
-            (limit,),
-        )
-        rows = cursor.fetchall()
-
-        words: list[dict] = []
-        for row in rows:
-            word = dict(row)
-            word["mastered"] = bool(word["mastered"])
-            word["date"] = word["date_added"]
-            for key in [
-                "phonetic",
-                "meaning",
-                "example",
-                "context_en",
-                "context_cn",
-                "roots",
-                "synonyms",
-                "tags",
-            ]:
-                if word.get(key) is None:
-                    word[key] = ""
-            words.append(word)
-        return words
+        return self.db.get_difficult_words(limit)
 
     def get_word(self, word: str):
         return self.db.get_word(word)
@@ -126,8 +93,9 @@ class ReviewRepository:
         repetitions: int,
         next_time: float,
         rating: int,
-    ) -> None:
-        self.db.update_sm2_status(
+    ) -> int:
+        """Apply the SM-2 update and return the remaining due count."""
+        return self.db.update_sm2_status(
             word=word,
             easiness=easiness,
             interval=interval,

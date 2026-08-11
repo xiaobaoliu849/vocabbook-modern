@@ -74,6 +74,10 @@ class DatabaseManager:
             conn = sqlite3.connect(self.db_path, check_same_thread=False)
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
+            # Wait up to 5s for a busy lock instead of failing fast, and
+            # use a larger page cache for the read-heavy review/dict queries.
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA cache_size=-16000")
             self._local.connection = conn
             with self._conn_registry_lock:
                 self._all_connections.append(conn)
@@ -407,6 +411,8 @@ class DatabaseManager:
     def get_all_words(self): return self.words.get_all()
     def get_words_for_list(self, keyword=None, tag=None, page=1, page_size=20): return self.words.get_for_list(keyword, tag, page, page_size)
     def get_all_tags(self): return self.words.get_all_tags()
+    def get_existing_words(self, words): return self.words.get_existing_words(words)
+    def add_words_batch(self, words_data): return self.words.add_words_batch(words_data)
     def update_context(self, word, en, cn): return self.words.update_context(word, en, cn)
     def update_word(self, word, update_data): return self.words.update(word, update_data)
     def delete_word(self, word): return self.words.delete(word)
@@ -416,9 +422,10 @@ class DatabaseManager:
 
     # --- Reviews ---
     def update_review_status(self, word, stage, next_time, mastered, review_count_inc=True): return self.reviews.update_review_status(word, stage, next_time, mastered, review_count_inc)
-    def update_sm2_status(self, word, easiness, interval, repetitions, next_time, rating): return self.reviews.update_sm2_status(word, easiness, interval, repetitions, next_time, rating)
+    def update_sm2_status(self, word, easiness, interval, repetitions, next_time, rating): return self.reviews.update_sm2_status(word, easiness, interval, repetitions, next_time, rating)  # returns remaining due count
     def get_review_heatmap_data(self): return self.reviews.get_heatmap_data()
     def get_due_review_count(self): return self.reviews.get_due_count()
+    def get_difficult_words(self, limit): return self.reviews.get_difficult_words(limit)
     def get_word_review_history(self, word_id): return self.reviews.get_word_history(word_id)
     def get_statistics(self): return self.reviews.get_statistics()
     def get_learning_focus_summary(self, limit=5): return self.reviews.get_learning_focus_summary(limit)

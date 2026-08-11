@@ -1,4 +1,3 @@
-from .chat_repository import ChatSessionRepository
 from .dictionary_repository import DictionaryRepository
 from .review_repository import ReviewRepository
 from .words_repo import WordsRepository
@@ -10,7 +9,6 @@ from .families_repo import FamiliesRepository
 from .limits_repo import LimitsRepository
 
 __all__ = [
-    "ChatSessionRepository",
     "DictionaryRepository",
     "ReviewRepository",
     "WordsRepository",

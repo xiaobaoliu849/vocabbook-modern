@@ -212,8 +212,9 @@ async def submit_review(
     next_time = ReviewService.calculate_next_review_time(interval, review.quality)
     next_review_in_hours = round(max(0, next_time - time.time()) / 3600, 1)
     
-    # Update database
-    await run_db_blocking(
+    # Update database (returns remaining due count on the same connection,
+    # avoiding a second get_word and a separate due-count query)
+    remaining_due_count = await run_db_blocking(
         repo.update_sm2_status,
         word=review.word,
         easiness=easiness,
@@ -222,8 +223,6 @@ async def submit_review(
         next_time=next_time,
         rating=review.quality,
     )
-    updated_word_data = await run_db_blocking(repo.get_word, review.word) or word_data
-    remaining_due_count = await run_db_blocking(repo.get_due_count)
 
     # Store learning record to EverMemOS (fire-and-forget)
     try:
@@ -244,7 +243,10 @@ async def submit_review(
             }
             label = quality_labels.get(review.quality, f"评分{review.quality}")
             interval_text = f"{next_review_in_hours}小时后" if review.quality <= 2 else f"{interval}天后"
-            error_count = int(updated_word_data.get("error_count") or 0)
+            # error_count after the update (same delta logic as reviews_repo.update_sm2_status)
+            old_error_count = int(word_data.get("error_count") or 0)
+            error_delta = 1 if review.quality <= 2 else (-1 if review.quality >= 4 else 0)
+            error_count = max(0, old_error_count + error_delta)
             weakness_signal = (
                 "This word is still weak for the user."
                 if review.quality <= 2 or error_count >= 2

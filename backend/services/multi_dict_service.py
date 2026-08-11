@@ -7,6 +7,7 @@ import time
 import threading
 import httpx
 import json
+from collections import OrderedDict
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, wait
 import logging
@@ -29,6 +30,15 @@ _DEFAULT_HEADERS = {
 # 数据库管理器引用（延迟初始化）
 _db_manager = None
 
+# 词典聚合查询共享线程池（避免每次请求新建/销毁 executor）
+_dict_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="vocabbook-dict")
+
+
+def shutdown_dict_executor() -> None:
+    """Shut down the shared dict executor at process shutdown."""
+    _dict_executor.shutdown(wait=True, cancel_futures=True)
+
+
 def get_session():
     """获取当前线程的 httpx Client（线程安全，每线程独立实例）"""
     client = getattr(_thread_local, 'client', None)
@@ -45,9 +55,22 @@ def get_session():
 
 
 def get_db_manager():
-    """获取数据库管理器（延迟加载，避免循环导入）"""
+    """获取数据库管理器（延迟加载，避免循环导入）。
+
+    优先复用 FastAPI 应用里 main.py 的全局 DatabaseManager（同一连接池/迁移），
+    仅在应用未运行时（如测试）才自建一个。
+    """
     global _db_manager
     if _db_manager is None:
+        try:
+            # Reuse the app's shared instance when the FastAPI app is running
+            from main import get_db as main_get_db
+            shared = main_get_db()
+            if shared is not None:
+                _db_manager = shared
+                return _db_manager
+        except Exception as e:
+            logger.debug(f"No shared DB manager available, will create own: {e}")
         try:
             try:
                 from models.database import DatabaseManager
@@ -122,7 +145,9 @@ class MultiDictService:
     }
 
     # 内存缓存（一级缓存，快速访问）
-    _memory_cache = {}
+    _memory_cache = OrderedDict()
+    _memory_cache_lock = threading.RLock()
+    _memory_cache_max = 2000  # 上限，超出按 LRU 淘汰最旧词条
     _memory_cache_ttl = 1800  # 内存缓存 30 分钟
 
     # 持久化缓存 TTL（二级缓存，24小时）
@@ -135,16 +160,18 @@ class MultiDictService:
         """获取缓存的词典结果（先查内存，再查数据库）"""
         word_lower = word.lower()
 
-        # 一级缓存：内存
-        if word_lower in cls._memory_cache:
-            cache_entry = cls._memory_cache[word_lower]
-            if time.time() - cache_entry.get("timestamp", 0) < cls._memory_cache_ttl:
-                result = cache_entry.get(source)
-                if result is not None:
-                    return _clean_dict_entry(result)
-            else:
-                # 内存缓存过期，清除
-                del cls._memory_cache[word_lower]
+        # 一级缓存：内存（带锁 + LRU 刷新）
+        with cls._memory_cache_lock:
+            cache_entry = cls._memory_cache.get(word_lower)
+            if cache_entry is not None:
+                if time.time() - cache_entry.get("timestamp", 0) < cls._memory_cache_ttl:
+                    result = cache_entry.get(source)
+                    if result is not None:
+                        cls._memory_cache.move_to_end(word_lower)
+                        return _clean_dict_entry(result)
+                else:
+                    # 内存缓存过期，清除
+                    del cls._memory_cache[word_lower]
 
         # 二级缓存：数据库
         db = get_db_manager()
@@ -181,12 +208,16 @@ class MultiDictService:
 
     @classmethod
     def _update_memory_cache(cls, word, source, result):
-        """更新内存缓存"""
+        """更新内存缓存（带锁；超出上限时按 LRU 淘汰最旧词条）"""
         word_lower = word.lower()
-        if word_lower not in cls._memory_cache:
-            cls._memory_cache[word_lower] = {"timestamp": time.time()}
-        cls._memory_cache[word_lower][source] = result
-        cls._memory_cache[word_lower]["timestamp"] = time.time()
+        with cls._memory_cache_lock:
+            if word_lower not in cls._memory_cache:
+                cls._memory_cache[word_lower] = {"timestamp": time.time()}
+            cls._memory_cache[word_lower][source] = result
+            cls._memory_cache[word_lower]["timestamp"] = time.time()
+            cls._memory_cache.move_to_end(word_lower)
+            while len(cls._memory_cache) > cls._memory_cache_max:
+                cls._memory_cache.popitem(last=False)
 
     @staticmethod
     def search_cambridge(word):
@@ -426,36 +457,32 @@ class MultiDictService:
             }
             results["primary"] = youdao_result
 
-        # 并发查询其他
+        # 并发查询其他（复用模块级共享线程池，避免每次请求新建/销毁 executor）
         tasks = {}
-        executor = ThreadPoolExecutor(max_workers=3)
-        try:
-            if MultiDictService.DICT_CAMBRIDGE in enabled_dicts:
-                tasks[executor.submit(MultiDictService.search_cambridge, word)] = MultiDictService.DICT_CAMBRIDGE
-            
-            if MultiDictService.DICT_BING in enabled_dicts:
-                tasks[executor.submit(MultiDictService.search_bing, word)] = MultiDictService.DICT_BING
+        if MultiDictService.DICT_CAMBRIDGE in enabled_dicts:
+            tasks[_dict_executor.submit(MultiDictService.search_cambridge, word)] = MultiDictService.DICT_CAMBRIDGE
 
-            if MultiDictService.DICT_FREE in enabled_dicts:
-                tasks[executor.submit(MultiDictService.search_free_dict, word)] = MultiDictService.DICT_FREE
+        if MultiDictService.DICT_BING in enabled_dicts:
+            tasks[_dict_executor.submit(MultiDictService.search_bing, word)] = MultiDictService.DICT_BING
 
-            done, not_done = wait(list(tasks.keys()), timeout=MultiDictService._aggregate_timeout)
+        if MultiDictService.DICT_FREE in enabled_dicts:
+            tasks[_dict_executor.submit(MultiDictService.search_free_dict, word)] = MultiDictService.DICT_FREE
 
-            for future in done:
-                source = tasks[future]
-                try:
-                    result = future.result()
-                    if result:
-                        results["sources"][source] = result
-                except Exception as e:
-                    logger.error(f"Dict {source} error: {e}")
-            
-            for future in not_done:
-                source = tasks[future]
-                future.cancel()
-                logger.warning(f"Dict {source} timed out after {MultiDictService._aggregate_timeout}s")
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
+        done, not_done = wait(list(tasks.keys()), timeout=MultiDictService._aggregate_timeout)
+
+        for future in done:
+            source = tasks[future]
+            try:
+                result = future.result()
+                if result:
+                    results["sources"][source] = result
+            except Exception as e:
+                logger.error(f"Dict {source} error: {e}")
+
+        for future in not_done:
+            source = tasks[future]
+            future.cancel()
+            logger.warning(f"Dict {source} timed out after {MultiDictService._aggregate_timeout}s")
 
         # 确定主要结果 (有道 > 剑桥 > Bing)
         if not results["primary"]:

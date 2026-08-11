@@ -5,6 +5,29 @@ from services import multi_dict_service
 from services.multi_dict_service import MultiDictService
 
 
+def test_memory_cache_is_bounded_and_lru(monkeypatch):
+    """The in-memory dict cache must stay within _memory_cache_max and evict oldest first."""
+    original_max = MultiDictService._memory_cache_max
+    monkeypatch.setattr(MultiDictService, "_memory_cache_max", 5)
+    try:
+        for i in range(10):
+            MultiDictService._update_memory_cache(f"word_{i}", "youdao", {"word": f"word_{i}"})
+        assert len(MultiDictService._memory_cache) == 5
+        # Oldest entries were evicted; the newest survive
+        assert "word_0" not in MultiDictService._memory_cache
+        assert "word_5" in MultiDictService._memory_cache
+        assert "word_9" in MultiDictService._memory_cache
+
+        # Touching an entry refreshes its LRU position
+        MultiDictService._update_memory_cache("word_5", "bing", {"word": "word_5"})
+        MultiDictService._update_memory_cache("word_new", "youdao", {"word": "word_new"})
+        assert "word_5" in MultiDictService._memory_cache
+        assert "word_6" not in MultiDictService._memory_cache
+    finally:
+        MultiDictService._memory_cache.clear()
+        MultiDictService._memory_cache_max = original_max
+
+
 def test_get_db_manager_supports_current_import_mode(monkeypatch, tmp_path):
     original_db = multi_dict_service._db_manager
     test_db_path = tmp_path / "dict-cache.db"

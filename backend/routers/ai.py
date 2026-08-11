@@ -9,7 +9,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Header
 import httpx
 from pydantic import BaseModel
-from repositories.chat_repository import ChatSessionRepository
+from repositories.chat_repo import ChatRepository
 from repositories.review_repository import ReviewRepository
 from services.blocking_io import run_db_blocking, run_io_blocking
 from services.http_client import get_http_client
@@ -97,8 +97,8 @@ async def _resolve_chat_owner_key(authorization: Optional[str], x_client_id: Opt
     return fallback_owner_key
 
 
-def get_chat_repository() -> ChatSessionRepository:
-    return ChatSessionRepository(get_db())
+def get_chat_repository() -> ChatRepository:
+    return ChatRepository(get_db())
 
 
 def get_review_repository() -> ReviewRepository:
@@ -995,7 +995,7 @@ async def get_chat_sessions(
     """获取所有持久化的聊天会话"""
     owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
-        sessions = await run_db_blocking(get_chat_repository().list_sessions, owner_key)
+        sessions = await run_db_blocking(get_chat_repository().get_all_sessions, owner_key)
         return sessions
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat sessions: {str(e)}")
@@ -1042,7 +1042,7 @@ async def clear_all_chat_sessions(
     """清空所有聊天会话"""
     owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
     try:
-        success = await run_db_blocking(get_chat_repository().clear_sessions, owner_key)
+        success = await run_db_blocking(get_chat_repository().clear_all_sessions, owner_key)
         return {"success": success}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear chat sessions: {str(e)}")

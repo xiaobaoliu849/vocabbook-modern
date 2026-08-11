@@ -27,6 +27,7 @@ from services.request_metrics import (
 )
 from services.blocking_io import shutdown_blocking_executors
 from services.http_client import close_http_client
+from services.multi_dict_service import shutdown_dict_executor
 
 # Global database instance
 db: DatabaseManager = None
@@ -47,6 +48,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown: stop DB work first, then close every connection (including
     # ones owned by executor threads).
+    shutdown_dict_executor()
     shutdown_blocking_executors()
     if db:
         db.close_all_connections()

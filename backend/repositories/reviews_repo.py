@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 import time
 import logging
 from datetime import datetime, timedelta
@@ -36,18 +37,19 @@ class ReviewsRepository:
 
         today = datetime.now().strftime('%Y-%m-%d')
         reviewed_at = time.time()
-        cursor.execute('SELECT id FROM words WHERE word = ?', (word,))
-        res = cursor.fetchone()
-        if res:
-            wid = res[0]
-            cursor.execute(
-                'INSERT INTO review_history (word_id, review_date, reviewed_at, rating) VALUES (?, ?, ?, ?)',
-                (wid, today, reviewed_at, 1),
-            )
+        # Single statement: derive word_id from the words row instead of a separate SELECT
+        cursor.execute(
+            '''
+            INSERT INTO review_history (word_id, review_date, reviewed_at, rating)
+            SELECT id, ?, ?, ? FROM words WHERE word = ?
+            ''',
+            (today, reviewed_at, 1, word),
+        )
 
         conn.commit()
 
-    def update_sm2_status(self, word: str, easiness: float, interval: int, repetitions: int, next_time: float, rating: int) -> None:
+    def update_sm2_status(self, word: str, easiness: float, interval: int, repetitions: int, next_time: float, rating: int) -> int:
+        """Apply the SM-2 update and return the remaining due count on the same connection."""
         mastered = 1 if interval > 180 else 0
         error_delta = 1 if rating <= 2 else (-1 if rating >= 4 else 0)
         reviewed_at = time.time()
@@ -67,18 +69,23 @@ class ReviewsRepository:
                 (easiness, interval, repetitions, next_time, mastered, error_delta, word),
             )
 
-            cursor.execute('SELECT id FROM words WHERE word = ?', (word,))
-            res = cursor.fetchone()
-            if res:
-                cursor.execute(
-                    '''
-                    INSERT INTO review_history (word_id, review_date, reviewed_at, rating)
-                    VALUES (?, ?, ?, ?)
-                    ''',
-                    (res[0], today, reviewed_at, rating),
-                )
+            # Single statement: derive word_id from the words row instead of a separate SELECT
+            cursor.execute(
+                '''
+                INSERT INTO review_history (word_id, review_date, reviewed_at, rating)
+                SELECT id, ?, ?, ? FROM words WHERE word = ?
+                ''',
+                (today, reviewed_at, rating, word),
+            )
+
+            cursor.execute(
+                'SELECT COUNT(*) FROM words WHERE next_review_time = 0 OR (next_review_time > 0 AND next_review_time <= ?)',
+                (reviewed_at,),
+            )
+            due_count = int(cursor.fetchone()[0] or 0)
 
             conn.commit()
+            return due_count
         except Exception:
             conn.rollback()
             raise
@@ -106,6 +113,42 @@ class ReviewsRepository:
         )
         row = cursor.fetchone()
         return int(row[0] or 0) if row else 0
+
+    def get_difficult_words(self, limit: int) -> list[dict]:
+        """Words with error_count >= 1, hardest first."""
+        conn = self.db.get_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT * FROM words
+            WHERE error_count >= 1
+            ORDER BY error_count DESC, next_review_time ASC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall()
+
+        words: list[dict] = []
+        for row in rows:
+            word = dict(row)
+            word["mastered"] = bool(word["mastered"])
+            word["date"] = word["date_added"]
+            for key in [
+                "phonetic",
+                "meaning",
+                "example",
+                "context_en",
+                "context_cn",
+                "roots",
+                "synonyms",
+                "tags",
+            ]:
+                if word.get(key) is None:
+                    word[key] = ""
+            words.append(word)
+        return words
 
     def get_word_history(self, word_id: int) -> list:
         conn = self.db.get_connection()

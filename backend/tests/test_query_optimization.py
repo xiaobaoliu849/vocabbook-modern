@@ -164,3 +164,79 @@ class TestDatabaseIndexes:
         assert 'idx_words_mastered_review' in index_names
 
         db.close_connection()
+
+
+class TestBatchWordOperations:
+    """Tests for batch existence check and batch insert (import optimization)."""
+
+    def _make_db(self, tmp_path):
+        from models.database import DatabaseManager
+
+        db_path = str(tmp_path / "batch_words.db")
+        json_path = str(tmp_path / "missing.json")
+        return DatabaseManager(db_path=db_path, json_path=json_path)
+
+    def test_get_existing_words_returns_only_present(self, tmp_path):
+        db = self._make_db(tmp_path)
+        try:
+            db.add_word({"word": "apple", "meaning": "苹果"})
+            db.add_word({"word": "banana", "meaning": "香蕉"})
+
+            found = db.get_existing_words(["apple", "cherry", "banana", "durian"])
+            assert sorted(found) == ["apple", "banana"]
+        finally:
+            db.close_connection()
+
+    def test_get_existing_words_case_sensitive(self, tmp_path):
+        """Match get() semantics: case-sensitive equality."""
+        db = self._make_db(tmp_path)
+        try:
+            db.add_word({"word": "Apple", "meaning": "苹果"})
+            assert db.get_existing_words(["apple"]) == []
+            assert db.get_existing_words(["Apple"]) == ["Apple"]
+        finally:
+            db.close_connection()
+
+    def test_get_existing_words_chunks_over_500(self, tmp_path):
+        """IN clause is chunked to stay under SQLite's variable limit."""
+        db = self._make_db(tmp_path)
+        try:
+            words = [f"word_{i}" for i in range(1200)]
+            found = db.get_existing_words(words)
+            assert found == []
+
+            db.add_word({"word": "word_0", "meaning": "m"})
+            db.add_word({"word": "word_1100", "meaning": "m"})
+            found = db.get_existing_words(words)
+            assert sorted(found) == ["word_0", "word_1100"]
+        finally:
+            db.close_connection()
+
+    def test_add_words_batch_inserts_and_reports_count(self, tmp_path):
+        db = self._make_db(tmp_path)
+        try:
+            rows = [
+                {"word": "alpha", "meaning": "a"},
+                {"word": "beta", "meaning": "b", "tags": "test"},
+                {"word": "gamma", "meaning": "g"},
+            ]
+            inserted = db.add_words_batch(rows)
+            assert inserted == 3
+
+            assert db.get_word("beta")["tags"] == "test"
+            assert db.get_word("beta")["date_added"]
+        finally:
+            db.close_connection()
+
+    def test_add_words_batch_ignores_duplicates(self, tmp_path):
+        db = self._make_db(tmp_path)
+        try:
+            db.add_word({"word": "alpha", "meaning": "existing"})
+            rows = [{"word": "alpha", "meaning": "dup"}, {"word": "beta", "meaning": "b"}]
+            inserted = db.add_words_batch(rows)
+            assert inserted == 1
+
+            # Existing row untouched
+            assert db.get_word("alpha")["meaning"] == "existing"
+        finally:
+            db.close_connection()

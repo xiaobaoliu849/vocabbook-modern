@@ -10,6 +10,9 @@ from datetime import datetime
 from services.blocking_io import run_db_blocking, run_io_blocking
 from services.multi_dict_service import clean_chinese_text
 from services.audio_service import AudioService
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -245,27 +248,45 @@ async def delete_word(word: str):
 
 @router.post("/backfill-audio")
 async def backfill_audio():
-    """为所有缺少音频的单词补全本地发音缓存"""
+    """为所有缺少音频的单词补全本地发音缓存（并发下载）"""
+    import asyncio
+
     db = get_db()
     words = await run_db_blocking(db.get_all_words)
 
-    cached = 0
-    failed = 0
-    for entry in words:
-        if entry.get("audio"):
-            continue
-        audio_path = await _ensure_word_audio_field(entry["word"])
-        if audio_path:
+    missing = [entry for entry in words if not entry.get("audio")]
+    if not missing:
+        return {
+            "total": len(words),
+            "cached": 0,
+            "failed": 0,
+            "already_cached": len(words),
+        }
+
+    # Limit concurrent downloads to avoid hammering the audio sources
+    sem = asyncio.Semaphore(3)
+
+    async def _backfill(entry: dict) -> bool:
+        """Per-word backfill; a single failure only marks that word as failed."""
+        try:
+            async with sem:
+                audio_path = await _ensure_word_audio_field(entry["word"])
+            if not audio_path:
+                return False
             await run_db_blocking(db.update_word, entry["word"], {"audio": audio_path})
-            cached += 1
-        else:
-            failed += 1
+            return True
+        except Exception as exc:
+            logger.error(f"[Audio backfill] Failed for '{entry['word']}': {exc}")
+            return False
+
+    results = await asyncio.gather(*(_backfill(entry) for entry in missing))
+    cached = sum(1 for ok in results if ok)
 
     return {
         "total": len(words),
         "cached": cached,
-        "failed": failed,
-        "already_cached": sum(1 for entry in words if entry.get("audio")),
+        "failed": len(missing) - cached,
+        "already_cached": len(words) - len(missing),
     }
 
 

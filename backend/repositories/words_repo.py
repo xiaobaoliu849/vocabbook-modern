@@ -124,6 +124,64 @@ class WordsRepository:
 
         return {'words': result, 'total': total}
 
+    def get_existing_words(self, words: list[str]) -> list[str]:
+        """Return which of the given words already exist (case-sensitive, like get()).
+
+        Chunks the IN list to stay under SQLite's variable limit.
+        """
+        if not words:
+            return []
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        found: list[str] = []
+        for start in range(0, len(words), 500):
+            chunk = words[start:start + 500]
+            placeholders = ",".join("?" * len(chunk))
+            cursor.execute(f"SELECT word FROM words WHERE word IN ({placeholders})", chunk)
+            found.extend(row[0] for row in cursor.fetchall())
+        return found
+
+    def add_words_batch(self, words_data: list[dict]) -> int:
+        """Insert many words in a single transaction; returns the number actually inserted."""
+        if not words_data:
+            return 0
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        now = datetime.now().strftime('%Y-%m-%d')
+        params = [
+            (
+                d['word'],
+                d.get('phonetic', ''),
+                d.get('meaning', ''),
+                d.get('example', ''),
+                d.get('context_en', ''),
+                d.get('context_cn', ''),
+                d.get('roots', ''),
+                d.get('synonyms', ''),
+                d.get('tags', ''),
+                d.get('audio', ''),
+                d.get('date', now),
+                time.time(),
+            )
+            for d in words_data
+        ]
+        before = conn.total_changes
+        try:
+            cursor.executemany(
+                '''
+                INSERT OR IGNORE INTO words (
+                    word, phonetic, meaning, example, context_en, context_cn,
+                    roots, synonyms, tags, audio, date_added, next_review_time
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                params,
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        return conn.total_changes - before
+
     def get_all_tags(self) -> list[str]:
         conn = self.db.get_connection()
         cursor = conn.cursor()

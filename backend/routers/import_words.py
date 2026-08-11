@@ -102,9 +102,16 @@ async def import_word_list(request: ImportWordsRequest):
 
 
 async def process_import(entries: List[dict], auto_lookup: bool, tag: str) -> ImportResult:
-    """处理导入逻辑"""
+    """处理导入逻辑（批量优化版）。
+
+    与旧实现的差异：
+    - 一次批量查重（而不是逐词 get_word）
+    - 词典查询 / 音频下载并发执行（复用 blocking_io 的共享 executor）
+    - 单词插入用单个事务 executemany
+    结果语义（success/failed/skipped）保持不变。
+    """
     db = get_db()
-    
+
     results = {
         "total": len(entries),
         "success": 0,
@@ -112,74 +119,156 @@ async def process_import(entries: List[dict], auto_lookup: bool, tag: str) -> Im
         "skipped": 0,
         "details": []
     }
-    
+
+    # 1. 规范化 + 批内去重（后续重复项按 "skipped" 计，与旧实现行为一致）
+    seen: set[str] = set()
+    pending: List[dict] = []
     for entry in entries:
-        if not entry.get("word"):
-            continue
-        word = entry["word"].strip()
+        word = (entry.get("word") or "").strip()
         if not word:
             continue
-        
-        # 检查是否已存在
-        existing = await run_db_blocking(db.get_word, word)
-        if existing:
+        if word in seen:
             results["skipped"] += 1
-            results["details"].append({
-                "word": word,
-                "status": "skipped",
-                "reason": "already exists"
-            })
+            results["details"].append({"word": word, "status": "skipped", "reason": "duplicate in batch"})
             continue
-        
-        # 准备单词数据
-        word_data = {
+        seen.add(word)
+        pending.append({
             "word": word,
             "phonetic": entry.get("phonetic", ""),
             "meaning": entry.get("meaning", ""),
-            "example": "",
-            "context_en": "",
-            "context_cn": "",
-            "tags": tag,
-            "roots": "",
-            "synonyms": "",
-            "date": datetime.now().strftime('%Y-%m-%d')
-        }
-        
-        # 自动查词典
-        if auto_lookup and not word_data["meaning"]:
-            lookup_result = await run_io_blocking(lookup_word, word)
-            if lookup_result and not lookup_result.get("error"):
-                word_data["phonetic"] = lookup_result.get("phonetic", "")
-                word_data["meaning"] = lookup_result.get("meaning", "")
-                word_data["example"] = lookup_result.get("example", "")
-        
-        # 保存到数据库
+            "example": entry.get("example", ""),
+        })
+
+    if not pending:
+        return ImportResult(**results)
+
+    # 2. 批量查重（一次 IN 查询）
+    existing_words = set(await run_db_blocking(db.get_existing_words, [p["word"] for p in pending]))
+    new_entries: List[dict] = []
+    for p in pending:
+        if p["word"] in existing_words:
+            results["skipped"] += 1
+            results["details"].append({"word": p["word"], "status": "skipped", "reason": "already exists"})
+        else:
+            new_entries.append(p)
+
+    if not new_entries:
+        return ImportResult(**results)
+
+    # 3. 并发查词典（无释义的词）
+    enriched: List[dict] = new_entries
+    if auto_lookup:
+        import asyncio
+
+        lookup_sem = asyncio.Semaphore(4)
+
+        async def _enrich(p: dict) -> dict:
+            """Per-word lookup; failures leave the entry unchanged (word gets 'no meaning found')."""
+            try:
+                if (p.get("meaning") or "").strip():
+                    return p
+                async with lookup_sem:
+                    lookup_result = await run_io_blocking(lookup_word, p["word"])
+                if lookup_result and not lookup_result.get("error"):
+                    if not p.get("phonetic"):
+                        p["phonetic"] = lookup_result.get("phonetic", "")
+                    if not p.get("meaning"):
+                        p["meaning"] = lookup_result.get("meaning", "")
+                    if not p.get("example"):
+                        p["example"] = lookup_result.get("example", "")
+            except Exception as exc:
+                logger.error(f"Lookup failed for '{p['word']}': {exc}")
+            return p
+
+        enriched = list(await asyncio.gather(*(_enrich(p) for p in new_entries)))
+
+    # 4. 并发下载音频并组装行
+    import asyncio
+    from services.audio_service import AudioService
+
+    audio_sem = asyncio.Semaphore(3)
+
+    async def _build_row(p: dict):
+        """Per-word row build; on error returns (word, None, reason) so the word is reported failed."""
         try:
-            if word_data["meaning"]:  # 只有有释义才保存
-                from services.audio_service import AudioService
-                audio_path = await run_io_blocking(AudioService.ensure_audio, word)
-                if audio_path:
-                    word_data["audio"] = audio_path
-                await run_db_blocking(db.add_word, word_data)
-                results["success"] += 1
-                results["details"].append({
-                    "word": word,
-                    "status": "success",
-                    "meaning": word_data["meaning"][:50] + "..." if len(word_data["meaning"]) > 50 else word_data["meaning"]
-                })
+            meaning = (p.get("meaning") or "").strip()
+            if not meaning:
+                return p, None, None
+            async with audio_sem:
+                audio_path = await run_io_blocking(AudioService.ensure_audio, p["word"])
+            return p, {
+                "word": p["word"],
+                "phonetic": p.get("phonetic", ""),
+                "meaning": meaning,
+                "example": p.get("example", ""),
+                "context_en": "",
+                "context_cn": "",
+                "tags": tag,
+                "roots": "",
+                "synonyms": "",
+                "audio": audio_path or "",
+                "date": datetime.now().strftime('%Y-%m-%d'),
+            }, None
+        except Exception as exc:
+            logger.error(f"Audio/row build failed for '{p['word']}': {exc}")
+            return p, None, str(exc)
+
+    built = await asyncio.gather(*(_build_row(p) for p in enriched))
+    rows = []
+    for p, row, error in built:
+        if row is None:
+            results["failed"] += 1
+            results["details"].append({
+                "word": p["word"],
+                "status": "failed",
+                "reason": error or "no meaning found",
+            })
+        else:
+            rows.append(row)
+
+    def _append_success(row: dict) -> None:
+        results["success"] += 1
+        meaning = row["meaning"]
+        results["details"].append({
+            "word": row["word"],
+            "status": "success",
+            "meaning": meaning[:50] + "..." if len(meaning) > 50 else meaning,
+        })
+
+    # 5. 单个事务批量插入 + 按库内存在情况判定结果
+    if rows:
+        try:
+            await run_db_blocking(db.add_words_batch, rows)
+        except Exception as e:
+            # 批量失败（极少见，例如磁盘/锁错误）：回退到逐词插入，好词照常成功
+            logger.error(f"Batch insert failed, falling back to per-word inserts: {e}")
+            for row in rows:
+                try:
+                    ok = await run_db_blocking(db.add_word, row)
+                    if ok:
+                        _append_success(row)
+                    else:
+                        results["failed"] += 1
+                        results["details"].append({
+                            "word": row["word"],
+                            "status": "failed",
+                            "reason": "already exists",
+                        })
+                except Exception as exc:
+                    results["failed"] += 1
+                    results["details"].append({"word": row["word"], "status": "failed", "reason": str(exc)})
+            return ImportResult(**results)
+
+        present = set(await run_db_blocking(db.get_existing_words, [r["word"] for r in rows]))
+        for row in rows:
+            if row["word"] in present:
+                _append_success(row)
             else:
                 results["failed"] += 1
                 results["details"].append({
-                    "word": word,
+                    "word": row["word"],
                     "status": "failed",
-                    "reason": "no meaning found"
+                    "reason": "insert failed",
                 })
-        except Exception as e:
-            results["failed"] += 1
-            results["details"].append({
-                "word": word,
-                "status": "failed",
-                "reason": str(e)
-            })
-    
+
     return ImportResult(**results)
