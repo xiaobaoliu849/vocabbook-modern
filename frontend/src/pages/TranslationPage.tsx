@@ -5,6 +5,7 @@ import AudioButton from '../components/AudioButton'
 import { useTranslation } from 'react-i18next'
 import { PageTitle } from '../components/PageTitle'
 import { useToast } from '../context/ToastContext'
+import { describeApiError } from '../utils/errorMessages'
 import { useRefreshOnVisible } from '../hooks/useRefreshOnVisible'
 
 interface TranslationRecord {
@@ -27,7 +28,7 @@ const LANGUAGES = ['Auto', 'English', 'Chinese', 'Japanese', 'Korean', 'French',
 
 export default function TranslationPage({ onBack }: { onBack?: () => void }) {
     const { t } = useTranslation()
-    const { confirmDialog } = useToast()
+    const { confirmDialog, toast } = useToast()
     const [sourceText, setSourceText] = useState('')
     const [targetText, setTargetText] = useState('')
     const [sourceLang, setSourceLang] = useState('Auto')
@@ -166,6 +167,10 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
     const handleTranslate = async () => {
         const input = sourceText.trim()
         if (!input) return
+        // Single-flight: the Ctrl+Enter path skips the disabled button, so
+        // guard here — a second concurrent request could resolve out of order
+        // and overwrite the newer translation.
+        if (loading) return
 
         setLoading(true)
         try {
@@ -220,6 +225,7 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
             setHistory(prev => prev.filter(item => item.id !== id))
         } catch (error) {
             console.error('Delete failed:', error)
+            toast(describeApiError(error, t), 'error')
         }
     }
 

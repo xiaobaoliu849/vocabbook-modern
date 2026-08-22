@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import AudioButton from '../components/AudioButton'
 import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2, Upload, Star, AlertTriangle } from 'lucide-react'
 import { api, ApiError, API_PATHS } from '../utils/api'
@@ -24,6 +24,17 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
 
     const { notifyWordAdded } = useGlobalState()
     const { toast } = useToast()
+
+    // Monotonic ticket guarding the search flow: only the most recently
+    // started search may touch searchResult/isSaved/isSearching, so a slow
+    // earlier response can never overwrite a newer lookup.
+    const searchSeqRef = useRef(0)
+    // Mirror of the input box, read by the AI-sentence flow after its await.
+    const searchWordRef = useRef('')
+
+    useEffect(() => {
+        searchWordRef.current = searchWord
+    }, [searchWord])
 
     // Auto features state
     const [autoSave, setAutoSave] = useState(() => localStorage.getItem('auto_save') === 'true')
@@ -69,6 +80,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
     const handleSearch = useCallback(async (overrideWord?: string) => {
         const wordToSearch = (overrideWord || searchWord).trim()
         if (!wordToSearch) return
+        const seq = ++searchSeqRef.current
         setIsSearching(true)
         setSearchResult(null)
         setAiSentences([])
@@ -84,6 +96,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
         try {
             const sourcesParam = enabledDicts.join(',');
             const data = await api.get(API_PATHS.DICT_SEARCH(wordToSearch, sourcesParam))
+            if (seq !== searchSeqRef.current) return
             setSearchResult(data)
             setActiveTab('youdao')
 
@@ -93,6 +106,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
 
             if (autoSave) {
                 const res = await saveWord(data, true)
+                if (seq !== searchSeqRef.current) return
                 if (res === 'success' || res === 'exist') {
                     setIsSaved(true)
                 }
@@ -101,9 +115,12 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                 setIsSaved(!!data.is_saved)
             }
         } catch (error) {
+            if (seq !== searchSeqRef.current) return
             setSearchResult({ error: getDictionarySearchErrorMessage(error, t) })
         } finally {
-            setIsSearching(false)
+            if (seq === searchSeqRef.current) {
+                setIsSearching(false)
+            }
         }
     }, [autoPlay, autoSave, saveWord, searchWord, t]);
 
@@ -116,7 +133,14 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
     }, [aiSentences, saveWord, searchResult])
 
     const handleGenerateAI = useCallback(async () => {
-        if (!searchWord.trim()) return
+        // Snapshot the word and the displayed entry at click time: after the
+        // await, either may have changed (new search). Sentences must only be
+        // paired with the exact entry they were generated for — merging them
+        // into whatever `searchResult` points at later would save word A's
+        // sentences onto word B.
+        const requestedWord = searchWord.trim()
+        const resultSnapshot = searchResult
+        if (!requestedWord) return
         setIsGeneratingAI(true)
         setAiError('')
 
@@ -128,7 +152,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
             const aiBase = parseMap('ai_bases_map')[aiProvider] || ''
 
             const data = await api.post(API_PATHS.AI_GENERATE_SENTENCES,
-                { word: searchWord.trim(), count: 3 },
+                { word: requestedWord, count: 3 },
                 {
                     headers: {
                         'X-AI-Provider': aiProvider,
@@ -138,19 +162,28 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                     }
                 }
             )
+            if (searchWordRef.current.trim().toLowerCase() !== requestedWord.toLowerCase()) {
+                return // Input moved on while generating — drop the stale result.
+            }
             const newSentences = data.sentences || []
             setAiSentences(newSentences)
 
-            if (searchResult && !searchResult.error && newSentences.length > 0) {
-                void saveWord(searchResult, true, newSentences);
+            if (
+                resultSnapshot && !resultSnapshot.error &&
+                newSentences.length > 0 &&
+                String(resultSnapshot.word || '').trim().toLowerCase() === requestedWord.toLowerCase()
+            ) {
+                void saveWord(resultSnapshot, true, newSentences);
             }
         } catch (error) {
             console.error('AI generation failed:', error)
-            setAiError('Failed to generate AI sentences. Please try again.')
+            if (searchWordRef.current.trim().toLowerCase() === requestedWord.toLowerCase()) {
+                setAiError(t('addWord.errors.aiFailed', 'Failed to generate AI sentences. Please try again.'))
+            }
         } finally {
             setIsGeneratingAI(false)
         }
-    }, [saveWord, searchResult, searchWord])
+    }, [saveWord, searchResult, searchWord, t])
 
 
     // Keyboard shortcuts for AddWord page

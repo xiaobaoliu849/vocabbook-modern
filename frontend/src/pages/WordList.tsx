@@ -10,6 +10,7 @@ import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { PageTitle } from '../components/PageTitle'
 import { useToast } from '../context/ToastContext'
+import { describeApiError } from '../utils/errorMessages'
 import { useRefreshOnVisible } from '../hooks/useRefreshOnVisible'
 
 interface Word {
@@ -32,7 +33,7 @@ const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 export default function WordList({ isActive }: { isActive?: boolean }) {
     const { t } = useTranslation()
     const { matches } = useShortcuts()
-    const { confirmDialog } = useToast()
+    const { confirmDialog, toast } = useToast()
     const [words, setWords] = useState<Word[]>([])
     const [loading, setLoading] = useState(true)
     const [isFetching, setIsFetching] = useState(false)
@@ -56,6 +57,11 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
     const searchInputRef = useRef<HTMLInputElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
     const hasFetchedOnceRef = useRef(false)
+    // Single-flight guard for fetchWords: the effect, the visible-refresh hook
+    // and the retry button all go through startFetch, which aborts any
+    // in-flight request first so a stale response can never land after a
+    // newer one.
+    const fetchAbortRef = useRef<AbortController | null>(null)
     const getDeleteConfirmMessage = useCallback((word: string) => t('wordList.confirmDelete', { word }), [t])
 
     // Computed pagination values
@@ -103,14 +109,23 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
         }
     }, [])
 
+    const startFetch = useCallback(() => {
+        fetchAbortRef.current?.abort()
+        const controller = new AbortController()
+        fetchAbortRef.current = controller
+        return fetchWords(controller.signal)
+    }, [fetchWords])
+
     useEffect(() => {
         if (isActive === false) return
 
-        const controller = new AbortController()
-        void fetchWords(controller.signal)
+        void startFetch()
 
-        return () => controller.abort()
-    }, [fetchWords, isActive, lastUpdate])
+        return () => {
+            fetchAbortRef.current?.abort()
+            fetchAbortRef.current = null
+        }
+    }, [startFetch, isActive, lastUpdate])
 
     useEffect(() => {
         if (isActive !== false) {
@@ -121,10 +136,11 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
     // Re-fetch the list and tags when the window is reopened (tray/minimize):
     // data may have gone stale or earlier requests may have failed while the
     // window was hidden. Skipped while this page is mounted-but-not-active —
-    // it refetches on activation anyway.
+    // it refetches on activation anyway. Goes through startFetch so it cannot
+    // race a request the effect just issued.
     useRefreshOnVisible(() => {
         if (isActive === false) return
-        void fetchWords()
+        void startFetch()
         void fetchTags()
     })
 
@@ -139,8 +155,9 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             notifyWordDeleted()
         } catch (error) {
             console.error('Failed to delete word:', error)
+            toast(describeApiError(error, t), 'error')
         }
-    }, [confirmDialog, getDeleteConfirmMessage, notifyWordDeleted, selectedWord?.word])
+    }, [confirmDialog, getDeleteConfirmMessage, notifyWordDeleted, selectedWord?.word, t, toast])
 
     const handleMarkMastered = useCallback(async (word: string, e: React.MouseEvent) => {
         e.stopPropagation()
@@ -152,8 +169,9 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             notifyWordUpdated()
         } catch (error) {
             console.error('Failed to mark mastered:', error)
+            toast(describeApiError(error, t), 'error')
         }
-    }, [notifyWordUpdated])
+    }, [notifyWordUpdated, t, toast])
 
     const getStatusBadge = (word: Word) => {
         if (word.mastered) {
@@ -234,7 +252,10 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                 setSelectedIndex(prev => Math.min(prev, words.length - 2))
                                 notifyWordDeleted()
                             })
-                            .catch(err => console.error('Failed to delete word:', err))
+                            .catch(err => {
+                                console.error('Failed to delete word:', err)
+                                toast(describeApiError(err, t), 'error')
+                            })
                     }
                 })()
             } else if (matches(e, 'list.markMastered') && selectedIndex >= 0 && selectedIndex < words.length) {
@@ -247,7 +268,10 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                             setWords(prev => prev.map(w => w.word === word.word ? { ...w, mastered: true } : w))
                             notifyWordUpdated()
                         })
-                        .catch(err => console.error('Failed to mark mastered:', err))
+                        .catch(err => {
+                            console.error('Failed to mark mastered:', err)
+                            toast(describeApiError(err, t), 'error')
+                        })
                 }
             } else if (matches(e, 'list.playAudio')) {
                 // Play audio for selected word
@@ -271,7 +295,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [confirmDialog, getDeleteConfirmMessage, handleDelete, handleMarkMastered, isActive, isFetching, matches, notifyWordDeleted, notifyWordUpdated, scrollToSelected, selectedIndex, selectedWord, totalPages, words])
+    }, [confirmDialog, getDeleteConfirmMessage, handleDelete, handleMarkMastered, isActive, isFetching, matches, notifyWordDeleted, notifyWordUpdated, scrollToSelected, selectedIndex, selectedWord, t, toast, totalPages, words])
 
     // Reset selection and page when filters change
     useEffect(() => {
@@ -324,7 +348,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                     <div className="p-8 text-center">
                         <AlertTriangle size={32} className="text-red-400 mx-auto mb-3" />
                         <p className="text-slate-600 dark:text-slate-300 mb-4">{fetchError}</p>
-                        <button onClick={() => { setFetchError(''); fetchWords(); }} className="btn-primary">
+                        <button onClick={() => { setFetchError(''); startFetch(); }} className="btn-primary">
                             Retry
                         </button>
                     </div>

@@ -71,6 +71,15 @@ export default function AdminPanel() {
     const [searchQuery, setSearchQuery] = useState('')
     const searchTimeoutRef = useRef<number | undefined>(undefined)
     const initializedRef = useRef(false)
+    // Shared ticket across loadAdminData/searchUsers: both write the users
+    // table, so only the most recently started request may commit its result.
+    const reqSeqRef = useRef(0)
+
+    useEffect(() => {
+        return () => {
+            if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current)
+        }
+    }, [])
 
     const premiumRate = useMemo(() => {
         if (!summary?.total_users) return 0
@@ -84,6 +93,7 @@ export default function AdminPanel() {
             return
         }
 
+        const seq = ++reqSeqRef.current
         setIsLoading(true)
         setErrorMessage('')
         try {
@@ -92,28 +102,35 @@ export default function AdminPanel() {
                 adminRequest<AdminUser[]>(`/admin/users?limit=100${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ''}`, token),
                 adminRequest<AdminOrder[]>('/admin/orders?limit=100', token),
             ])
+            if (seq !== reqSeqRef.current) return
             setSummary(summaryData)
             setUsers(userData)
             setOrders(orderData)
         } catch (error) {
+            if (seq !== reqSeqRef.current) return
             setSummary(null)
             setUsers([])
             setOrders([])
             setErrorMessage(error instanceof Error ? error.message : t('admin.errors.loadFailed', 'Failed to load admin data.'))
         } finally {
-            setIsLoading(false)
+            if (seq === reqSeqRef.current) {
+                setIsLoading(false)
+            }
         }
     }, [activeAdminToken, searchQuery, t])
 
     const searchUsers = useCallback(async () => {
         if (!activeAdminToken) return
+        const seq = ++reqSeqRef.current
         try {
             const userData = await adminRequest<AdminUser[]>(
                 `/admin/users?limit=100${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ''}`,
                 activeAdminToken
             )
+            if (seq !== reqSeqRef.current) return
             setUsers(userData)
         } catch (error) {
+            if (seq !== reqSeqRef.current) return
             setErrorMessage(error instanceof Error ? error.message : t('admin.errors.loadFailed', 'Failed to load admin data.'))
         }
     }, [activeAdminToken, searchQuery, t])

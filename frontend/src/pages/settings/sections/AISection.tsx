@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../../../context/ToastContext'
-import { API_BASE_URL, getOwnerTokenHeaders } from '../../../utils/api'
+import { API_BASE_URL, api, getOwnerTokenHeaders } from '../../../utils/api'
 import { getDefaultModel, PROVIDER_MODEL_PRESETS } from '../../../utils/aiModels'
 import MemoryManagementModal from '../../../components/MemoryManagementModal'
 
@@ -27,6 +27,21 @@ export default function AISection() {
     const [ollamaModels, setOllamaModels] = useState<{ name: string; size: string; parameter_size: string; family: string }[]>([])
     const [ollamaLoading, setOllamaLoading] = useState(false)
     const [ollamaError, setOllamaError] = useState('')
+    // Mirrors of aiBase/aiModel so fetchOllamaModels stays identity-stable —
+    // depending on the states directly made its useCallback change on every
+    // keystroke in the base-URL input, and the provider effect below fired a
+    // request per character typed.
+    const aiBaseRef = useRef('')
+    const aiModelRef = useRef(aiModel)
+    const ollamaReqSeqRef = useRef(0)
+
+    useEffect(() => {
+        aiBaseRef.current = aiBase
+    }, [aiBase])
+
+    useEffect(() => {
+        aiModelRef.current = aiModel
+    }, [aiModel])
 
     // EverMemOS State
     const [evermemEnabled, setEvermemEnabled] = useState(false)
@@ -186,13 +201,16 @@ export default function AISection() {
         setAiBase(aiBases[provider] || '')
     }
 
-    const fetchOllamaModels = useCallback(async (base?: string) => {
+    const fetchOllamaModels = useCallback(async (baseOverride?: string) => {
+        const seq = ++ollamaReqSeqRef.current
         setOllamaLoading(true)
         setOllamaError('')
         try {
-            const response = await fetch(`${API_BASE_URL}/api/ai/ollama-models`, {
-                headers: { 'X-AI-Base': base || aiBase || '', ...getOwnerTokenHeaders() }
+            const response = await api.raw('/api/ai/ollama-models', {
+                headers: { 'X-AI-Base': baseOverride ?? aiBaseRef.current ?? '' },
+                timeoutMs: 15_000,
             })
+            if (seq !== ollamaReqSeqRef.current) return
             const data = await response.json()
             if (data.error) {
                 setOllamaError(data.error)
@@ -200,20 +218,24 @@ export default function AISection() {
             } else {
                 setOllamaModels(data.models || [])
                 // Auto-select first model if current model is not in the list
-                if (data.models?.length > 0 && !data.models.some((m: any) => m.name === aiModel)) {
+                if (data.models?.length > 0 && !data.models.some((m: any) => m.name === aiModelRef.current)) {
                     setAiModel(data.models[0].name)
                     setAiModels(prev => ({ ...prev, ollama: data.models[0].name }))
                 }
             }
         } catch {
+            if (seq !== ollamaReqSeqRef.current) return
             setOllamaError(t('settings.ai.backendUnavailable', 'Cannot connect to the backend server'))
             setOllamaModels([])
         } finally {
-            setOllamaLoading(false)
+            if (seq === ollamaReqSeqRef.current) {
+                setOllamaLoading(false)
+            }
         }
-    }, [aiBase, aiModel, t])
+    }, [t])
 
-    // Fetch Ollama models when provider switches to ollama
+    // Fetch Ollama models when provider switches to ollama. Deliberately NOT
+    // keyed on aiBase/aiModel — typing in those fields must not fire requests.
     useEffect(() => {
         if (aiProvider === 'ollama') {
             void fetchOllamaModels()

@@ -44,6 +44,13 @@ export default function DictionaryPopup() {
 
     const popupRef = useRef<HTMLDivElement>(null);
     const trapRef = useFocusTrap(isVisible);
+    // Only the most recent lookup may write result/error/loading; a slow
+    // response for a previous word must not overwrite the current one.
+    const fetchSeqRef = useRef(0);
+    // Abort controller for the in-flight AI explanation stream, so switching
+    // words or closing the popup stops the old stream instead of letting it
+    // append another word's content into this one.
+    const aiAbortRef = useRef<AbortController | null>(null);
     const setPopupRef = useCallback((node: HTMLDivElement | null) => {
         popupRef.current = node;
         (trapRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
@@ -95,6 +102,10 @@ export default function DictionaryPopup() {
     }, [notifyWordAdded, t, toast]);
 
     const fetchDefinition = useCallback(async (searchWord: string) => {
+        const seq = ++fetchSeqRef.current;
+        // A new word invalidates whatever the previous AI stream was writing.
+        aiAbortRef.current?.abort();
+        aiAbortRef.current = null;
         setLoading(true);
         setError('');
         setResult(null);
@@ -111,6 +122,7 @@ export default function DictionaryPopup() {
 
             const sourcesParam = enabledDicts.join(',');
             const data = await api.get(API_PATHS.DICT_SEARCH(searchWord, sourcesParam));
+            if (seq !== fetchSeqRef.current) return;
             setResult(data);
 
             if (autoPlay) {
@@ -119,21 +131,27 @@ export default function DictionaryPopup() {
 
             if (autoSave) {
                 const res = await saveWord(data, true);
+                if (seq !== fetchSeqRef.current) return;
                 if (res === 'success' || res === 'exist') {
                     setIsSaved(true);
                 }
             } else {
                 try {
                     const savedWord = await api.get(API_PATHS.WORD(data.word));
+                    if (seq !== fetchSeqRef.current) return;
                     setIsSaved(!!savedWord && !savedWord.error);
                 } catch {
+                    if (seq !== fetchSeqRef.current) return;
                     setIsSaved(false);
                 }
             }
         } catch (err) {
+            if (seq !== fetchSeqRef.current) return;
             setError(getDictionarySearchErrorMessage(err, t));
         } finally {
-            setLoading(false);
+            if (seq === fetchSeqRef.current) {
+                setLoading(false);
+            }
         }
     }, [autoPlay, autoSave, saveWord, t]);
 
@@ -179,6 +197,15 @@ export default function DictionaryPopup() {
         return () => window.removeEventListener('search-word', handleSearchWord);
     }, [fetchDefinition]);
 
+    // Closing the popup stops any in-flight AI stream for the dismissed word.
+    useEffect(() => {
+        if (!isVisible) {
+            aiAbortRef.current?.abort();
+            aiAbortRef.current = null;
+            setIsAiLoading(false);
+        }
+    }, [isVisible]);
+
     // Handle click outside to close
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -220,6 +247,12 @@ export default function DictionaryPopup() {
         setShowAiExplanation(true);
         if (aiContent) return; // Already generated
 
+        // Aborting on word switch / popup close is what keeps another word's
+        // streamed content out of this one.
+        aiAbortRef.current?.abort();
+        const controller = new AbortController();
+        aiAbortRef.current = controller;
+
         setIsAiLoading(true);
         setAiContent('');
 
@@ -260,8 +293,11 @@ export default function DictionaryPopup() {
                 body: JSON.stringify({
                     messages: [{ role: 'user', content: prompt }],
                     context_word: word
-                })
+                }),
+                signal: controller.signal,
             });
+
+            if (controller.signal.aborted) return;
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -287,10 +323,18 @@ export default function DictionaryPopup() {
                 }
             }
         } catch (error) {
+            // Superseded by a new word or popup close — the new stream owns
+            // aiContent now; dropping silently is correct.
+            if (controller.signal.aborted) return;
             console.error("AI Explanation error:", error);
             setAiContent(t('dictionaryPopup.aiErrors.generic', '⚠️ AI generation failed. Please try again later.'));
         } finally {
-            setIsAiLoading(false);
+            if (!controller.signal.aborted) {
+                setIsAiLoading(false);
+                if (aiAbortRef.current === controller) {
+                    aiAbortRef.current = null;
+                }
+            }
         }
     };
 
