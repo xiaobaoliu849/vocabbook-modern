@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -7,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func, update, and_
 from sqlalchemy.exc import IntegrityError
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from alipay.aop.api.AlipayClientConfig import AlipayClientConfig
@@ -165,11 +166,49 @@ def _build_out_trade_no(prefix: str, user_id: str) -> str:
     return f"{prefix}_{short_user}_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
 
 
-def _activate_premium(user: User, days: int = 30) -> None:
-    now = datetime.now(timezone.utc)
-    start_at = user.license_expiry if user.license_expiry and user.license_expiry > now else now
-    user.tier = "premium"
-    user.license_expiry = start_at + timedelta(days=days)
+async def _extend_premium(db: AsyncSession, user_id: str, days: int = 30, max_attempts: int = 5) -> bool:
+    """Extend premium membership via compare-and-swap, retrying on races.
+
+    The new expiry is computed in Python (extend from the current expiry while
+    it is still in the future, otherwise from now) and written with a WHERE
+    clause that only matches the expiry we read. Two concurrent activations —
+    an Alipay callback racing another callback or an admin extend — therefore
+    each add their own days instead of both writing stale_expiry + days and
+    silently losing one payment. Column+timedelta arithmetic inside a single
+    UPDATE is not portable across SQLAlchemy dialects, hence the CAS loop.
+
+    Returns False only if the user row does not exist.
+    """
+    for _ in range(max_attempts):
+        now = datetime.now(timezone.utc)
+        row = (
+            await db.execute(select(User.id, User.license_expiry).where(User.id == user_id))
+        ).first()
+        if row is None:
+            return False
+        current = row.license_expiry
+        if current is not None and current.tzinfo is None:
+            # SQLite drops tzinfo on write; stored values are UTC-naive.
+            # Without this, naive-vs-aware comparison would raise TypeError
+            # on every renewal of an existing membership.
+            current = current.replace(tzinfo=timezone.utc)
+
+        start_at = current if current and current > now else now
+        conditions = [User.id == user_id]
+        if current is None:
+            conditions.append(User.license_expiry.is_(None))
+        else:
+            conditions.append(User.license_expiry == current)
+        claimed = await db.execute(
+            update(User)
+            .where(and_(*conditions))
+            .values(tier="premium", license_expiry=start_at + timedelta(days=days))
+        )
+        if claimed.rowcount == 1:
+            return True
+        # Another writer changed the expiry between our read and write —
+        # re-read and retry with the fresh value.
+    raise RuntimeError(f"_extend_premium lost {max_attempts} CAS races for user {user_id}")
 
 
 def _resolve_payment_plan(plan_id: str) -> dict:
@@ -179,13 +218,6 @@ def _resolve_payment_plan(plan_id: str) -> dict:
     return plan
 
 
-def _license_days_for_order(order: Order) -> int:
-    for plan in _available_payment_plans().values():
-        if order.amount_fen == plan["amount_fen"] and order.description == plan["description"]:
-            return int(plan["license_days"])
-    return 30
-
-
 def _amount_yuan_to_fen(amount: str) -> int | None:
     try:
         return int((Decimal(amount).quantize(Decimal("0.01")) * 100).to_integral_value())
@@ -193,21 +225,11 @@ def _amount_yuan_to_fen(amount: str) -> int | None:
         return None
 
 
-def _mark_order_success(order: Order, user: User | None, trade_no: str | None, license_days: int | None = None) -> bool:
-    """Mark an order paid once. Returns True only when membership was newly applied."""
-    if order.status == ORDER_SUCCESS:
-        if trade_no and not order.trade_no:
-            order.trade_no = trade_no
-        order.updated_at = datetime.now(timezone.utc)
-        return False
-
-    order.status = ORDER_SUCCESS
-    order.trade_no = trade_no or order.trade_no
-    order.updated_at = datetime.now(timezone.utc)
-    if user:
-        _activate_premium(user, days=license_days or _license_days_for_order(order))
-        return True
-    return False
+def _license_days_for_order(order: Order) -> int:
+    for plan in _available_payment_plans().values():
+        if order.amount_fen == plan["amount_fen"] and order.description == plan["description"]:
+            return int(plan["license_days"])
+    return 30
 
 
 async def _claim_order_success(db: AsyncSession, order: Order, trade_no: str | None) -> bool:
@@ -230,11 +252,19 @@ async def _claim_order_success(db: AsyncSession, order: Order, trade_no: str | N
     return result.rowcount == 1
 
 
-def _mark_order_terminal(order: Order, status_value: str) -> None:
-    if order.status == ORDER_SUCCESS:
-        return
-    order.status = status_value
-    order.updated_at = datetime.now(timezone.utc)
+async def _mark_order_terminal(db: AsyncSession, order_id: str, status_value: str) -> bool:
+    """Transition an order to a terminal failure state unless already SUCCESS.
+
+    Statement-based like _claim_order_success: a late TRADE_CLOSED callback
+    can never overwrite a paid order's SUCCESS status, and concurrent
+    close/notify callbacks cannot resurrect each other's writes.
+    """
+    result = await db.execute(
+        update(Order)
+        .where(Order.id == order_id, Order.status != ORDER_SUCCESS)
+        .values(status=status_value, updated_at=datetime.now(timezone.utc))
+    )
+    return result.rowcount == 1
 
 
 # Initialize Alipay
@@ -297,7 +327,12 @@ async def _create_payment_order(
     request.notify_url = settings.ALIPAY_NOTIFY_URL
     
     try:
-        response_content = alipay_client.execute(request)
+        # The SDK client is synchronous (blocking HTTPS to the Alipay gateway,
+        # 1-5s when it is slow). Run it in the default thread pool so the
+        # event loop keeps serving /health, /token and other users' requests.
+        response_content = await asyncio.get_running_loop().run_in_executor(
+            None, alipay_client.execute, request
+        )
         # response_content is a JSON string (already extracted by SDK)
         api_response = json.loads(response_content)
         
@@ -405,13 +440,14 @@ async def pay_notify(request: Request, db: AsyncSession = Depends(get_db)):
             return "fail"
         
         if order.status != ORDER_SUCCESS:
-            # 2. Update User License exactly once, even under concurrent retries.
-            u_res = await db.execute(select(User).where(User.id == order.user_id))
-            user = u_res.scalars().first()
+            # 2. Claim the transition atomically: only the first concurrent
+            # callback earns membership activation.
             claimed = await _claim_order_success(db, order, trade_no)
             if claimed:
-                _activate_premium(user, days=_license_days_for_order(order))
-            elif trade_no and not order.trade_no:
+                # Statement-based extension: safe against concurrent
+                # activations and a missing user row (updates 0 rows).
+                await _extend_premium(db, order.user_id, days=_license_days_for_order(order))
+            elif trade_no:
                 # Another callback won the race; only backfill the trade number
                 # via a statement (mutating the ORM object would flush stale state).
                 await db.execute(
@@ -421,9 +457,9 @@ async def pay_notify(request: Request, db: AsyncSession = Depends(get_db)):
                 )
             await db.commit()
         else:
-            _mark_order_success(order, None, trade_no)
+            # Already SUCCESS from a previous callback — nothing to activate.
             await db.commit()
-            
+
         # VERY IMPORTANT: return 'success' plain text so Alipay stops retrying
         return "success"
 
@@ -433,7 +469,7 @@ async def pay_notify(request: Request, db: AsyncSession = Depends(get_db)):
             result = await db.execute(select(Order).where(Order.out_trade_no == out_trade_no))
             order = result.scalars().first()
             if order:
-                _mark_order_terminal(order, ORDER_EXPIRED)
+                await _mark_order_terminal(db, order.id, ORDER_EXPIRED)
                 await db.commit()
 
     return "success"
@@ -457,9 +493,11 @@ async def mock_pay_success(req: MockPaySuccessRequest, current_user: User = Depe
     if order.status != ORDER_PENDING:
         raise HTTPException(status_code=400, detail=f"Order status is {order.status}, expected PENDING")
 
-    _mark_order_success(order, current_user, f"MOCK_TRADE_{uuid4().hex[:16]}", _license_days_for_order(order))
-    db.add(order)
-    db.add(current_user)
+    # Claim atomically so two concurrent mock calls cannot both pass the
+    # PENDING check and double-extend membership.
+    if not await _claim_order_success(db, order, f"MOCK_TRADE_{uuid4().hex[:16]}"):
+        raise HTTPException(status_code=409, detail="Order was paid by a concurrent request")
+    await _extend_premium(db, current_user.id, days=_license_days_for_order(order))
     await db.commit()
     return {"msg": "success", "out_trade_no": req.out_trade_no}
 
@@ -525,11 +563,13 @@ async def admin_update_user_tier(
         user.tier = "free"
         user.license_expiry = None
     else:
-        user.tier = "premium"
         if payload.license_expiry is not None:
+            user.tier = "premium"
             user.license_expiry = payload.license_expiry
         else:
-            _activate_premium(user, days=payload.extend_days or 30)
+            # Statement-based extension so an admin extend racing a payment
+            # callback cannot lose either side's days.
+            await _extend_premium(db, user_id, days=payload.extend_days or 30)
 
     db.add(user)
     await db.commit()
@@ -554,10 +594,11 @@ async def admin_batch_update_tier(
         if payload.tier == "free":
             user.tier = "free"
             user.license_expiry = None
+            db.add(user)
+            results.append({"user_id": uid, "status": "updated", "tier": user.tier})
         else:
-            _activate_premium(user, days=payload.extend_days or 30)
-        db.add(user)
-        results.append({"user_id": uid, "status": "updated", "tier": user.tier})
+            await _extend_premium(db, uid, days=payload.extend_days or 30)
+            results.append({"user_id": uid, "status": "updated", "tier": "premium"})
     await db.commit()
     return {"results": results}
 
@@ -616,19 +657,27 @@ async def admin_update_order_status(
         raise HTTPException(status_code=404, detail="Order user not found")
 
     if payload.status == ORDER_SUCCESS:
-        _mark_order_success(
+        # Claim atomically; a concurrent Alipay callback may have already
+        # transitioned the order (then this is a no-op, matching the old
+        # already-paid behavior).
+        claimed = await _claim_order_success(
+            db,
             order,
-            user,
             payload.trade_no or order.trade_no or f"ADMIN_TRADE_{uuid4().hex[:16]}",
-            payload.extend_days or _license_days_for_order(order),
         )
+        if claimed:
+            await _extend_premium(
+                db,
+                order.user_id,
+                days=payload.extend_days or _license_days_for_order(order),
+            )
     elif payload.status == ORDER_PENDING:
         if order.status == ORDER_SUCCESS:
             raise HTTPException(status_code=400, detail="Paid orders cannot be moved back to PENDING")
         order.status = ORDER_PENDING
         order.updated_at = datetime.now(timezone.utc)
     else:
-        _mark_order_terminal(order, payload.status)
+        await _mark_order_terminal(db, order.id, payload.status)
 
     db.add(order)
     db.add(user)

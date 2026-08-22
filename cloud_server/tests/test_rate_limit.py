@@ -103,6 +103,31 @@ def test_enforce_raises_429_with_retry_after_header():
     assert error.detail == "slow down"
 
 
+def test_bucket_table_is_hard_capped_against_key_flood():
+    """Spoofed X-Forwarded-For floods must not grow the table without bound
+    (every spoofed key stays 'fresh' inside a long window, so only the hard
+    FIFO cap can bound memory)."""
+    limiter = FixedWindowRateLimiter(max_requests=10, window_seconds=3600)
+
+    for i in range(FixedWindowRateLimiter._HARD_CAP + 2000):
+        allowed, _ = limiter.check(f"spoofed-ip-{i}", now=1000.0)
+        assert allowed
+
+    assert len(limiter._buckets) <= FixedWindowRateLimiter._HARD_CAP
+
+
+def test_sweep_reclaims_expired_entries():
+    limiter = FixedWindowRateLimiter(max_requests=5, window_seconds=60)
+    for i in range(FixedWindowRateLimiter._SWEEP_THRESHOLD + 100):
+        limiter.check(f"key-{i}", now=1000.0)
+    assert len(limiter._buckets) <= FixedWindowRateLimiter._HARD_CAP
+
+    # A later check past the window triggers the periodic sweep, dropping
+    # every entry from the previous window.
+    limiter.check("fresh", now=1000.0 + 61)
+    assert len(limiter._buckets) <= FixedWindowRateLimiter._SWEEP_THRESHOLD
+
+
 # --- get_client_ip ---
 
 

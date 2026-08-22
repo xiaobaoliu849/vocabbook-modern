@@ -36,14 +36,27 @@ def get_client_ip(request: Request) -> str:
 
 
 class FixedWindowRateLimiter:
-    """Fixed-window counter limiter. Thread-safe, single-process."""
+    """Fixed-window counter limiter. Thread-safe, single-process.
+
+    Memory is bounded two ways:
+    - an expired-entry sweep runs at most once per window once the table is
+      non-trivially large;
+    - a hard capacity cap evicts the OLDEST entries FIFO. Spoofed
+      X-Forwarded-For floods therefore cannot grow the table without bound
+      (entries stay "fresh" inside a long window), and the per-request cost
+      stays O(evicted) instead of rebuilding the whole table.
+    """
+
+    _HARD_CAP = 4096
+    _SWEEP_THRESHOLD = 2048
 
     def __init__(self, max_requests: int, window_seconds: int):
         self.max_requests = max(0, int(max_requests))
         self.window_seconds = max(1, int(window_seconds))
-        # key -> (count, window_start)
+        # key -> (count, window_start); dict insertion order = oldest first.
         self._buckets: dict[str, tuple[int, float]] = {}
         self._lock = threading.Lock()
+        self._last_sweep = 0.0
 
     @property
     def disabled(self) -> bool:
@@ -61,13 +74,22 @@ class FixedWindowRateLimiter:
 
         timestamp = time.monotonic() if now is None else now
         with self._lock:
-            # Opportunistic eviction so the table cannot grow without bound.
-            if len(self._buckets) > 4096:
+            # Periodic sweep reclaims expired slots so long-lived legitimate
+            # entries don't crowd out the capacity cap.
+            if (
+                len(self._buckets) > self._SWEEP_THRESHOLD
+                and timestamp - self._last_sweep >= self.window_seconds
+            ):
                 self._buckets = {
-                    k: (count, start)
-                    for k, (count, start) in self._buckets.items()
-                    if timestamp - start < self.window_seconds
+                    k: entry
+                    for k, entry in self._buckets.items()
+                    if timestamp - entry[1] < self.window_seconds
                 }
+                self._last_sweep = timestamp
+
+            # Hard cap: drop oldest entries first.
+            while len(self._buckets) >= self._HARD_CAP:
+                del self._buckets[next(iter(self._buckets))]
 
             count, window_start = self._buckets.get(key, (0, timestamp))
             if timestamp - window_start >= self.window_seconds:
