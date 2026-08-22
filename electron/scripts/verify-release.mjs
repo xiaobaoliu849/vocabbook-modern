@@ -50,13 +50,43 @@ addCheck(
 );
 
 addCheck(
-  'Electron package includes frontend and backend resources',
+  'Electron package config ships frontend via extraResources',
   Array.isArray(packageJson.build?.files)
-    && packageJson.build.files.includes('../frontend/dist/**/*')
+    && packageJson.build.files.includes('main.js')
+    && packageJson.build.files.includes('preload.js')
+    && !packageJson.build.files.some((pattern) => pattern.includes('..'))
     && Array.isArray(packageJson.build?.extraResources)
+    && packageJson.build.extraResources.some((item) => item.from === '../frontend/dist' && item.to === 'frontend-dist')
     && packageJson.build.extraResources.some((item) => item.from === '../backend/dist-release' && item.to === 'backend-dist'),
-  'electron-builder must package frontend/dist and the compiled backend.'
+  // Parent-dir globs inside build.files match nothing (globs resolve relative to
+  // electron/), which silently produced a frontend-less 2.0.0 asar. Frontend
+  // must ship through extraResources like the backend does.
+  'build.files must stay within electron/, and frontend/dist must ship via extraResources -> frontend-dist.'
 );
+
+// Hard artifact check: extraResources are copied as plain files under
+// dist/win-unpacked/resources, so their presence can be verified directly
+// without parsing the asar.
+const resourcesDir = path.join(electronDir, 'dist', 'win-unpacked', 'resources');
+if (fs.existsSync(resourcesDir)) {
+  const packagedFrontendIndex = path.join(resourcesDir, 'frontend-dist', 'index.html');
+  addCheck(
+    'Packaged output contains frontend-dist/index.html',
+    fs.existsSync(packagedFrontendIndex),
+    'dist/win-unpacked/resources/frontend-dist/index.html is missing - the installer would ship a blank window. Rebuild with `npm run pack` after `npm run build` in frontend.'
+  );
+
+  const backendDistDir = path.join(resourcesDir, 'backend-dist');
+  const backendDistHasFiles = fs.existsSync(backendDistDir)
+    && fs.readdirSync(backendDistDir).length > 0;
+  addCheck(
+    'Packaged output contains backend-dist binaries',
+    backendDistHasFiles,
+    'dist/win-unpacked/resources/backend-dist is empty or missing. Run the PyInstaller step of build.bat before packaging.'
+  );
+} else {
+  console.log('[SKIP] Packaged-output checks (no dist/win-unpacked yet - run `npm run pack` to populate)');
+}
 
 addCheck(
   'Windows installer target is configured',

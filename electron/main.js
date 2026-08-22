@@ -10,7 +10,15 @@ let backendProcess = null
 
 // Configuration
 const DEV_MODE = process.env.NODE_ENV === 'development'
-const FRONTEND_URL = DEV_MODE ? 'http://localhost:5173' : `file://${path.join(__dirname, '../frontend/dist/index.html')}`
+// Production frontend ships via extraResources (see package.json build
+// .extraResources) into <resources>/frontend-dist. A "../frontend/dist" files
+// glob does NOT work: electron-builder resolves globs relative to the app
+// directory, so parent-dir patterns match nothing and the packaged asar ends
+// up without any frontend (the 2.0.0 release shipped exactly that way).
+const FRONTEND_URL = DEV_MODE
+    ? 'http://localhost:5173'
+    : `file://${path.join(process.resourcesPath, 'frontend-dist', 'index.html')}`
+const MAX_FRONTEND_LOAD_RETRIES = 2
 const BACKEND_PATH = path.join(__dirname, '../backend')
 const DEFAULT_GLOBAL_SHORTCUT = 'Ctrl+Alt+KeyV'
 const BACKEND_HEALTH_URL = 'http://127.0.0.1:8000/health'
@@ -225,6 +233,46 @@ function createWindow() {
     })
 
     mainWindow.loadURL(FRONTEND_URL)
+
+    // Production safety net: if the frontend bundle fails to load (missing
+    // resources, broken install, AV interference), don't leave a permanently
+    // invisible window. Wait for the backend, retry a bounded number of times,
+    // then show an inline error page instead of nothing.
+    let frontendLoadRetries = 0
+    mainWindow.webContents.on('did-fail-load', async (_event, errorCode, errorDescription, _validatedURL, isMainFrame) => {
+        if (!isMainFrame || DEV_MODE || errorCode === -3 /* ERR_ABORTED */) return
+        if (!mainWindow || mainWindow.isDestroyed()) return
+        console.error(`Frontend load failed (${errorCode}): ${errorDescription}`)
+
+        if (frontendLoadRetries >= MAX_FRONTEND_LOAD_RETRIES) {
+            const errorHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>` +
+                `<body style="font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;` +
+                `display:flex;align-items:center;justify-content:center;height:100vh;margin:0">` +
+                `<div style="text-align:center;max-width:32rem;padding:2rem">` +
+                `<h1 style="font-size:1.5rem;margin-bottom:0.75rem">界面加载失败</h1>` +
+                `<p style="color:#94a3b8">错误代码 ${errorCode}：${errorDescription || '未知错误'}</p>` +
+                `<p style="color:#94a3b8">请尝试重启应用；若持续出现，请重新安装。</p>` +
+                `</div></body></html>`
+            try {
+                await mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(errorHtml))
+                if (!mainWindow.isVisible()) mainWindow.show()
+            } catch (err) {
+                console.error('Failed to show error page:', err)
+            }
+            return
+        }
+
+        frontendLoadRetries += 1
+        try {
+            await waitForBackendReady()
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                await mainWindow.loadURL(FRONTEND_URL)
+                if (!mainWindow.isVisible()) mainWindow.show()
+            }
+        } catch (err) {
+            console.error('Frontend reload failed:', err)
+        }
+    })
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         void openAllowedExternalUrl(url)
