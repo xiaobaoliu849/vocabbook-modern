@@ -1,7 +1,7 @@
 # 2026-08-22 健壮性修复 第四/五批 — 交接文档
 
 > 承接 2026-08-22 全项目健壮性深审（7 子系统并行审查）。第一~三批已随 `2d16fe3..077948d` 推送 origin/main。
-> 本轮（第四批：乱序家族 + dict fallback + 统一请求层；第五批：schema fail-fast + AISection）**已完成并全量验证，但尚未提交**。
+> 本轮（第四批：乱序家族 + dict fallback + 统一请求层；第五批：schema fail-fast + AISection）**已完成、全量验证并已提交推送 origin/main**（2026-08-22，`077948d..96483c1`）。
 
 ## 一、本轮完成的修复
 
@@ -86,11 +86,13 @@ cd frontend && node node_modules/eslint/bin/eslint.js .          # 仅剩 AudioB
 
 ## 五、下一步
 
-1. **提交推送**（未做，等验收）：建议拆 commit——
-   - `fix(backend): fail-fast on schema migration errors`
-   - `fix(frontend): guard out-of-order responses across AddWord/DictionaryPopup/TranslationPage/AdminPanel/WordList`
-   - `feat(frontend): unified request layer (timeouts, centralized cloud 401, error toasts)`
-   - `fix(backend): isolate dict AI fallback from shared http client across event loops`
+1. ~~**提交推送**~~ ✅ 已完成（2026-08-22）：实际拆 5 个 commit（统一请求层先于乱序守卫提交，保证中间 commit 可构建）——
+   - `496554f fix(backend): fail-fast on schema migration errors`
+   - `15a0faa fix(backend): isolate dict AI fallback from shared http client across event loops`
+   - `09d6cc8 feat(frontend): unified request layer (timeouts, centralized cloud 401, error toasts)`
+   - `dc5cde8 fix(frontend): guard out-of-order responses across AddWord/DictionaryPopup/TranslationPage/AdminPanel/WordList`（AISection 并入此 commit）
+   - `96483c1 docs: add round 4/5 robustness handoff notes; ignore local .freebuff data`
+   - 提交前全量重跑：141 Python / tsc / 50 vitest 全绿；`.freebuff/`（本地运行时数据库）已加入 .gitignore。
    - 注意：git 推送需 FlClash 代理（127.0.0.1:7890），GUI 未开时直连会被 reset。
 2. **P3 约 30 条**：完整清单在上一轮深审会话报告里（本会话没有），需要重新扫一轮或找回报告。
 3. 正式出包跑 `build.bat` 或 electron 下 `npm run dist:win`（win-unpacked 已验证正确）。
