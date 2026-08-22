@@ -4,6 +4,7 @@ AI 增强功能
 """
 import hashlib
 import os
+import re
 import time
 from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Header
@@ -879,7 +880,7 @@ async def translate(
     x_ai_base: Optional[str] = Header(None, alias="X-AI-Base")
 ):
     """AI 翻译并保存记录"""
-    from services.ai_service import AIService
+    from services.ai_service import AIService, TRANSLATION_FAILED_TEXT
     from services.dict_service import DictService
     from main import get_db
     
@@ -939,7 +940,13 @@ async def translate(
             source_lang=request.source_lang,
             target_lang=request.target_lang
         )
-        
+
+        # Don't persist the failure sentinel — find_translation matches by
+        # source_text, so storing it would poison the history cache and make
+        # every future attempt return the failure message as a "cached" hit.
+        if translation == TRANSLATION_FAILED_TEXT:
+            raise HTTPException(status_code=502, detail="Translation failed; please retry later.")
+
         # Save to DB
         record_id = await run_db_blocking(
             db.add_translation,
@@ -957,6 +964,8 @@ async def translate(
             "engine": "ai",
             "cached": False,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 

@@ -15,6 +15,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Sentinel returned by translate() when the AI call fails. Callers (routers)
+# must NOT persist this value — it would poison the translation history cache.
+TRANSLATION_FAILED_TEXT = "翻译失败，请稍后重试。"
+
 
 class AIService:
     """AI 服务封装，支持多 Provider 切换"""
@@ -950,6 +954,9 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         )
 
         full_response = ""
+        # Initialized before `try` so the except block can reference it even if
+        # the stream fails before the final assignment below.
+        memory_saved = False
         try:
             # Step 3: Stream response
             payload_messages = [{"role": "system", "content": system_prompt}] + messages
@@ -1069,13 +1076,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     cleaned = retry_cleaned
 
             if not cleaned:
-                return "翻译失败，请稍后重试。", ""
+                return TRANSLATION_FAILED_TEXT, ""
 
             return cleaned, ""
             
         except Exception as e:
             logger.error(f"Translate error: {e}")
-            return "翻译失败，请稍后重试。", ""
+            return TRANSLATION_FAILED_TEXT, ""
 
     async def test_connection(self) -> Dict:
         """
