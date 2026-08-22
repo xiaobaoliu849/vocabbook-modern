@@ -1,24 +1,7 @@
 import type { TFunction } from 'i18next'
 
 import { ApiError } from './api'
-
-function extractApiErrorDetail(body: string): string {
-    if (!body) return ''
-
-    try {
-        const parsed = JSON.parse(body)
-        if (typeof parsed?.detail === 'string') {
-            return parsed.detail
-        }
-        if (typeof parsed?.message === 'string') {
-            return parsed.message
-        }
-    } catch {
-        // Ignore invalid JSON bodies and fall back to raw text.
-    }
-
-    return body.trim()
-}
+import { extractApiErrorDetail } from './errorMessages'
 
 export function getDictionarySearchErrorMessage(error: unknown, t: TFunction): string {
     if (error instanceof ApiError) {

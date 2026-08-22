@@ -84,7 +84,65 @@ export class ApiError extends Error {
     }
 }
 
+/** Thrown when a request exceeds its timeout budget. Subclasses ApiError so
+ *  existing `instanceof ApiError` status checks keep working untouched. */
+export class ApiTimeoutError extends ApiError {
+    constructor(timeoutMs: number) {
+        super(408, `Request timed out after ${timeoutMs}ms`)
+        this.name = 'ApiTimeoutError'
+    }
+}
+
 import { useAuthStore } from '../stores/useAuthStore'
+
+// ---------------------------------------------------------------------------
+// Timeout plumbing. fetch() has no default timeout: a black-holed connection
+// (backend killed mid-request, proxy hang) would leave spinners running
+// forever. Every request gets an abort controller that fires after a budget;
+// caller-provided signals are merged so unmount/cleanup cancellation still
+// works, and the timer is always disposed once the request settles.
+// ---------------------------------------------------------------------------
+export const DEFAULT_TIMEOUT_MS = 60_000
+const UPLOAD_TIMEOUT_MS = 300_000
+
+export type RequestOptions = RequestInit & { timeoutMs?: number }
+
+interface MergedSignal {
+    signal: AbortSignal
+    dispose: () => void
+}
+
+/**
+ * Combine an optional caller signal with a timeout into one abort signal.
+ * `timeoutMs <= 0` disables the timer (used by streaming endpoints).
+ */
+export function mergeAbortSignals(signal: AbortSignal | null | undefined, timeoutMs: number): MergedSignal {
+    const controller = new AbortController()
+
+    if (signal?.aborted) {
+        controller.abort(signal.reason)
+        return { signal: controller.signal, dispose: () => {} }
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const forwardAbort = () => controller.abort(signal?.reason)
+    if (signal) {
+        signal.addEventListener('abort', forwardAbort)
+    }
+    if (timeoutMs > 0 && Number.isFinite(timeoutMs)) {
+        // Aborting with the error makes fetch reject with the ApiTimeoutError
+        // itself on engines that support abort reasons (Chromium 98+).
+        timer = setTimeout(() => controller.abort(new ApiTimeoutError(timeoutMs)), timeoutMs)
+    }
+
+    return {
+        signal: controller.signal,
+        dispose() {
+            if (timer !== undefined) clearTimeout(timer)
+            signal?.removeEventListener('abort', forwardAbort)
+        },
+    }
+}
 
 // ---------------------------------------------------------------------------
 // In-memory GET cache: opt-in TTL caching + in-flight request dedup for
@@ -143,7 +201,7 @@ export const api = {
     /**
      * GET 请求。传入 `ttl`（毫秒）时启用内存缓存 + 并发去重。
      */
-    async get<T = any>(path: string, options?: RequestInit & { ttl?: number }): Promise<T> {
+    async get<T = any>(path: string, options?: RequestOptions & { ttl?: number }): Promise<T> {
         const ttl = options?.ttl ?? 0
         if (ttl > 0) {
             const cached = getCache.get(path)
@@ -157,111 +215,154 @@ export const api = {
             }
 
             const request = (async () => {
-                const response = await fetch(`${API_BASE_URL}${path}`, {
-                    ...options,
-                    method: 'GET',
-                    headers: this._getHeaders(options?.headers),
-                })
-                if (!response.ok) {
-                    throw new ApiError(response.status, await response.text())
+                // The dedup path ignores caller signals by design: concurrent
+                // callers share one request and none of them owns cancellation.
+                const merged = mergeAbortSignals(null, options?.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+                try {
+                    const response = await fetch(`${API_BASE_URL}${path}`, {
+                        ...options,
+                        signal: merged.signal,
+                        method: 'GET',
+                        headers: this._getHeaders(options?.headers),
+                    })
+                    if (!response.ok) {
+                        throw new ApiError(response.status, await response.text())
+                    }
+                    const value: unknown = await response.json()
+                    getCache.set(path, { value, expiresAt: Date.now() + ttl })
+                    return value
+                } finally {
+                    merged.dispose()
                 }
-                const value: unknown = await response.json()
-                getCache.set(path, { value, expiresAt: Date.now() + ttl })
-                return value
             })()
             pendingGets.set(path, request)
             void request.finally(() => pendingGets.delete(path)).catch(() => {})
             return request as Promise<T>
         }
 
-        const response = await fetch(`${API_BASE_URL}${path}`, {
-            ...options,
-            method: 'GET',
-            headers: this._getHeaders(options?.headers)
-        })
-        if (!response.ok) {
-            throw new ApiError(response.status, await response.text())
+        const merged = mergeAbortSignals(options?.signal, options?.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+        try {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
+                ...options,
+                signal: merged.signal,
+                method: 'GET',
+                headers: this._getHeaders(options?.headers)
+            })
+            if (!response.ok) {
+                throw new ApiError(response.status, await response.text())
+            }
+            return response.json()
+        } finally {
+            merged.dispose()
         }
-        return response.json()
     },
 
     /**
      * POST 请求
      */
-    async post<T = any>(path: string, data?: any, options?: RequestInit): Promise<T> {
-        const response = await fetch(`${API_BASE_URL}${path}`, {
-            ...options,
-            method: 'POST',
-            headers: this._getHeaders({
-                'Content-Type': 'application/json',
-                ...options?.headers,
-            }),
-            body: data ? JSON.stringify(data) : undefined,
-        })
-        if (!response.ok) {
-            throw new ApiError(response.status, await response.text())
+    async post<T = any>(path: string, data?: any, options?: RequestOptions): Promise<T> {
+        const merged = mergeAbortSignals(options?.signal, options?.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+        try {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
+                ...options,
+                signal: merged.signal,
+                method: 'POST',
+                headers: this._getHeaders({
+                    'Content-Type': 'application/json',
+                    ...options?.headers,
+                }),
+                body: data ? JSON.stringify(data) : undefined,
+            })
+            if (!response.ok) {
+                throw new ApiError(response.status, await response.text())
+            }
+            return response.json()
+        } finally {
+            merged.dispose()
         }
-        return response.json()
     },
 
     /**
      * PUT 请求
      */
-    async put<T = any>(path: string, data?: any, options?: RequestInit): Promise<T> {
-        const response = await fetch(`${API_BASE_URL}${path}`, {
-            ...options,
-            method: 'PUT',
-            headers: this._getHeaders({
-                'Content-Type': 'application/json',
-                ...options?.headers,
-            }),
-            body: data ? JSON.stringify(data) : undefined,
-        })
-        if (!response.ok) {
-            throw new ApiError(response.status, await response.text())
+    async put<T = any>(path: string, data?: any, options?: RequestOptions): Promise<T> {
+        const merged = mergeAbortSignals(options?.signal, options?.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+        try {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
+                ...options,
+                signal: merged.signal,
+                method: 'PUT',
+                headers: this._getHeaders({
+                    'Content-Type': 'application/json',
+                    ...options?.headers,
+                }),
+                body: data ? JSON.stringify(data) : undefined,
+            })
+            if (!response.ok) {
+                throw new ApiError(response.status, await response.text())
+            }
+            return response.json()
+        } finally {
+            merged.dispose()
         }
-        return response.json()
     },
 
     /**
      * DELETE 请求
      */
-    async delete<T = void>(path: string, options?: RequestInit): Promise<T> {
-        const response = await fetch(`${API_BASE_URL}${path}`, {
-            ...options,
-            method: 'DELETE',
-            headers: this._getHeaders(options?.headers)
-        })
-        if (!response.ok) {
-            throw new ApiError(response.status, await response.text())
+    async delete<T = void>(path: string, options?: RequestOptions): Promise<T> {
+        const merged = mergeAbortSignals(options?.signal, options?.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+        try {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
+                ...options,
+                signal: merged.signal,
+                method: 'DELETE',
+                headers: this._getHeaders(options?.headers)
+            })
+            if (!response.ok) {
+                throw new ApiError(response.status, await response.text())
+            }
+            const text = await response.text()
+            return (text ? JSON.parse(text) : undefined) as T
+        } finally {
+            merged.dispose()
         }
-        const text = await response.text()
-        return (text ? JSON.parse(text) : undefined) as T
     },
 
     /**
-     * 上传文件
+     * 上传文件（大文件放宽到 5 分钟）
      */
-    async upload<T = any>(path: string, formData: FormData, options?: RequestInit): Promise<T> {
-        const response = await fetch(`${API_BASE_URL}${path}`, {
-            ...options,
-            method: 'POST',
-            body: formData,
-            headers: this._getHeaders(options?.headers)
-            // 不要设置 Content-Type，让浏览器自动设置 multipart/form-data boundary
-        })
-        if (!response.ok) {
-            throw new ApiError(response.status, await response.text())
+    async upload<T = any>(path: string, formData: FormData, options?: RequestOptions): Promise<T> {
+        const merged = mergeAbortSignals(options?.signal, options?.timeoutMs ?? UPLOAD_TIMEOUT_MS)
+        try {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
+                ...options,
+                signal: merged.signal,
+                method: 'POST',
+                body: formData,
+                headers: this._getHeaders(options?.headers)
+                // 不要设置 Content-Type，让浏览器自动设置 multipart/form-data boundary
+            })
+            if (!response.ok) {
+                throw new ApiError(response.status, await response.text())
+            }
+            return response.json()
+        } finally {
+            merged.dispose()
         }
-        return response.json()
     },
 
     /**
-     * 原始 fetch (用于需要自定义处理响应的场景)
+     * 原始 fetch (用于需要自定义处理响应的场景，如 SSE 流式接口——默认不超时，
+     * 传入 `timeoutMs` 可显式启用)
      */
-    async raw(path: string, options?: RequestInit): Promise<Response> {
+    async raw(path: string, options?: RequestOptions): Promise<Response> {
+        const merged = mergeAbortSignals(options?.signal, options?.timeoutMs ?? 0)
+        // NOTE: no dispose here — the returned Response body may outlive this
+        // call (streaming readers); the timer only exists when explicitly opted in.
         return fetch(`${API_BASE_URL}${path}`, {
             ...options,
+            signal: merged.signal,
             headers: this._getHeaders(options?.headers)
         })
     }

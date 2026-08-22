@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { authService, isAuthError } from '../services/cloudApi';
 import { useAuthStore } from '../stores/useAuthStore';
+import { SESSION_EXPIRED_EVENT } from '../utils/authEvents';
 
 interface User {
     id: string;
@@ -63,6 +64,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         void checkAuth();
     }, [checkAuth]);
+
+    // cloudApi clears the store on any authenticated 401/403; keep the
+    // context-level `user` in sync so the UI drops the stale identity too.
+    useEffect(() => {
+        const handleExpired = () => setUser(null);
+        window.addEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+        return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+    }, []);
 
     const login = async (email: string, password: string) => {
         // authService.login() writes token to Zustand store

@@ -680,7 +680,8 @@
       "lookupTimeout": "词典源响应超时，请稍后重试",
       "serviceBusy": "词典服务暂时不可用，请稍后重试",
       "backendUnavailable": "无法连接本地词典服务，请确认后端已启动",
-      "searchFailed": "查询失败，请稍后重试"
+      "searchFailed": "查询失败，请稍后重试",
+      "aiFailed": "AI 例句生成失败，请重试。"
     },
     "actions": {
       "addToBook": "添加到生词本"
@@ -943,5 +944,14 @@
       "upgradeDesc": "无限次对话、云端同步、全部 AI 模型。",
       "upgradeBtn": "升级 Premium"
     }
+  },
+  "errors": {
+    "timeout": "请求超时，请稍后重试。",
+    "networkUnavailable": "无法连接本地服务，请确认后端已启动。",
+    "cloudUnavailable": "无法连接云服务，请检查网络。",
+    "accessDenied": "访问被拒绝，请检查设置中的凭据。",
+    "serverBusy": "服务暂时不可用（{{status}}），请稍后重试。",
+    "sessionExpired": "登录已过期，请重新登录。",
+    "requestFailed": "请求失败，请稍后重试。"
   }
 }

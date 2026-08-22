@@ -6,7 +6,9 @@ import { getPlaybackAudioUrl, playWordAudio } from '../utils/audio'
 import { useShortcuts } from '../context/ShortcutContext'
 import { useTranslation } from 'react-i18next'
 import { splitExamples, extractEnglish } from '../utils/textUtils'
+import { describeApiError } from '../utils/errorMessages'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useToast } from '../context/ToastContext'
  
 interface WordDetailProps {
   word: any;
@@ -26,6 +28,7 @@ const SectionHeader = ({ children }: { children: React.ReactNode }) => (
 export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevious, onNext }: WordDetailProps) {
    const { t } = useTranslation()
    const { matches } = useShortcuts()
+   const { toast } = useToast()
    const modalRef = useRef<HTMLDivElement>(null)
    const trapRef = useFocusTrap(true)
    const setModalRef = useCallback((node: HTMLDivElement | null) => {
@@ -186,6 +189,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
        setTimeout(() => setSavedSuccess(false), 2000)
      } catch (err) {
        console.error('Failed to save note:', err)
+       toast(describeApiError(err, t), 'error')
      } finally {
        setIsSavingNote(false)
      }

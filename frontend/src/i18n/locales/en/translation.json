@@ -672,7 +672,8 @@
       "lookupTimeout": "Dictionary sources timed out. Please try again in a moment.",
       "serviceBusy": "Dictionary service is temporarily unavailable. Please try again later.",
       "backendUnavailable": "Cannot reach the local dictionary service. Please make sure the backend is running.",
-      "searchFailed": "Lookup failed. Please try again later."
+      "searchFailed": "Lookup failed. Please try again later.",
+      "aiFailed": "Failed to generate AI sentences. Please try again."
     },
     "actions": {
       "addToBook": "Add to VocabBook"
@@ -935,5 +936,14 @@
       "upgradeDesc": "Unlimited conversations, cloud sync, all AI models.",
       "upgradeBtn": "Upgrade to Premium"
     }
+  },
+  "errors": {
+    "timeout": "Request timed out. Please try again.",
+    "networkUnavailable": "Cannot reach the service. Please make sure the backend is running.",
+    "cloudUnavailable": "Cannot reach the cloud service. Please check your network.",
+    "accessDenied": "Access denied. Please check your credentials in Settings.",
+    "serverBusy": "The service is temporarily unavailable ({{status}}). Please try again later.",
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "requestFailed": "Request failed. Please try again later."
   }
 }

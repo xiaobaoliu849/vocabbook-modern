@@ -1,4 +1,6 @@
 import { useAuthStore } from '../stores/useAuthStore';
+import { DEFAULT_TIMEOUT_MS, mergeAbortSignals, type RequestOptions } from '../utils/api';
+import { emitSessionExpired } from '../utils/authEvents';
 
 const DEFAULT_CLOUD_API_URL = 'http://localhost:8001';
 const envUrl = import.meta.env.VITE_CLOUD_API_URL;
@@ -29,7 +31,7 @@ export { isAuthError };
 
 async function request<T = any>(
     path: string,
-    options: RequestInit = {},
+    options: RequestOptions = {},
 ): Promise<T> {
     const token = getToken();
     const headers: Record<string, string> = {
@@ -40,20 +42,32 @@ async function request<T = any>(
         headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const merged = mergeAbortSignals(options.signal, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     let resp: Response;
     try {
         resp = await fetch(`${API_URL}${path}`, {
             ...options,
+            signal: merged.signal,
             headers,
         });
     } catch (err) {
-        // Network-level failure (offline, DNS, refused). Re-wrap without a
-        // status so callers never mistake it for an auth rejection.
+        // Network-level failure (offline, DNS, refused, timeout). Re-wrap
+        // without a status so callers never mistake it for an auth rejection.
         throw new CloudApiError(`Cloud API network error: ${(err as Error)?.message ?? err}`);
+    } finally {
+        merged.dispose();
     }
 
     if (!resp.ok) {
         const body = await resp.text().catch(() => '');
+        // Centralized session-expiry handling: an auth rejection on a request
+        // that actually carried the stored JWT means the token is dead. The
+        // wrong-password login path carries no token, so it still surfaces as
+        // a normal error for the login form instead of nuking state.
+        if ((resp.status === 401 || resp.status === 403) && token) {
+            useAuthStore.getState().logout();
+            emitSessionExpired();
+        }
         throw new CloudApiError(`Cloud API ${resp.status}: ${body}`, resp.status);
     }
     return resp.json();
@@ -66,7 +80,7 @@ async function request<T = any>(
 export async function adminRequest<T = any>(
     path: string,
     adminToken: string,
-    options: RequestInit = {},
+    options: RequestOptions = {},
 ): Promise<T> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -74,7 +88,15 @@ export async function adminRequest<T = any>(
         ...(options.headers as Record<string, string> || {}),
     };
 
-    const resp = await fetch(`${API_URL}${path}`, { ...options, headers });
+    const merged = mergeAbortSignals(options.signal, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    let resp: Response;
+    try {
+        resp = await fetch(`${API_URL}${path}`, { ...options, signal: merged.signal, headers });
+    } catch (err) {
+        throw new Error(`Admin request failed: ${(err as Error)?.message ?? err}`);
+    } finally {
+        merged.dispose();
+    }
 
     if (!resp.ok) {
         const body = await resp.text().catch(() => '');
