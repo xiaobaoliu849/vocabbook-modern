@@ -210,11 +210,20 @@ class AIService:
                 "headers": headers
             }
     
-    async def _call_llm(self, messages: List[Dict], temperature: float = 0.7, enable_thinking: Optional[bool] = None) -> str:
-        """调用 LLM API"""
+    async def _call_llm(self, messages: List[Dict], temperature: float = 0.7, enable_thinking: Optional[bool] = None,
+                        client: Optional[httpx.AsyncClient] = None) -> str:
+        """调用 LLM API
+
+        Args:
+            client: 可选的专用 AsyncClient。默认使用进程级共享客户端；但在
+                自建事件循环中调用的场景（如 DictService 的 AI fallback 在
+                asyncio.run 的新循环里运行）必须传入独立客户端——共享客户端
+                的连接池绑定其首次使用的循环，跨循环复用会报
+                "Event loop is closed"/"attached to a different loop"。
+        """
         config = self._get_client_config()
 
-        client = get_http_client()
+        client = client or get_http_client()
         if self.provider in ["openai", "custom", "dashscope", "ollama", "gemini"]:
             try:
                 payload = {

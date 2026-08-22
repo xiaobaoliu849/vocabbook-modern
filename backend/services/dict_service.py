@@ -265,12 +265,21 @@ class DictService:
 
     @staticmethod
     async def _search_word_ai_fallback_async(word: str) -> Optional[dict]:
-        """Asynchronous AI dictionary fallback."""
+        """Asynchronous AI dictionary fallback.
+
+        Runs inside a short-lived event loop created by ``asyncio.run`` (see
+        ``search_word_ai_fallback``), so it must NOT touch the process-wide
+        shared AsyncClient — its connection pool is bound to whichever loop
+        used it first and breaks when driven from another loop. A dedicated
+        client is created (and closed) per call instead.
+        """
+        import httpx
+
         from services.ai_service import AIService
         ai = AIService()
         if not ai.api_key:
             return None
-        
+
         prompt = f"""You are a dictionary engine. Please define the English word or term "{word}".
 Generate the output strictly in the following JSON format:
 {{
@@ -280,10 +289,11 @@ Generate the output strictly in the following JSON format:
 }}
 Do not include any explanation or markdown code block formatting in your output."""
         try:
-            response = await ai._call_llm([
-                {"role": "system", "content": "You are a professional dictionary assistant."},
-                {"role": "user", "content": prompt}
-            ], temperature=0.1)
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await ai._call_llm([
+                    {"role": "system", "content": "You are a professional dictionary assistant."},
+                    {"role": "user", "content": prompt}
+                ], temperature=0.1, client=client)
             
             cleaned = response.strip()
             if cleaned.startswith("```"):
