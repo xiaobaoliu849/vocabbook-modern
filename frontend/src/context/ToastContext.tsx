@@ -52,6 +52,9 @@ const iconColors: Record<ToastType, string> = {
 export function ToastProvider({ children }: { children: ReactNode }) {
     const [toasts, setToasts] = useState<Toast[]>([])
     const [confirmState, setConfirmState] = useState<ConfirmState | null>(null)
+    // Mirror of confirmState so a second confirmDialog can resolve the
+    // previous one without depending on async state updates.
+    const confirmStateRef = useRef<ConfirmState | null>(null)
     const nextId = useRef(0)
 
     const toast = useCallback((message: string, type: ToastType = 'info') => {
@@ -68,16 +71,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
     const confirmDialog = useCallback((message: string): Promise<boolean> => {
         return new Promise<boolean>((resolve) => {
-            setConfirmState({ message, resolve })
+            // A new dialog replaces any pending one; resolve the old promise
+            // as "dismissed" so its awaiting caller never hangs forever.
+            const previous = confirmStateRef.current
+            if (previous) {
+                previous.resolve(false)
+            }
+            const next: ConfirmState = { message, resolve }
+            confirmStateRef.current = next
+            setConfirmState(next)
         })
     }, [])
 
     const handleConfirm = useCallback((result: boolean) => {
-        if (confirmState) {
-            confirmState.resolve(result)
-            setConfirmState(null)
+        if (confirmStateRef.current) {
+            confirmStateRef.current.resolve(result)
+            confirmStateRef.current = null
         }
-    }, [confirmState])
+        setConfirmState(null)
+    }, [])
 
     return (
         <ToastContext.Provider value={{ toast, confirmDialog }}>

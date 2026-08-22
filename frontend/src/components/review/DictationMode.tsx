@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import AudioButton from '../AudioButton'
 import type { ReviewModeProps } from './types'
@@ -12,6 +12,29 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
     const [status, setStatus] = useState<'idle' | 'correct' | 'incorrect'>('idle')
     const [showAnswer, setShowAnswer] = useState(false)
     const [attempts, setAttempts] = useState(0)
+    // Single completion per card: repeated Enter / double give-up clicks can
+    // never schedule a second onComplete for this word.
+    const resolvedRef = useRef(false)
+    // Pending completion timers — cancelled on word change / unmount so a
+    // late callback can never rate the next word after the index advances.
+    const completeTimersRef = useRef<number[]>([])
+
+    const scheduleComplete = useCallback((rating: number, delay: number) => {
+        if (resolvedRef.current) return
+        resolvedRef.current = true
+        const timer = window.setTimeout(() => {
+            onComplete(rating)
+        }, delay)
+        completeTimersRef.current.push(timer)
+    }, [onComplete])
+
+    useEffect(() => {
+        resolvedRef.current = false
+        return () => {
+            completeTimersRef.current.forEach(timer => window.clearTimeout(timer))
+            completeTimersRef.current = []
+        }
+    }, [word.id])
 
     // Auto-play audio when component mounts or word changes
     useEffect(() => {
@@ -23,6 +46,10 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
 
     const checkAnswer = useCallback(() => {
         if (!input.trim()) return
+        // Guard against repeated submits after the card is already resolved:
+        // holding Enter (keyboard auto-repeat) would otherwise schedule extra
+        // onComplete timers that rate the *next* word after the index advances.
+        if (status === 'correct' || showAnswer) return
 
         const userInput = input.trim().toLowerCase()
         const correctWord = word.word.toLowerCase()
@@ -31,9 +58,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
             setStatus('correct')
             // Rating based on attempts: first try = 5, second = 4, third+ = 3
             const rating = attempts === 0 ? 5 : attempts === 1 ? 4 : 3
-            setTimeout(() => {
-                onComplete(rating)
-            }, 1200)
+            scheduleComplete(rating, 1200)
         } else {
             setStatus('incorrect')
             setAttempts(prev => prev + 1)
@@ -41,12 +66,10 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
             // After 3 wrong attempts, show answer
             if (attempts >= 2) {
                 setShowAnswer(true)
-                setTimeout(() => {
-                    onComplete(1) // Rating 1 for giving up
-                }, 2500)
+                scheduleComplete(1, 2500) // Rating 1 for giving up
             }
         }
-    }, [input, word.word, attempts, onComplete])
+    }, [input, word.word, attempts, scheduleComplete, showAnswer, status])
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
@@ -56,10 +79,9 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
     }
 
     const handleGiveUp = () => {
+        if (showAnswer || status === 'correct') return
         setShowAnswer(true)
-        setTimeout(() => {
-            onComplete(1)
-        }, 2000)
+        scheduleComplete(1, 2000)
     }
 
     return (

@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '../context/ToastContext'
 import { getActiveAiModel } from '../utils/aiModels'
 
-export default function AddWord({ onOpenImport }: { onOpenImport?: () => void }) {
+export default function AddWord({ onOpenImport, isActive = true }: { onOpenImport?: () => void; isActive?: boolean }) {
     const { t } = useTranslation()
     const { matches } = useShortcuts()
     const [searchWord, setSearchWord] = useState('')
@@ -156,6 +156,10 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
     // Keyboard shortcuts for AddWord page
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // The page stays mounted under the keep-alive layout; ignore keys
+            // while another tab is active so stale search results can't be
+            // added or re-queried from a hidden page.
+            if (!isActive) return
             if (matches(e, 'add.addWord')) {
                 e.preventDefault()
                 if (searchResult && !searchResult.error) {
@@ -183,7 +187,7 @@ export default function AddWord({ onOpenImport }: { onOpenImport?: () => void })
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [handleAddWord, handleGenerateAI, isGeneratingAI, matches, searchResult, searchWord])
+    }, [handleAddWord, handleGenerateAI, isActive, isGeneratingAI, matches, searchResult, searchWord])
 
     // Helper to get display data for current tab
     const getDisplayData = () => {

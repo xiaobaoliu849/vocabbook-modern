@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import AudioButton from '../AudioButton'
 import { useShortcuts } from '../../context/ShortcutContext'
@@ -12,6 +12,9 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
     const { findMatching } = useShortcuts()
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
     const [showResult, setShowResult] = useState(false)
+    // Pending completion timer for the current card. Cancelled on word change
+    // / unmount so a late callback can never rate the *next* card.
+    const completeTimerRef = useRef<number | null>(null)
 
     // Generate 4 options: 1 correct + 3 distractors
     const options = useMemo(() => {
@@ -42,15 +45,29 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
 
         const isCorrect = options[index].isCorrect
 
-        setTimeout(() => {
+        if (completeTimerRef.current !== null) {
+            window.clearTimeout(completeTimerRef.current)
+        }
+        completeTimerRef.current = window.setTimeout(() => {
+            completeTimerRef.current = null
             onComplete(isCorrect ? 4 : 1)
         }, 1500)
     }, [onComplete, options, showResult])
 
-    // Reset state when word changes
+    // Reset state when word changes; also cancels any pending completion
     useEffect(() => {
+        if (completeTimerRef.current !== null) {
+            window.clearTimeout(completeTimerRef.current)
+            completeTimerRef.current = null
+        }
         setSelectedIndex(null)
         setShowResult(false)
+        return () => {
+            if (completeTimerRef.current !== null) {
+                window.clearTimeout(completeTimerRef.current)
+                completeTimerRef.current = null
+            }
+        }
     }, [word.id])
 
     // Keyboard shortcuts for selecting options (1-4)

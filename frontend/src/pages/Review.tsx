@@ -459,6 +459,10 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // The page stays mounted under the keep-alive layout; ignore keys
+            // while another tab is active so typing digits elsewhere never
+            // rates this hidden session's cards.
+            if (!isActive) return
             if (!currentWord) return
 
             const target = e.target as HTMLElement
@@ -518,7 +522,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [currentWord, findMatching, handleRating, isFlipped, matches, playAudio, reviewMode, switchReviewMode])
+    }, [currentWord, findMatching, handleRating, isFlipped, isActive, matches, playAudio, reviewMode, switchReviewMode])
 
     const topShortcutText = reviewMode === 'flashcard'
         ? t('review.shortcuts.rate')

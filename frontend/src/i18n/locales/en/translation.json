@@ -843,6 +843,7 @@
       "createOrderFailed": "Failed to create payment order",
       "generic": "Something went wrong",
       "paymentPending": "Payment has not been received yet. Please wait a moment and try again.",
+      "orderExpired": "This payment code has expired. Please create a new order.",
       "checkStatusFailed": "Failed to check payment status."
     },
     "altMethods": {

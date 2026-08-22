@@ -8,6 +8,25 @@ function getToken(): string | null {
     return useAuthStore.getState().token;
 }
 
+/** Error with an HTTP status attached so callers can tell auth failures
+ *  (401/403) from network/server problems. Network errors (fetch rejects)
+ *  carry no status and must NOT be treated as "token expired". */
+export class CloudApiError extends Error {
+    status?: number
+
+    constructor(message: string, status?: number) {
+        super(message)
+        this.name = 'CloudApiError'
+        this.status = status
+    }
+}
+
+function isAuthError(error: unknown): boolean {
+    return error instanceof CloudApiError && (error.status === 401 || error.status === 403);
+}
+
+export { isAuthError };
+
 async function request<T = any>(
     path: string,
     options: RequestInit = {},
@@ -21,14 +40,21 @@ async function request<T = any>(
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const resp = await fetch(`${API_URL}${path}`, {
-        ...options,
-        headers,
-    });
+    let resp: Response;
+    try {
+        resp = await fetch(`${API_URL}${path}`, {
+            ...options,
+            headers,
+        });
+    } catch (err) {
+        // Network-level failure (offline, DNS, refused). Re-wrap without a
+        // status so callers never mistake it for an auth rejection.
+        throw new CloudApiError(`Cloud API network error: ${(err as Error)?.message ?? err}`);
+    }
 
     if (!resp.ok) {
         const body = await resp.text().catch(() => '');
-        throw new Error(`Cloud API ${resp.status}: ${body}`);
+        throw new CloudApiError(`Cloud API ${resp.status}: ${body}`, resp.status);
     }
     return resp.json();
 }

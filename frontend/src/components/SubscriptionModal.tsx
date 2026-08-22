@@ -21,10 +21,12 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
     const [error, setError] = useState('');
     const [wechatCopied, setWechatCopied] = useState(false);
 
+    // Reset only transient UI state on close. The pending order + QR are kept
+    // so reopening the modal resumes polling and can still detect a payment
+    // the user completed while the modal was shut — otherwise the order would
+    // be lost client-side and the user might pay again on a second QR code.
     useEffect(() => {
         if (!isOpen) {
-            setQrCodeUrl(null);
-            setOrderNo(null);
             setError('');
             setWechatCopied(false);
         }
@@ -32,16 +34,26 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
 
     useEffect(() => {
         let interval: number | undefined;
+        let pollBusy = false;
         if (isOpen && token && orderNo && qrCodeUrl) {
             interval = window.setInterval(async () => {
+                if (pollBusy) return; // server slower than the 3s tick → skip, don't pile up
+                pollBusy = true;
                 try {
                     const order = await payService.getOrderStatus(orderNo);
                     if (order.status === 'SUCCESS') {
                         await checkAuth();
                         onClose();
+                    } else if (order.status === 'EXPIRED' || order.status === 'FAIL') {
+                        // Terminal state: stop polling by dropping the order.
+                        setQrCodeUrl(null);
+                        setOrderNo(null);
+                        setError(t('subscription.errors.orderExpired', 'This payment code has expired. Please create a new order.'));
                     }
                 } catch (err) {
                     console.error('Failed to poll subscription order status', err);
+                } finally {
+                    pollBusy = false;
                 }
             }, 3000);
         }
@@ -49,7 +61,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
         return () => {
             if (interval) window.clearInterval(interval);
         };
-    }, [isOpen, token, orderNo, qrCodeUrl, checkAuth, onClose]);
+    }, [isOpen, token, orderNo, qrCodeUrl, checkAuth, onClose, t]);
 
     if (!isOpen) return null;
 

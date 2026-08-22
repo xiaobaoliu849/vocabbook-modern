@@ -858,6 +858,7 @@
       "createOrderFailed": "创建支付订单失败",
       "generic": "发生错误",
       "paymentPending": "暂未收到付款。请稍等片刻再试。",
+      "orderExpired": "支付二维码已过期，请重新创建订单。",
       "checkStatusFailed": "检查支付状态失败。"
     }
   },

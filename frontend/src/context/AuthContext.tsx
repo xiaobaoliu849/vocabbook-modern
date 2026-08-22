@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { authService } from '../services/cloudApi';
+import { authService, isAuthError } from '../services/cloudApi';
 import { useAuthStore } from '../stores/useAuthStore';
 
 interface User {
@@ -36,10 +36,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setUser(userData);
                     useAuthStore.getState().setUser(userData);
                 } catch (e) {
-                    // Token expired or invalid
-                    console.warn("Token expired or invalid", e);
-                    useAuthStore.getState().logout();
-                    setUser(null);
+                    if (isAuthError(e)) {
+                        // Token expired or revoked — clear persisted credentials.
+                        console.warn("Token expired or invalid", e);
+                        useAuthStore.getState().logout();
+                        setUser(null);
+                    } else {
+                        // Network/server failure: keep the stored token so a
+                        // later successful checkAuth restores the session
+                        // instead of forcing a re-login on a Wi-Fi blip.
+                        console.warn("Auth check unavailable (network); keeping token", e);
+                        setUser(null);
+                    }
                 }
             } else {
                 useAuthStore.getState().logout();

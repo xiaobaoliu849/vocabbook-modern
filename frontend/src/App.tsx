@@ -118,7 +118,7 @@ function AppContent() {
           {shouldRenderPage('add') && (
             <div className={getPageClassName('add')}>
               <Suspense fallback={<PageFallback />}>
-                <AddWordPage onOpenImport={() => setCurrentPage('import')} />
+                <AddWordPage onOpenImport={() => setCurrentPage('import')} isActive={currentPage === 'add'} />
               </Suspense>
             </div>
           )}

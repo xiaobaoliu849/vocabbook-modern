@@ -304,9 +304,20 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         if (!isInitialized) return
         const scopedStorageKey = getScopedStorageKey(chatScope)
         if (sessions.length > 0) {
-            localStorage.setItem(scopedStorageKey, JSON.stringify(sessions))
+            // Base64 image attachments easily exceed the ~5MB localStorage
+            // quota; without this guard the throw inside the effect would
+            // kill every subsequent session-change persistence.
+            try {
+                localStorage.setItem(scopedStorageKey, JSON.stringify(sessions))
+            } catch (error) {
+                console.warn('Failed to persist chat sessions locally (quota?)', error)
+            }
         } else {
-            localStorage.removeItem(scopedStorageKey)
+            try {
+                localStorage.removeItem(scopedStorageKey)
+            } catch {
+                // ignore
+            }
         }
     }, [sessions, isInitialized, chatScope])
 
@@ -671,6 +682,12 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         const userContent = input.trim()
         let botMsgId: string | null = null
 
+        // Claim the single-flight lock BEFORE any await. With attachments the
+        // presign round-trip below can take seconds; setting `loading` only
+        // after it left a window where a double-click / second Enter passed
+        // the guard and sent the same message twice.
+        setLoading(true)
+
         // Presign all pending attachments to Evermind S3
         let uploadedAttachments: Attachment[] = []
         if (pendingAttachments.length > 0) {
@@ -680,6 +697,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 )
             } catch (err) {
                 console.error('Presign upload failed', err)
+                setLoading(false)
                 toast(t('chat.attachments.uploadFailed', { name: pendingAttachments[0]?.name || '' }), 'error')
                 return
             }
@@ -728,7 +746,6 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
         setInput('')
         setPendingAttachments([])
-        setLoading(true)
         isNearBottomRef.current = true
 
         try {
