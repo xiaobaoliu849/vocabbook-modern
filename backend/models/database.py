@@ -342,7 +342,7 @@ class DatabaseManager:
                 cursor.execute("ALTER TABLE words ADD COLUMN tags TEXT")
 
             if 'error_count' not in columns:
-                logger.error("Adding 'error_count' column to words table...")
+                logger.info("Adding 'error_count' column to words table...")
                 cursor.execute("ALTER TABLE words ADD COLUMN error_count INTEGER DEFAULT 0")
 
             if 'note' not in columns:
@@ -393,8 +393,16 @@ class DatabaseManager:
                 )
 
             conn.commit()
-        except Exception as e:
-            logger.error(f"Schema update error: {e}")
+        except Exception:
+            # Fail fast: a half-migrated schema means later queries crash with
+            # confusing errors far from the root cause. Roll back the partial
+            # migration and abort startup instead of booting into a broken DB.
+            logger.exception("Schema migration failed — refusing to start against an incompatible database")
+            try:
+                conn.rollback()
+            except Exception:
+                logger.debug("Rollback after failed schema migration also failed", exc_info=True)
+            raise
 
     def migrate_from_json(self):
         """Migrate data from vocab.json if DB is empty."""
