@@ -90,16 +90,29 @@ class AudioPool {
      * 获取或创建 Audio 实例
      */
     get(src: string): HTMLAudioElement {
-        if (this.pool.has(src)) {
-            return this.pool.get(src)!
+        const existing = this.pool.get(src)
+        if (existing) {
+            // Re-insert so Map order reflects recency — without this the pool
+            // is FIFO and evicts the most-reused words first.
+            this.pool.delete(src)
+            this.pool.set(src, existing)
+            return existing
         }
 
-        // 如果池满了，移除最旧的
-        if (this.pool.size >= this.maxSize) {
-            const firstKey = this.pool.keys().next().value
-            if (firstKey) {
-                this.pool.delete(firstKey)
+        // 如果池满了，驱逐最久未用的条目；先停掉可能仍在播放的元素，
+        // 否则被丢弃引用的孤儿 Audio 会继续出声直到 GC。
+        while (this.pool.size >= this.maxSize) {
+            const oldestKey = this.pool.keys().next().value as string | undefined
+            if (oldestKey === undefined) break
+            const oldest = this.pool.get(oldestKey)
+            try {
+                oldest?.pause()
+                oldest?.removeAttribute('src')
+                oldest?.load()
+            } catch {
+                // best-effort cleanup
             }
+            this.pool.delete(oldestKey)
         }
 
         const audio = new Audio(src)
@@ -108,13 +121,14 @@ class AudioPool {
     }
 
     /**
-     * 播放音频
+     * 播放音频。失败时 reject（如自动播放策略拦截），调用方可用 .catch 兜底。
      */
     play(src: string): Promise<void> {
         const audio = this.get(src)
         audio.currentTime = 0
         return audio.play().catch(err => {
             console.warn('Audio play failed:', err)
+            throw err
         })
     }
 

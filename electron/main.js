@@ -570,6 +570,51 @@ function resolvePackagedBackendPath() {
 
     throw new Error(`Packaged backend executable not found. Checked: ${candidates.join(', ')}`)
 }
+// Backend crash recovery: restart with linear backoff, give up after N
+// consecutive fast failures and tell the renderer so the UI can react.
+const BACKEND_MAX_RESTARTS = 3
+const BACKEND_RESTART_BASE_DELAY_MS = 2000
+// A backend that stayed up this long counts as "stable" and resets the
+// restart counter, so an occasional crash days later still gets restarted.
+const BACKEND_STABLE_UPTIME_MS = 60000
+
+let backendRestartAttempts = 0
+let backendStartedAt = 0
+// A failed spawn can fire both 'error' and 'close'; only schedule one restart.
+let backendRestartScheduled = false
+
+function notifyBackendStatus(status) {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+        mainWindow.webContents.send('backend-status', status)
+    }
+}
+
+function scheduleBackendRestart(code) {
+    if (app.isQuiting || backendRestartScheduled) return
+    backendRestartScheduled = true
+    if (Date.now() - backendStartedAt > BACKEND_STABLE_UPTIME_MS) {
+        backendRestartAttempts = 0
+    }
+    if (backendRestartAttempts >= BACKEND_MAX_RESTARTS) {
+        console.error(`Backend exited (code ${code}) too many times; giving up. Restart the app to retry.`)
+        notifyBackendStatus('down')
+        return
+    }
+    backendRestartAttempts += 1
+    const delay = BACKEND_RESTART_BASE_DELAY_MS * backendRestartAttempts
+    console.warn(`Backend exited (code ${code}); restarting in ${delay}ms (attempt ${backendRestartAttempts}/${BACKEND_MAX_RESTARTS})`)
+    setTimeout(() => {
+        backendRestartScheduled = false
+        if (!app.isQuiting) {
+            try {
+                startBackend()
+            } catch (err) {
+                console.error('Backend restart failed:', err)
+            }
+        }
+    }, delay)
+}
+
 function startBackend() {
     const userDataPath = app.getPath('userData')
     const env = { ...process.env, VOCABBOOK_DATA_DIR: userDataPath }
@@ -597,6 +642,8 @@ function startBackend() {
         })
     }
 
+    backendStartedAt = Date.now()
+
     backendProcess.stdout.on('data', (data) => {
         console.log(`Backend: ${data}`)
     })
@@ -605,36 +652,76 @@ function startBackend() {
         console.error(`Backend Error: ${data}`)
     })
 
+    // Spawn failures (missing exe, AV quarantine, EACCES) fire 'error'
+    // without a 'close'; without this listener they crash the app.
+    backendProcess.on('error', (err) => {
+        console.error('Backend process error:', err)
+        scheduleBackendRestart('spawn-error')
+    })
+
     backendProcess.on('close', (code) => {
         console.log(`Backend process exited with code ${code}`)
+        backendProcess = null
+        scheduleBackendRestart(code)
     })
 }
 
 function stopBackend() {
     if (backendProcess) {
-        backendProcess.kill()
+        if (process.platform === 'win32') {
+            // Dev mode spawns through cmd.exe (shell:true); killing the shell
+            // alone leaves the python child alive holding port 8000, and the
+            // next launch's health check would pass against the STALE code.
+            // Kill the whole process tree instead.
+            spawn('taskkill', ['/pid', String(backendProcess.pid), '/T', '/F'], { windowsHide: true })
+        } else {
+            backendProcess.kill()
+        }
         backendProcess = null
     }
 }
 
 // App lifecycle
-app.whenReady().then(() => {
+
+// Single instance: a second launch would spawn a second backend fighting over
+// port 8000, double-register tray/global shortcuts and race the auto-updater.
+// Focus the existing window instead.
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+    app.quit()
+} else {
+    app.on('second-instance', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            if (mainWindow.isMinimized()) mainWindow.restore()
+            mainWindow.show()
+            mainWindow.focus()
+        }
+    })
+}
+
+if (gotSingleInstanceLock) app.whenReady().then(() => {
     shortcutSettings = loadShortcutSettings()
     createWindow()
     createTray()
     createApplicationMenu()
     registerGlobalShortcut()
 
-    // In production, start backend
-    if (!DEV_MODE) {
-        startBackend()
-    }
-
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow()
         }
     })
+
+    // In production, start backend. resolvePackagedBackendPath() throws when
+    // the bundle is broken — catch so activate/menu handlers stay registered.
+    if (!DEV_MODE) {
+        try {
+            startBackend()
+        } catch (err) {
+            console.error('Failed to start backend:', err)
+            notifyBackendStatus('down')
+        }
+    }
 })
 
 app.on('window-all-closed', () => {

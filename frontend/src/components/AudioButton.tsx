@@ -29,6 +29,9 @@ export default function AudioButton({
   const [isLoading, setIsLoading] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
+  // False once unmounted: async callbacks (audio onerror / canplaythrough)
+  // must not keep playing or re-scheduling after the button is gone.
+  const aliveRef = useRef(true)
 
   const getTextToSpeak = useCallback(() => {
     const rawText = text || word || ''
@@ -41,11 +44,15 @@ export default function AudioButton({
 
   useEffect(() => {
     return () => {
+      aliveRef.current = false
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current = null
       }
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      // speechSynthesis is a global singleton: only cancel when THIS instance
+      // actually started an utterance, otherwise closing one button would cut
+      // off another instance's playback mid-sentence.
+      if (utteranceRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel()
       }
       utteranceRef.current = null
@@ -57,7 +64,7 @@ export default function AudioButton({
       audioRef.current.pause()
       audioRef.current = null
     }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    if (utteranceRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel()
     }
     utteranceRef.current = null
@@ -133,6 +140,8 @@ export default function AudioButton({
     }
 
     const tryPlay = (index: number): void => {
+      if (!aliveRef.current) return
+
       if (index >= sources.length) {
         // Level 4: 浏览器内置TTS兜底
         if (!speakWithBrowser(textToSpeak)) {
@@ -147,15 +156,18 @@ export default function AudioButton({
       audioRef.current = audio
 
       audio.oncanplaythrough = () => {
+        if (!aliveRef.current) return
         setIsLoading(false)
         audio.play()
           .then(() => setIsPlaying(true))
           .catch(() => {
+            if (!aliveRef.current) return
             audioRef.current = null
             tryPlay(index + 1)
           })
       }
       audio.onerror = () => {
+        if (!aliveRef.current) return
         audioRef.current = null
         tryPlay(index + 1)
       }

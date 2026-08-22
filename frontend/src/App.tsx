@@ -46,7 +46,11 @@ function AppContent() {
   // page is unmounted to bound memory. Chat is never evicted.
   useEffect(() => {
     setMountedPages(prev => {
-      const next = prev.includes(currentPage) ? prev : [...prev, currentPage]
+      // Re-anchor the visited page at the end so Map/array order reflects
+      // recency — otherwise eviction would be FIFO by first visit and drop
+      // the most-used pages first.
+      const withoutCurrent = prev.filter(page => page !== currentPage)
+      const next = [...withoutCurrent, currentPage]
       const nonChat = next.filter(page => page !== 'chat')
       if (nonChat.length > MAX_KEPT_PAGES) {
         const removed = new Set<Page>(nonChat.slice(0, nonChat.length - MAX_KEPT_PAGES))

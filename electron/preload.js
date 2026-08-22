@@ -36,5 +36,10 @@ ipcRenderer.on('navigate-to', (_event, target) => {
     window.dispatchEvent(new CustomEvent('navigate', { detail: target }))
 })
 
+// Backend lifecycle events from main ('down' when restart attempts give up)
+ipcRenderer.on('backend-status', (_event, status) => {
+    window.dispatchEvent(new CustomEvent('backend-status', { detail: status }))
+})
+
 // Indicate that we're running in Electron
 contextBridge.exposeInMainWorld('isElectron', true)
