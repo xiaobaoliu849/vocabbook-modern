@@ -70,3 +70,6 @@ tts_test.py
 
 # Root-level screenshots
 /*.png
+
+# Local desktop runtime data
+.freebuff/
