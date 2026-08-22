@@ -169,6 +169,10 @@ class ChatRepository:
             conn.commit()
             return True
         except Exception as e:
+            # Roll back so the thread-local connection doesn't carry this
+            # half-finished transaction (messages deleted but not re-inserted)
+            # into the next caller's commit.
+            conn.rollback()
             logger.error(f"Save chat session error: {e}")
             return False
 
@@ -231,35 +235,45 @@ class ChatRepository:
     def delete_session(self, session_id: str, owner_key: str | None = None) -> bool:
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        if owner_key is None:
-            cursor.execute('DELETE FROM chat_messages WHERE session_id = ?', (session_id,))
-            cursor.execute('DELETE FROM chat_sessions WHERE id = ?', (session_id,))
-        else:
-            cursor.execute(
-                """
-                DELETE FROM chat_messages
-                WHERE session_id = ?
-                  AND session_id IN (
-                      SELECT id FROM chat_sessions WHERE id = ? AND owner_key = ?
-                  )
-                """,
-                (session_id, session_id, owner_key),
-            )
-            cursor.execute('DELETE FROM chat_sessions WHERE id = ? AND owner_key = ?', (session_id, owner_key))
-        conn.commit()
-        return cursor.rowcount > 0
+        try:
+            if owner_key is None:
+                cursor.execute('DELETE FROM chat_messages WHERE session_id = ?', (session_id,))
+                cursor.execute('DELETE FROM chat_sessions WHERE id = ?', (session_id,))
+            else:
+                cursor.execute(
+                    """
+                    DELETE FROM chat_messages
+                    WHERE session_id = ?
+                      AND session_id IN (
+                          SELECT id FROM chat_sessions WHERE id = ? AND owner_key = ?
+                      )
+                    """,
+                    (session_id, session_id, owner_key),
+                )
+                cursor.execute('DELETE FROM chat_sessions WHERE id = ? AND owner_key = ?', (session_id, owner_key))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception:
+            # Roll back the partial delete before propagating so the thread
+            # -local connection isn't left with an open transaction.
+            conn.rollback()
+            raise
 
     def clear_all_sessions(self, owner_key: str | None = None) -> bool:
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        if owner_key is None:
-            cursor.execute('DELETE FROM chat_messages')
-            cursor.execute('DELETE FROM chat_sessions')
-        else:
-            cursor.execute(
-                'DELETE FROM chat_messages WHERE session_id IN (SELECT id FROM chat_sessions WHERE owner_key = ?)',
-                (owner_key,),
-            )
-            cursor.execute('DELETE FROM chat_sessions WHERE owner_key = ?', (owner_key,))
-        conn.commit()
-        return cursor.rowcount > 0
+        try:
+            if owner_key is None:
+                cursor.execute('DELETE FROM chat_messages')
+                cursor.execute('DELETE FROM chat_sessions')
+            else:
+                cursor.execute(
+                    'DELETE FROM chat_messages WHERE session_id IN (SELECT id FROM chat_sessions WHERE owner_key = ?)',
+                    (owner_key,),
+                )
+                cursor.execute('DELETE FROM chat_sessions WHERE owner_key = ?', (owner_key,))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception:
+            conn.rollback()
+            raise

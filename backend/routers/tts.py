@@ -5,6 +5,7 @@ TTS Router - 文本转语音播放
 import os
 import hashlib
 import re
+import uuid
 from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import FileResponse
 import edge_tts
@@ -173,13 +174,26 @@ async def text_to_speech(
             )
         
         logger.debug(f"[TTS] Generating audio for: {cleaned_text}")
-        
-        # 使用 Edge-TTS 生成音频
-        communicate = edge_tts.Communicate(cleaned_text, voice, rate=RATE)
-        await communicate.save(filepath)
-        
-        if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
-            raise HTTPException(status_code=500, detail="Failed to generate audio")
+
+        # 使用 Edge-TTS 生成音频。Write to a unique temp file and atomically
+        # move into place: a cancelled/failed generation must never leave a
+        # half-written mp3 that later requests would treat as a valid cache
+        # entry (X-Cache: HIT of corrupt audio).
+        tmp_filepath = f"{filepath}.{uuid.uuid4().hex[:8]}.tmp"
+        try:
+            communicate = edge_tts.Communicate(cleaned_text, voice, rate=RATE)
+            await communicate.save(tmp_filepath)
+
+            if not os.path.exists(tmp_filepath) or os.path.getsize(tmp_filepath) == 0:
+                raise HTTPException(status_code=500, detail="Failed to generate audio")
+            os.replace(tmp_filepath, filepath)
+        except Exception:
+            if os.path.exists(tmp_filepath):
+                try:
+                    os.remove(tmp_filepath)
+                except OSError as cleanup_error:
+                    logger.warning(f"[TTS] Failed to remove temp file: {cleanup_error}")
+            raise
 
         enforce_cache_limits()
         logger.debug(f"[TTS] Generated: {filename}")

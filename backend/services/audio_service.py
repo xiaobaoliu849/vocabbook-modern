@@ -11,6 +11,7 @@ import hashlib
 import logging
 import os
 import re
+import uuid
 from urllib.parse import quote
 
 import httpx
@@ -59,7 +60,25 @@ def _remove_invalid_file(path: str) -> None:
             logger.debug(f"Failed to remove invalid audio file {path}: {exc}")
 
 
+def _cleanup_temp_audio(tmp_path: str) -> None:
+    if os.path.exists(tmp_path):
+        try:
+            os.remove(tmp_path)
+        except OSError as exc:
+            logger.debug(f"Failed to remove temp audio {tmp_path}: {exc}")
+
+
+def _write_audio_bytes(path: str, payload: bytes) -> None:
+    with open(path, "wb") as handle:
+        handle.write(payload)
+
+
 def _download_from_url(url: str, filepath: str) -> bool:
+    # Write to a unique temp file and atomically move into place: a failed or
+    # interrupted download must never leave a half-written file at the final
+    # cache path, and must never delete a valid file a concurrent download of
+    # the same word just completed.
+    tmp_path = f"{filepath}.{uuid.uuid4().hex[:8]}.tmp"
     try:
         with httpx.Client(timeout=10.0, follow_redirects=True) as client:
             response = client.get(url)
@@ -67,13 +86,17 @@ def _download_from_url(url: str, filepath: str) -> bool:
                 return False
             if len(response.content) < MIN_VALID_BYTES:
                 return False
-            with open(filepath, "wb") as handle:
-                handle.write(response.content)
-        return is_valid_audio_file(filepath)
+            _write_audio_bytes(tmp_path, response.content)
+        if not is_valid_audio_file(tmp_path):
+            logger.warning(f"Audio from {url} failed validation")
+            return False
+        os.replace(tmp_path, filepath)
+        return True
     except Exception as exc:
         logger.warning(f"Audio download failed from {url}: {exc}")
-        _remove_invalid_file(filepath)
         return False
+    finally:
+        _cleanup_temp_audio(tmp_path)
 
 
 def _download_youdao(word: str, accent: str, filepath: str) -> bool:
@@ -94,16 +117,23 @@ def _download_free_dict(word: str, filepath: str) -> bool:
 
 
 async def _download_tts(word: str, filepath: str) -> bool:
+    # Same temp-file + atomic-replace contract as _download_from_url.
+    tmp_path = f"{filepath}.{uuid.uuid4().hex[:8]}.tmp"
     try:
         import edge_tts
 
         communicate = edge_tts.Communicate(word.strip(), DEFAULT_TTS_VOICE, rate="+0%")
-        await communicate.save(filepath)
-        return is_valid_audio_file(filepath)
+        await communicate.save(tmp_path)
+        if not is_valid_audio_file(tmp_path):
+            logger.warning(f"TTS fallback produced invalid audio for '{word}'")
+            return False
+        os.replace(tmp_path, filepath)
+        return True
     except Exception as exc:
         logger.warning(f"TTS fallback failed for '{word}': {exc}")
-        _remove_invalid_file(filepath)
         return False
+    finally:
+        _cleanup_temp_audio(tmp_path)
 
 
 def _run_tts_download(word: str, filepath: str) -> bool:

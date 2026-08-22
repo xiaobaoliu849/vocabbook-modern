@@ -60,6 +60,9 @@ class WordsRepository:
             conn.commit()
             return True
         except sqlite3.IntegrityError:
+            # Roll back so the thread-local connection doesn't carry a half
+            # -finished transaction into the next caller's commit.
+            conn.rollback()
             return False
 
     def get(self, word: str) -> dict | None:
@@ -259,8 +262,12 @@ class WordsRepository:
     def update_context(self, word: str, en: str, cn: str) -> None:
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        cursor.execute('UPDATE words SET context_en = ?, context_cn = ? WHERE word = ?', (en, cn, word))
-        conn.commit()
+        try:
+            cursor.execute('UPDATE words SET context_en = ?, context_cn = ? WHERE word = ?', (en, cn, word))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def update(self, word: str, update_data: dict) -> bool:
         if not update_data:
@@ -298,20 +305,36 @@ class WordsRepository:
             conn.commit()
             return affected > 0
         except sqlite3.Error:
+            # Roll back so the thread-local connection doesn't carry a half
+            # -finished transaction into the next caller's commit.
+            conn.rollback()
             return False
 
     def delete(self, word: str) -> None:
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM word_tags WHERE word_id = (SELECT id FROM words WHERE word = ?)', (word,))
-        cursor.execute('DELETE FROM words WHERE word = ?', (word,))
-        conn.commit()
+    def delete(self, word: str) -> None:
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('DELETE FROM word_tags WHERE word_id = (SELECT id FROM words WHERE word = ?)', (word,))
+            cursor.execute('DELETE FROM words WHERE word = ?', (word,))
+            conn.commit()
+        except Exception:
+            # Roll back the partial delete (word_tags gone but words row kept)
+            # so the thread-local connection isn't left dirty.
+            conn.rollback()
+            raise
 
     def mark_mastered(self, word: str) -> None:
         conn = self.db.get_connection()
         cursor = conn.cursor()
-        cursor.execute('UPDATE words SET mastered = 1 WHERE word = ?', (word,))
-        conn.commit()
+        try:
+            cursor.execute('UPDATE words SET mastered = 1 WHERE word = ?', (word,))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
 
     def search(
         self,
