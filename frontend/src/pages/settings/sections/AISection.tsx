@@ -1,3 +1,5 @@
+import { safeStorage } from '../../../utils/safeStorage'
+
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -51,11 +53,11 @@ export default function AISection() {
     const [memoryMgmtOpen, setMemoryMgmtOpen] = useState(false)
 
     const loadAiSettings = useCallback(() => {
-        const provider = localStorage.getItem('ai_provider') || 'dashscope'
+        const provider = safeStorage.get('ai_provider') || 'dashscope'
         setAiProvider(provider)
 
         // Load all saved keys map
-        const savedKeysStr = localStorage.getItem('ai_api_keys_map')
+        const savedKeysStr = safeStorage.get('ai_api_keys_map')
         let keysMap: Record<string, string> = {}
         if (savedKeysStr) {
             try {
@@ -66,7 +68,7 @@ export default function AISection() {
         }
 
         // Load all saved models map
-        const savedModelsStr = localStorage.getItem('ai_models_map')
+        const savedModelsStr = safeStorage.get('ai_models_map')
         let modelsMap: Record<string, string> = {}
         if (savedModelsStr) {
             try {
@@ -77,7 +79,7 @@ export default function AISection() {
         }
 
         // Load all saved bases map
-        const savedBasesStr = localStorage.getItem('ai_bases_map')
+        const savedBasesStr = safeStorage.get('ai_bases_map')
         let basesMap: Record<string, string> = {}
         if (savedBasesStr) {
             try {
@@ -88,14 +90,14 @@ export default function AISection() {
         }
 
         // Legacy support: check if there is a single key saved in 'ai_api_key'
-        const legacyKey = localStorage.getItem('ai_api_key')
+        const legacyKey = safeStorage.get('ai_api_key')
         if (legacyKey && !keysMap[provider] && Object.keys(keysMap).length === 0) {
             // Only use legacy key if no map exists or current provider key missing
             keysMap[provider] = legacyKey
         }
 
         // Legacy support for model
-        const legacyModel = localStorage.getItem('ai_model')
+        const legacyModel = safeStorage.get('ai_model')
         if (legacyModel && !modelsMap[provider]) {
             modelsMap[provider] = legacyModel
         }
@@ -104,12 +106,12 @@ export default function AISection() {
 
         let loadedModel = modelsMap[provider] || getDefaultModel(provider)
         // Auto-migrate legacy models to qwen3.7-flash once
-        if (provider === 'dashscope' && (loadedModel === 'qwen-flash' || loadedModel === 'qwen-plus' || loadedModel === 'qwen3.5-flash' || loadedModel === 'qwen-flash-latest' || !loadedModel) && !localStorage.getItem('qwen37_flash_migrated_v3')) {
+        if (provider === 'dashscope' && (loadedModel === 'qwen-flash' || loadedModel === 'qwen-plus' || loadedModel === 'qwen3.5-flash' || loadedModel === 'qwen-flash-latest' || !loadedModel) && !safeStorage.get('qwen37_flash_migrated_v3')) {
             loadedModel = 'qwen3.7-flash'
             modelsMap[provider] = loadedModel
-            localStorage.setItem('qwen37_flash_migrated_v3', 'true')
-            localStorage.setItem('ai_models_map', JSON.stringify(modelsMap))
-            localStorage.setItem('ai_model', loadedModel)
+            safeStorage.set('qwen37_flash_migrated_v3', 'true')
+            safeStorage.set('ai_models_map', JSON.stringify(modelsMap))
+            safeStorage.set('ai_model', loadedModel)
         }
 
         setAiModels(modelsMap)
@@ -119,9 +121,9 @@ export default function AISection() {
         setAiBase(basesMap[provider] || '')
 
         // Load EverMem settings
-        setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
-        setEvermemUrl(localStorage.getItem('evermem_url') || '')
-        setEvermemKey(localStorage.getItem('evermem_key') || '')
+        setEvermemEnabled(safeStorage.get('evermem_enabled') === 'true')
+        setEvermemUrl(safeStorage.get('evermem_url') || '')
+        setEvermemKey(safeStorage.get('evermem_key') || '')
     }, [])
 
     useEffect(() => {
@@ -129,32 +131,32 @@ export default function AISection() {
     }, [loadAiSettings])
 
     const saveAiSettings = () => {
-        localStorage.setItem('ai_provider', aiProvider)
+        safeStorage.set('ai_provider', aiProvider)
 
         // Update keys map
         const newKeysMap = { ...apiKeys, [aiProvider]: aiApiKey }
         setApiKeys(newKeysMap)
-        localStorage.setItem('ai_api_keys_map', JSON.stringify(newKeysMap))
+        safeStorage.set('ai_api_keys_map', JSON.stringify(newKeysMap))
 
         // Update models map
         const newModelsMap = { ...aiModels, [aiProvider]: aiModel }
         setAiModels(newModelsMap)
-        localStorage.setItem('ai_models_map', JSON.stringify(newModelsMap))
+        safeStorage.set('ai_models_map', JSON.stringify(newModelsMap))
 
         // Update bases map
         const newBasesMap = { ...aiBases, [aiProvider]: aiBase }
         setAiBases(newBasesMap)
-        localStorage.setItem('ai_bases_map', JSON.stringify(newBasesMap))
+        safeStorage.set('ai_bases_map', JSON.stringify(newBasesMap))
 
         // Also save to legacy key for backward compatibility or immediate usage in other parts
-        localStorage.setItem('ai_api_key', aiApiKey)
+        safeStorage.set('ai_api_key', aiApiKey)
 
-        localStorage.setItem('ai_model', aiModel)
+        safeStorage.set('ai_model', aiModel)
 
         // Save EverMem settings
-        localStorage.setItem('evermem_enabled', String(evermemEnabled))
-        localStorage.setItem('evermem_url', evermemUrl)
-        localStorage.setItem('evermem_key', evermemKey)
+        safeStorage.set('evermem_enabled', String(evermemEnabled))
+        safeStorage.set('evermem_url', evermemUrl)
+        safeStorage.set('evermem_key', evermemKey)
 
         toast(t('settings.ai.saveSuccess', 'AI settings saved'), 'success')
     }

@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -30,10 +32,10 @@ export const useAuthStore = create<AuthState>()(
             // Migrate legacy token from old localStorage key on first load
             onRehydrateStorage: () => (state) => {
                 if (state && !state.token) {
-                    const legacy = localStorage.getItem('vocab_token');
+                    const legacy = safeStorage.get('vocab_token');
                     if (legacy) {
                         state.setToken(legacy);
-                        localStorage.removeItem('vocab_token');
+                        safeStorage.remove('vocab_token');
                     }
                 }
             },

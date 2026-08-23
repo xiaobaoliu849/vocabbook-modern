@@ -1,3 +1,5 @@
+import { safeStorage } from '../../../utils/safeStorage'
+
 import type { ReactNode } from 'react'
 import { useTheme } from '../../../context/ThemeContext'
 import { useState, useEffect } from 'react'
@@ -86,15 +88,15 @@ export default function GeneralSection() {
     const { t } = useTranslation()
 
     const [accent, setAccent] = useState<'us' | 'uk'>(() =>
-        (localStorage.getItem('preferred_accent') as 'us' | 'uk') || 'us'
+        (safeStorage.get('preferred_accent') as 'us' | 'uk') || 'us'
     )
 
     const [ownerToken, setOwnerToken] = useState(() =>
-        localStorage.getItem('owner_token') || ''
+        safeStorage.get('owner_token') || ''
     )
 
     useEffect(() => {
-        localStorage.setItem('preferred_accent', accent)
+        safeStorage.set('preferred_accent', accent)
     }, [accent])
 
     const appearanceOptions: ChoiceCardOption<AppearanceMode>[] = [
@@ -230,9 +232,9 @@ export default function GeneralSection() {
                     onChange={(e) => {
                         setOwnerToken(e.target.value)
                         if (e.target.value) {
-                            localStorage.setItem('owner_token', e.target.value)
+                            safeStorage.set('owner_token', e.target.value)
                         } else {
-                            localStorage.removeItem('owner_token')
+                            safeStorage.remove('owner_token')
                         }
                     }}
                     placeholder="Paste your owner token"

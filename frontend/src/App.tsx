@@ -104,6 +104,20 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [matches, showHelp])
 
+  // Tray menu navigation (electron main → preload dispatches 'navigate').
+  // Without this listener the tray "开始复习" item only showed the window.
+  useEffect(() => {
+    const pages: Page[] = ['add', 'list', 'review', 'settings', 'import', 'translation', 'stats', 'chat', 'admin']
+    const handleNavigate = (event: Event) => {
+      const target = (event as CustomEvent).detail
+      if (typeof target === 'string' && pages.includes(target as Page)) {
+        setCurrentPage(target as Page)
+      }
+    }
+    window.addEventListener('navigate', handleNavigate)
+    return () => window.removeEventListener('navigate', handleNavigate)
+  }, [])
+
   // Navigate to settings with optional tab
   const handleNavigateToSettings = (tab?: string) => {
     setSettingsTab(tab)

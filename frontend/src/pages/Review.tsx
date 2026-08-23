@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import AudioButton from '../components/AudioButton'
@@ -127,16 +129,16 @@ export default function Review({ isActive }: { isActive?: boolean }) {
         setIsAiCompleting(true)
 
         try {
-            const provider = localStorage.getItem('ai_provider') || 'dashscope'
+            const provider = safeStorage.get('ai_provider') || 'dashscope'
             const parseSettingsMap = (key: string) => {
                 try {
-                    return JSON.parse(localStorage.getItem(key) || '{}')
+                    return JSON.parse(safeStorage.get(key) || '{}')
                 } catch {
                     return {}
                 }
             }
             const keysMap = parseSettingsMap('ai_api_keys_map')
-            const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || ''
+            const apiKey = keysMap[provider] || safeStorage.get('ai_api_key') || ''
             const model = getActiveAiModel(provider)
             const basesMap = parseSettingsMap('ai_bases_map')
             const apiBase = basesMap[provider] || ''

@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { useState, useEffect, useCallback, useRef } from 'react'
 import AudioButton from '../components/AudioButton'
 import { Search, Sparkles, Keyboard, Plus, RotateCw, Zap, Loader2, Upload, Star, AlertTriangle } from 'lucide-react'
@@ -29,23 +31,26 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
     // started search may touch searchResult/isSaved/isSearching, so a slow
     // earlier response can never overwrite a newer lookup.
     const searchSeqRef = useRef(0)
-    // Mirror of the input box, read by the AI-sentence flow after its await.
+    // Mirror of the input box and of the displayed card, read by the
+    // AI-sentence flow after its await.
     const searchWordRef = useRef('')
+    const searchResultRef = useRef<any>(null)
 
     useEffect(() => {
         searchWordRef.current = searchWord
-    }, [searchWord])
+        searchResultRef.current = searchResult
+    }, [searchWord, searchResult])
 
     // Auto features state
-    const [autoSave, setAutoSave] = useState(() => localStorage.getItem('auto_save') === 'true')
-    const [autoPlay, setAutoPlay] = useState(() => localStorage.getItem('auto_play') !== 'false') // Default true
+    const [autoSave, setAutoSave] = useState(() => safeStorage.get('auto_save') === 'true')
+    const [autoPlay, setAutoPlay] = useState(() => safeStorage.get('auto_play') !== 'false') // Default true
 
     useEffect(() => {
-        localStorage.setItem('auto_save', String(autoSave))
+        safeStorage.set('auto_save', String(autoSave))
     }, [autoSave])
 
     useEffect(() => {
-        localStorage.setItem('auto_play', String(autoPlay))
+        safeStorage.set('auto_play', String(autoPlay))
     }, [autoPlay])
 
     const getDictionaryLabel = (source: string) => t(`addWord.dictionarySources.${source}`, { defaultValue: source })
@@ -84,11 +89,12 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
         setIsSearching(true)
         setSearchResult(null)
         setAiSentences([])
+        setAiError('')
         setIsSaved(false)
 
         const enabledDicts = ['youdao'];
         ['cambridge', 'bing', 'freedict'].forEach(id => {
-            if (localStorage.getItem(`dict_${id}`) !== 'false') {
+            if (safeStorage.get(`dict_${id}`) !== 'false') {
                 enabledDicts.push(id);
             }
         });
@@ -133,21 +139,22 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
     }, [aiSentences, saveWord, searchResult])
 
     const handleGenerateAI = useCallback(async () => {
-        // Snapshot the word and the displayed entry at click time: after the
-        // await, either may have changed (new search). Sentences must only be
-        // paired with the exact entry they were generated for — merging them
-        // into whatever `searchResult` points at later would save word A's
-        // sentences onto word B.
-        const requestedWord = searchWord.trim()
-        const resultSnapshot = searchResult
+        // Generate for the entry actually displayed on the card, never for
+        // whatever currently sits in the input box: editing the input after
+        // a search must not re-target this button (that used to render word
+        // B's sentences under word A and save them into A). Sentences pair
+        // with the card snapshot taken at click time; if a newer search has
+        // replaced the card by the time the response lands, drop them.
+        const resultSnapshot = searchResult && !searchResult.error ? searchResult : null
+        const requestedWord = ((resultSnapshot?.word as string) || searchWord).trim()
         if (!requestedWord) return
         setIsGeneratingAI(true)
         setAiError('')
 
         try {
-            const aiProvider = localStorage.getItem('ai_provider') || 'dashscope'
-            const parseMap = (k: string) => { try { return JSON.parse(localStorage.getItem(k) || '{}') } catch { return {} } }
-            const aiApiKey = parseMap('ai_api_keys_map')[aiProvider] || localStorage.getItem('ai_api_key') || ''
+            const aiProvider = safeStorage.get('ai_provider') || 'dashscope'
+            const parseMap = (k: string) => { try { return JSON.parse(safeStorage.get(k) || '{}') } catch { return {} } }
+            const aiApiKey = parseMap('ai_api_keys_map')[aiProvider] || safeStorage.get('ai_api_key') || ''
             const aiModel = getActiveAiModel(aiProvider)
             const aiBase = parseMap('ai_bases_map')[aiProvider] || ''
 
@@ -162,22 +169,18 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                     }
                 }
             )
-            if (searchWordRef.current.trim().toLowerCase() !== requestedWord.toLowerCase()) {
-                return // Input moved on while generating — drop the stale result.
+            if (searchResultRef.current !== resultSnapshot) {
+                return // A newer search replaced the card — drop stale sentences.
             }
             const newSentences = data.sentences || []
             setAiSentences(newSentences)
 
-            if (
-                resultSnapshot && !resultSnapshot.error &&
-                newSentences.length > 0 &&
-                String(resultSnapshot.word || '').trim().toLowerCase() === requestedWord.toLowerCase()
-            ) {
+            if (resultSnapshot && newSentences.length > 0) {
                 void saveWord(resultSnapshot, true, newSentences);
             }
         } catch (error) {
             console.error('AI generation failed:', error)
-            if (searchWordRef.current.trim().toLowerCase() === requestedWord.toLowerCase()) {
+            if (searchResultRef.current === resultSnapshot) {
                 setAiError(t('addWord.errors.aiFailed', 'Failed to generate AI sentences. Please try again.'))
             }
         } finally {

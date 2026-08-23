@@ -17,6 +17,11 @@ interface SyncOptions {
   immediate?: boolean
 }
 
+// A hung request must never wedge the queue: without this, a suspended
+// connection (laptop sleep / VPN drop) left syncInFlightRef occupied
+// forever and cloud backup silently stopped until restart.
+const SYNC_TIMEOUT_MS = 30_000
+
 export function useChatSessionSync(apiBaseUrl: string, path: string, delayMs: number = 800) {
   const pendingSessionsRef = useRef<Map<string, PendingSessionSync>>(new Map())
   const syncTimerRef = useRef<number | null>(null)
@@ -31,17 +36,24 @@ export function useChatSessionSync(apiBaseUrl: string, path: string, delayMs: nu
 
   const persistBatch = useCallback(async (batch: PendingSessionSync[]) => {
     const results = await Promise.allSettled(batch.map(async ({ session, headers }) => {
-      const response = await fetch(`${apiBaseUrl}${path}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers,
-        },
-        body: JSON.stringify(session),
-      })
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), SYNC_TIMEOUT_MS)
+      try {
+        const response = await fetch(`${apiBaseUrl}${path}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...headers,
+          },
+          body: JSON.stringify(session),
+          signal: controller.signal,
+        })
 
-      if (!response.ok) {
-        throw new Error(`Failed to sync chat session ${session.id}: ${response.status}`)
+        if (!response.ok) {
+          throw new Error(`Failed to sync chat session ${session.id}: ${response.status}`)
+        }
+      } finally {
+        window.clearTimeout(timeoutId)
       }
     }))
 
@@ -68,17 +80,30 @@ export function useChatSessionSync(apiBaseUrl: string, path: string, delayMs: nu
     const request = (async () => {
       try {
         await persistBatch(batch)
+      } catch {
+        // Re-queue the failed batch so a later flush retries. Never
+        // overwrite an entry that was re-scheduled while we were in
+        // flight — it holds newer data for the same session.
+        for (const item of batch) {
+          if (!pendingSessionsRef.current.has(item.session.id)) {
+            pendingSessionsRef.current.set(item.session.id, item)
+          }
+        }
       } finally {
         syncInFlightRef.current = null
-        if (pendingSessionsRef.current.size > 0) {
-          void flush()
+        if (pendingSessionsRef.current.size > 0 && syncTimerRef.current === null) {
+          // Retry after the debounce interval rather than recursing
+          // inline — bounds the loop when the network stays down.
+          syncTimerRef.current = window.setTimeout(() => {
+            void flush()
+          }, delayMs)
         }
       }
     })()
 
     syncInFlightRef.current = request
     return request
-  }, [clearSyncTimer, persistBatch])
+  }, [clearSyncTimer, delayMs, persistBatch])
 
   const schedule = useCallback((
     session: PersistedChatSession,

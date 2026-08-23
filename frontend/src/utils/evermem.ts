@@ -1,3 +1,5 @@
+import { safeStorage } from './safeStorage'
+
 import { api, API_PATHS } from './api'
 
 export type MemoryType = 'episodic_memory' | 'profile' | 'agent_case' | 'agent_skill' | 'foresight' | 'event_log'
@@ -22,13 +24,13 @@ export interface MemoryListResponse {
 }
 
 export function isEvermemConfigured(): boolean {
-    if (localStorage.getItem('evermem_enabled') !== 'true') return false
-    const key = localStorage.getItem('evermem_key') || ''
+    if (safeStorage.get('evermem_enabled') !== 'true') return false
+    const key = safeStorage.get('evermem_key') || ''
     return isEvermemSelfHosted() || Boolean(key)
 }
 
 export function isEvermemSelfHosted(): boolean {
-    const url = localStorage.getItem('evermem_url') || ''
+    const url = safeStorage.get('evermem_url') || ''
     return url.trim() !== '' && !url.toLowerCase().includes('evermind.ai')
 }
 

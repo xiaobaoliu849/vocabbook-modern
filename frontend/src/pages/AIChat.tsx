@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../context/ToastContext'
@@ -44,7 +46,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     const wasActiveRef = useRef(false)
     const [sidebarOpen, setSidebarOpen] = useState(() => {
         if (typeof window === 'undefined') return true
-        const saved = localStorage.getItem('chat_sidebar_open')
+        const saved = safeStorage.get('chat_sidebar_open')
         if (saved !== null) return saved === 'true'
         return window.innerWidth >= 1024
     })
@@ -115,11 +117,11 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     }, [getCommonHeaders, scheduleQueuedSessionSync])
 
     const loadConfig = useCallback(() => {
-        const currentProvider = localStorage.getItem('ai_provider') || 'dashscope'
+        const currentProvider = safeStorage.get('ai_provider') || 'dashscope'
         setProvider(currentProvider)
         const activeModel = getActiveAiModel(currentProvider)
         setModel(activeModel)
-        setEvermemEnabled(localStorage.getItem('evermem_enabled') === 'true')
+        setEvermemEnabled(safeStorage.get('evermem_enabled') === 'true')
     }, [])
 
     const scrollToBottom = useCallback((instant: boolean = false, force: boolean = false) => {
@@ -180,7 +182,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
             // Fallback to localStorage if API empty or failed
             if (loadedSessions.length === 0) {
-                const savedSessions = localStorage.getItem(getScopedStorageKey(chatScope))
+                const savedSessions = safeStorage.get(getScopedStorageKey(chatScope))
                 if (savedSessions) {
                     try {
                         loadedSessions = JSON.parse(savedSessions)
@@ -193,7 +195,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
 
             // Only migrate legacy shared local keys for guest scope.
             if (chatScope === 'guest' && loadedSessions.length === 0) {
-                const legacySessions = localStorage.getItem('chat_sessions')
+                const legacySessions = safeStorage.get('chat_sessions')
                 if (legacySessions) {
                     try {
                         const parsed = JSON.parse(legacySessions)
@@ -211,7 +213,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             }
 
             if (chatScope === 'guest' && loadedSessions.length === 0) {
-                const oldHistory = localStorage.getItem('chat_history')
+                const oldHistory = safeStorage.get('chat_history')
                 if (oldHistory) {
                     try {
                         const parsedMessages = JSON.parse(oldHistory)
@@ -308,13 +310,13 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             // quota; without this guard the throw inside the effect would
             // kill every subsequent session-change persistence.
             try {
-                localStorage.setItem(scopedStorageKey, JSON.stringify(sessions))
+                safeStorage.set(scopedStorageKey, JSON.stringify(sessions))
             } catch (error) {
                 console.warn('Failed to persist chat sessions locally (quota?)', error)
             }
         } else {
             try {
-                localStorage.removeItem(scopedStorageKey)
+                safeStorage.remove(scopedStorageKey)
             } catch {
                 // ignore
             }
@@ -322,7 +324,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     }, [sessions, isInitialized, chatScope])
 
     useEffect(() => {
-        localStorage.setItem('chat_sidebar_open', String(sidebarOpen))
+        safeStorage.set('chat_sidebar_open', String(sidebarOpen))
     }, [sidebarOpen])
 
     // Scroll to bottom when active session or its messages change
@@ -471,7 +473,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         if (provider) headers['X-AI-Provider'] = provider
         if (model) headers['X-AI-Model'] = model
 
-        const savedBasesStr = localStorage.getItem('ai_bases_map')
+        const savedBasesStr = safeStorage.get('ai_bases_map')
         let basesMap: Record<string, string> = {}
         if (savedBasesStr) {
             try {
@@ -483,7 +485,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
         const apiBase = basesMap[provider] || ''
         if (apiBase) headers['X-AI-Base'] = apiBase
 
-        const savedKeysStr = localStorage.getItem('ai_api_keys_map')
+        const savedKeysStr = safeStorage.get('ai_api_keys_map')
         let keysMap: Record<string, string> = {}
         if (savedKeysStr) {
             try {
@@ -492,7 +494,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 // Ignore malformed saved key config.
             }
         }
-        const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || ''
+        const apiKey = keysMap[provider] || safeStorage.get('ai_api_key') || ''
         if (apiKey) headers['X-AI-Key'] = apiKey
 
         return headers

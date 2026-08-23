@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { api, ApiError, API_PATHS } from '../utils/api';
 import { getPlaybackAudioUrl, playWordAudio } from '../utils/audio';
@@ -83,8 +85,8 @@ export default function DictionaryPopup() {
     };
 
     useEffect(() => {
-        setAutoPlay(localStorage.getItem('auto_play') !== 'false');
-        setAutoSave(localStorage.getItem('auto_save') === 'true');
+        setAutoPlay(safeStorage.get('auto_play') !== 'false');
+        setAutoSave(safeStorage.get('auto_save') === 'true');
     }, [isVisible]); // Refresh config when opening
 
     const saveWord = useCallback(async (data: any, silent = false) => {
@@ -115,7 +117,7 @@ export default function DictionaryPopup() {
         try {
             const enabledDicts = ['youdao'];
             ['cambridge', 'bing', 'freedict'].forEach(id => {
-                if (localStorage.getItem(`dict_${id}`) !== 'false') {
+                if (safeStorage.get(`dict_${id}`) !== 'false') {
                     enabledDicts.push(id);
                 }
             });
@@ -258,23 +260,23 @@ export default function DictionaryPopup() {
 
         try {
             // Re-fetch ai settings right before call to ensure latest
-            const provider = localStorage.getItem('ai_provider') || 'dashscope';
+            const provider = safeStorage.get('ai_provider') || 'dashscope';
             const parseSettingsMap = (key: string) => {
                 try {
-                    return JSON.parse(localStorage.getItem(key) || '{}');
+                    return JSON.parse(safeStorage.get(key) || '{}');
                 } catch {
                     return {};
                 }
             };
             const keysMap = parseSettingsMap('ai_api_keys_map');
-            const apiKey = keysMap[provider] || localStorage.getItem('ai_api_key') || '';
+            const apiKey = keysMap[provider] || safeStorage.get('ai_api_key') || '';
             const model = getActiveAiModel(provider);
             const basesMap = parseSettingsMap('ai_bases_map');
             const apiBase = basesMap[provider] || '';
 
-            const evermemEnabled = localStorage.getItem('evermem_enabled') || 'false';
-            const evermemUrl = localStorage.getItem('evermem_url') || '';
-            const evermemKey = localStorage.getItem('evermem_key') || '';
+            const evermemEnabled = safeStorage.get('evermem_enabled') || 'false';
+            const evermemUrl = safeStorage.get('evermem_url') || '';
+            const evermemKey = safeStorage.get('evermem_key') || '';
 
             const prompt = `请详细解析单词 '${word}'。要求：\n1. 核心词义与语境\n2. 常见搭配\n3. 巧妙的助记方法\n4. 两个典型的日常交流例句\n请保持排版清晰，解释生动自然，直接输出内容，不用寒暄。`;
 

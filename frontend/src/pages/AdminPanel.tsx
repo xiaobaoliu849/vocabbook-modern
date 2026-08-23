@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Crown, KeyRound, RefreshCw, Search, Shield, ShoppingCart, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -141,13 +143,13 @@ export default function AdminPanel() {
             setErrorMessage(t('admin.errors.missingToken', 'Please enter your admin token first.'))
             return
         }
-        localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token)
+        safeStorage.set(ADMIN_TOKEN_STORAGE_KEY, token)
         setActiveAdminToken(token)
         await loadAdminData(token)
     }
 
     const clearToken = () => {
-        localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY)
+        safeStorage.remove(ADMIN_TOKEN_STORAGE_KEY)
         setAdminTokenInput('')
         setActiveAdminToken('')
         setSummary(null)
@@ -180,7 +182,7 @@ export default function AdminPanel() {
     useEffect(() => {
         if (initializedRef.current) return
         initializedRef.current = true
-        const savedToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || ''
+        const savedToken = safeStorage.get(ADMIN_TOKEN_STORAGE_KEY) || ''
         setAdminTokenInput(savedToken)
         setActiveAdminToken(savedToken)
         if (savedToken) {

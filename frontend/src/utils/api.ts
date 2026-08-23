@@ -1,3 +1,5 @@
+import { safeStorage } from './safeStorage'
+
 /**
  * API 配置和封装
  * 集中管理 API 基础 URL 和请求方法
@@ -13,7 +15,7 @@ export type PronunciationAccent = 'us' | 'uk'
 
 export function getPreferredAccent(): PronunciationAccent {
     try {
-        return localStorage.getItem('preferred_accent') === 'uk' ? 'uk' : 'us'
+        return safeStorage.get('preferred_accent') === 'uk' ? 'uk' : 'us'
     } catch {
         return 'us'
     }
@@ -34,20 +36,20 @@ export function getWordAudioUrl(word: string, accent?: PronunciationAccent): str
 }
 
 export function getOwnerTokenHeaders(): Record<string, string> {
-    const ownerToken = localStorage.getItem('owner_token') || ''
+    const ownerToken = safeStorage.get('owner_token') || ''
     return ownerToken ? { 'X-Owner-Token': ownerToken } : {}
 }
 
 export function getClientId(): string {
     try {
-        const existing = localStorage.getItem(CLIENT_ID_STORAGE_KEY)
+        const existing = safeStorage.get(CLIENT_ID_STORAGE_KEY)
         if (existing) return existing
 
         const generated = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
             ? crypto.randomUUID()
             : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
-        localStorage.setItem(CLIENT_ID_STORAGE_KEY, generated)
+        safeStorage.set(CLIENT_ID_STORAGE_KEY, generated)
         return generated
     } catch {
         return 'guest_local'
@@ -56,9 +58,9 @@ export function getClientId(): string {
 
 function getEverMemHeaders(): Record<string, string> {
     try {
-        const enabled = localStorage.getItem('evermem_enabled') || 'false'
-        const url = localStorage.getItem('evermem_url') || ''
-        const key = localStorage.getItem('evermem_key') || ''
+        const enabled = safeStorage.get('evermem_enabled') || 'false'
+        const url = safeStorage.get('evermem_url') || ''
+        const key = safeStorage.get('evermem_key') || ''
         const headers: Record<string, string> = {
             'X-EverMem-Enabled': enabled,
         }
@@ -181,7 +183,7 @@ export const api = {
      */
     _getHeaders(customHeaders?: HeadersInit): HeadersInit {
         const token = useAuthStore.getState().token
-        const ownerToken = localStorage.getItem('owner_token') || ''
+        const ownerToken = safeStorage.get('owner_token') || ''
         const headers: Record<string, string> = {
             ...getEverMemHeaders(),
         }

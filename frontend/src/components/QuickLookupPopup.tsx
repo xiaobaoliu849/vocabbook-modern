@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { useState, useEffect, useRef, useCallback, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { X, BookOpen, Languages, Check, Loader2, ExternalLink, Copy, Sprout, RefreshCw, Sparkles } from 'lucide-react'
 import AudioButton from './AudioButton'
@@ -20,22 +22,22 @@ interface QuickLookupProps {
 }
 
 function getAiSettings() {
-    const provider = localStorage.getItem('ai_provider') || 'dashscope'
+    const provider = safeStorage.get('ai_provider') || 'dashscope'
 
     let apiKey = ''
     try {
-        const keysMap = JSON.parse(localStorage.getItem('ai_api_keys_map') || '{}')
+        const keysMap = JSON.parse(safeStorage.get('ai_api_keys_map') || '{}')
         apiKey = keysMap[provider] || ''
     } catch {
         // ignore malformed config
     }
-    if (!apiKey) apiKey = localStorage.getItem('ai_api_key') || ''
+    if (!apiKey) apiKey = safeStorage.get('ai_api_key') || ''
 
     const model = getActiveAiModel(provider)
 
     let apiBase = ''
     try {
-        const basesMap = JSON.parse(localStorage.getItem('ai_bases_map') || '{}')
+        const basesMap = JSON.parse(safeStorage.get('ai_bases_map') || '{}')
         apiBase = basesMap[provider] || ''
     } catch {
         // ignore malformed config
@@ -252,7 +254,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
         const fetchWordData = async (options?: { autoSave?: boolean }) => {
             const enabledDicts = ['youdao']
             ;['cambridge', 'bing', 'freedict'].forEach(id => {
-                if (localStorage.getItem(`dict_${id}`) !== 'false') {
+                if (safeStorage.get(`dict_${id}`) !== 'false') {
                     enabledDicts.push(id)
                 }
             })

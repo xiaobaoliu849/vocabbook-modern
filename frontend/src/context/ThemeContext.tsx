@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 
@@ -32,7 +34,7 @@ function applyResolvedThemeToRoot(theme: ResolvedTheme) {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, rawSetTheme] = useState<Theme>(() => {
-        const saved = localStorage.getItem('theme')
+        const saved = safeStorage.get('theme')
         if (saved === 'dark' || saved === 'light' || saved === 'system') return saved
         return 'system'
     })
@@ -154,7 +156,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // This allows flushSync to trigger the class update before the browser captures the new snapshot
     useLayoutEffect(() => {
         applyResolvedThemeToRoot(resolvedTheme)
-        localStorage.setItem('theme', theme)
+        safeStorage.set('theme', theme)
     }, [resolvedTheme, theme])
 
     useEffect(() => {

@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { useState, useRef, useEffect } from 'react'
 import { Home, BookOpen, Brain, Settings, ChevronLeft, ChevronRight, User as UserIcon, LogOut, Crown, BarChart2, Bot, Languages } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -85,7 +87,7 @@ function UserAvatarDropdown({ onNavigateToSettings, isCollapsed }: { onNavigateT
     }
     const handleLanguageChange = (nextLanguage: 'en' | 'zh') => {
         void i18n.changeLanguage(nextLanguage)
-        localStorage.setItem('i18nextLng', nextLanguage)
+        safeStorage.set('i18nextLng', nextLanguage)
         setShowDropdown(false)
     }
     const initials = user?.email.charAt(0).toUpperCase() ?? 'U'

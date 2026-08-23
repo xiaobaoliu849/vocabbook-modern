@@ -61,6 +61,16 @@ export default function ShortcutPreferencesCard() {
         const handleKeyDown = (event: KeyboardEvent) => {
             const binding = bindingFromKeyboardEvent(event)
             if (!binding) {
+                // Modifier-less keys are rejected by normalizeShortcutBinding
+                // (they would be swallowed system-wide); explain instead of
+                // failing silently while the recorder stays armed.
+                if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+                    setStatus({
+                        tone: 'error',
+                        message: t('settings.general.shortcuts.requireModifier',
+                            'Include Ctrl / Alt / Cmd — bare keys would be swallowed system-wide.'),
+                    })
+                }
                 return
             }
 

@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Languages, ArrowRightLeft, Copy, Check, Trash2, Clock, Loader2, PanelRight, Eraser, ArrowLeft } from 'lucide-react'
 import { api, API_PATHS } from '../utils/api'
@@ -44,11 +46,11 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
     ), [t])
 
     const loadAiSettings = useCallback((): AISettings => {
-        const provider = localStorage.getItem('ai_provider') || 'openai'
+        const provider = safeStorage.get('ai_provider') || 'openai'
         
         // Try to get API key from map
         let apiKey = ''
-        const savedKeysStr = localStorage.getItem('ai_api_keys_map')
+        const savedKeysStr = safeStorage.get('ai_api_keys_map')
         if (savedKeysStr) {
             try {
                 const keysMap = JSON.parse(savedKeysStr)
@@ -60,12 +62,12 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
         
         // Fallback to legacy key
         if (!apiKey) {
-            apiKey = localStorage.getItem('ai_api_key') || ''
+            apiKey = safeStorage.get('ai_api_key') || ''
         }
 
         // Try to get model from map
         let model = ''
-        const savedModelsStr = localStorage.getItem('ai_models_map')
+        const savedModelsStr = safeStorage.get('ai_models_map')
         if (savedModelsStr) {
             try {
                 const modelsMap = JSON.parse(savedModelsStr)
@@ -77,12 +79,12 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
         
         // Fallback to legacy model
         if (!model) {
-             model = localStorage.getItem('ai_model') || 'gpt-4o-mini'
+             model = safeStorage.get('ai_model') || 'gpt-4o-mini'
         }
 
         // Try to get base url from map
         let apiBase = ''
-        const savedBasesStr = localStorage.getItem('ai_bases_map')
+        const savedBasesStr = safeStorage.get('ai_bases_map')
         if (savedBasesStr) {
             try {
                 const basesMap = JSON.parse(savedBasesStr)

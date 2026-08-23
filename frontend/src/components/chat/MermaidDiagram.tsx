@@ -92,7 +92,11 @@ export const MermaidDiagram: React.FC<{ chartCode: string }> = ({ chartCode }) =
                         primaryTextColor: '#0f172a',
                         lineColor: '#cbd5e1',
                     },
-                    securityLevel: 'loose',
+                    // 'loose' allowed HTML in labels to reach foreignObject,
+                    // so injected markup in model-generated labels executed
+                    // on render (renderer XSS). 'strict' runs mermaid's
+                    // built-in sanitizer instead.
+                    securityLevel: 'strict',
                 })
 
                 const cleanCode = sanitizeMermaidCode(chartCode.trim())

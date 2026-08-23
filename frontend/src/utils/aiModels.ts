@@ -1,3 +1,5 @@
+import { safeStorage } from './safeStorage'
+
 /**
  * Centralized AI Model defaults, presets, and resolution utilities.
  */
@@ -53,23 +55,23 @@ export const PROVIDER_MODEL_PRESETS: Record<string, ModelOption[]> = {
  * Gets the configured active AI model for the specified provider or current default provider.
  */
 export function getActiveAiModel(provider?: string): string {
-    const activeProvider = provider || localStorage.getItem('ai_provider') || 'dashscope'
+    const activeProvider = provider || safeStorage.get('ai_provider') || 'dashscope'
     let modelsMap: Record<string, string> = {}
     try {
-        modelsMap = JSON.parse(localStorage.getItem('ai_models_map') || '{}')
+        modelsMap = JSON.parse(safeStorage.get('ai_models_map') || '{}')
     } catch {
         modelsMap = {}
     }
 
-    let savedModel = modelsMap[activeProvider] || localStorage.getItem('ai_model')
+    let savedModel = modelsMap[activeProvider] || safeStorage.get('ai_model')
 
     // Auto-migrate legacy qwen-flash/qwen-plus to qwen3.7-flash if needed
-    if (activeProvider === 'dashscope' && (!savedModel || savedModel === 'qwen-flash' || savedModel === 'qwen-plus' || savedModel === 'qwen3.5-flash' || savedModel === 'qwen-flash-latest') && !localStorage.getItem('qwen37_flash_migrated_v3')) {
+    if (activeProvider === 'dashscope' && (!savedModel || savedModel === 'qwen-flash' || savedModel === 'qwen-plus' || savedModel === 'qwen3.5-flash' || savedModel === 'qwen-flash-latest') && !safeStorage.get('qwen37_flash_migrated_v3')) {
         savedModel = 'qwen3.7-flash'
         modelsMap[activeProvider] = savedModel
-        localStorage.setItem('qwen37_flash_migrated_v3', 'true')
-        localStorage.setItem('ai_models_map', JSON.stringify(modelsMap))
-        localStorage.setItem('ai_model', savedModel)
+        safeStorage.set('qwen37_flash_migrated_v3', 'true')
+        safeStorage.set('ai_models_map', JSON.stringify(modelsMap))
+        safeStorage.set('ai_model', savedModel)
     }
 
     if (savedModel && savedModel.trim()) {

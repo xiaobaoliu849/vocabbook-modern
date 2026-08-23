@@ -543,6 +543,11 @@ export function normalizeShortcutBinding(binding: string): ShortcutBinding | nul
 
     if (!keyToken) return null
 
+    // Bindings without Ctrl/Meta/Alt are rejected: the global variant would
+    // swallow a bare (or Shift-only) key in every application, and an in-app
+    // one would fire on ordinary typing outside input fields.
+    if (!modifiers.has('Ctrl') && !modifiers.has('Meta') && !modifiers.has('Alt')) return null
+
     const orderedModifiers = modifierTokens.filter((token) => modifiers.has(token))
     return [...orderedModifiers, keyToken].join('+')
 }

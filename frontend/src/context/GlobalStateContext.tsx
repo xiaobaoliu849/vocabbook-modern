@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
 import { api, API_PATHS, invalidateGetCache } from '../utils/api';
 
@@ -64,10 +66,10 @@ export function GlobalStateProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         const backfillKey = 'audio_backfill_v1';
-        if (localStorage.getItem(backfillKey) === 'done') return;
+        if (safeStorage.get(backfillKey) === 'done') return;
 
         api.post(API_PATHS.WORDS_BACKFILL_AUDIO)
-            .then(() => localStorage.setItem(backfillKey, 'done'))
+            .then(() => safeStorage.set(backfillKey, 'done'))
             .catch((error) => {
                 console.warn('Background audio backfill failed:', error);
             });

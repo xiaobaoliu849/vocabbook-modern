@@ -1,3 +1,5 @@
+import { safeStorage } from '../../../utils/safeStorage'
+
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,9 +9,9 @@ export default function DictionarySection() {
     const { t } = useTranslation()
     const [enabledMap, setEnabledMap] = useState<Record<DictionaryId, boolean>>(() => ({
         youdao: true,
-        cambridge: localStorage.getItem('dict_cambridge') !== 'false',
-        bing: localStorage.getItem('dict_bing') !== 'false',
-        freedict: localStorage.getItem('dict_freedict') !== 'false',
+        cambridge: safeStorage.get('dict_cambridge') !== 'false',
+        bing: safeStorage.get('dict_bing') !== 'false',
+        freedict: safeStorage.get('dict_freedict') !== 'false',
     }))
 
     const dictionaries = [
@@ -23,7 +25,7 @@ export default function DictionarySection() {
         if (fixed) return
         setEnabledMap(prev => {
             const next = !prev[id]
-            localStorage.setItem(`dict_${id}`, String(next))
+            safeStorage.set(`dict_${id}`, String(next))
             return { ...prev, [id]: next }
         })
     }

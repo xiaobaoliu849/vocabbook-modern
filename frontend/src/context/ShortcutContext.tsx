@@ -1,3 +1,5 @@
+import { safeStorage } from '../utils/safeStorage'
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import {
     createDefaultShortcutSettings,
@@ -42,7 +44,7 @@ function loadShortcutsFromStorage() {
     const next = createDefaultShortcutSettings()
 
     try {
-        const raw = localStorage.getItem(SHORTCUT_STORAGE_KEY)
+        const raw = safeStorage.get(SHORTCUT_STORAGE_KEY)
         if (!raw) return next
 
         const parsed = JSON.parse(raw) as Partial<Record<ShortcutId, ShortcutBinding[]>>
@@ -54,7 +56,7 @@ function loadShortcutsFromStorage() {
 }
 
 function persistShortcuts(shortcuts: ShortcutSettings) {
-    localStorage.setItem(SHORTCUT_STORAGE_KEY, JSON.stringify(shortcuts))
+    safeStorage.set(SHORTCUT_STORAGE_KEY, JSON.stringify(shortcuts))
 }
 
 export function ShortcutProvider({ children }: { children: React.ReactNode }) {
