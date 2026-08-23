@@ -123,12 +123,23 @@ class EverMemService:
         if attachments:
             content_field: List[Dict] = [{"type": "text", "text": content}] if content else []
             for a in attachments:
+                # type/uri are required by the ContentItem schema; skip
+                # malformed entries instead of letting a KeyError crash the
+                # whole chat request (the stream path dies after headers).
+                att_type = a.get("type") if isinstance(a, dict) else None
+                att_uri = a.get("uri") if isinstance(a, dict) else None
+                if not att_type or not att_uri:
+                    logger.warning("EverMemService: dropping attachment missing type/uri: %r", a)
+                    continue
                 content_field.append({
-                    "type": a["type"],
-                    "uri": a["uri"],
+                    "type": att_type,
+                    "uri": att_uri,
                     "name": a.get("name"),
                     "ext": a.get("ext"),
                 })
+            if not content_field:
+                # Every attachment was malformed — fall back to plain text.
+                content_field = [{"type": "text", "text": content}] if content else []
             message_content = content_field
         else:
             message_content = content

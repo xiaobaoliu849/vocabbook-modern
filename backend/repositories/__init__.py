@@ -6,7 +6,6 @@ from .chat_repo import ChatRepository
 from .cache_repo import CacheRepository
 from .translations_repo import TranslationsRepository
 from .families_repo import FamiliesRepository
-from .limits_repo import LimitsRepository
 
 __all__ = [
     "DictionaryRepository",
@@ -17,5 +16,4 @@ __all__ = [
     "CacheRepository",
     "TranslationsRepository",
     "FamiliesRepository",
-    "LimitsRepository",
 ]

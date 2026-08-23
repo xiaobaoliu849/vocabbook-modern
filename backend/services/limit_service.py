@@ -1,6 +1,4 @@
-import asyncio
 import os
-import httpx
 from datetime import datetime
 from models.database import DatabaseManager
 from services.blocking_io import run_db_blocking
@@ -39,47 +37,54 @@ class LimitService:
             logger.warning(f"[LimitService] Invalid {env_var}={raw!r}, using default {default}")
             return default
 
-    def _reset_if_needed(self, feature: str):
-        """Reset limits if the date has changed"""
-        today = datetime.now().strftime('%Y-%m-%d')
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT used_count, last_reset_date FROM user_limits WHERE feature = ?', (feature,))
-        row = cursor.fetchone()
-        
-        if row is None:
-            # First time using this feature
-            cursor.execute('''
-                INSERT INTO user_limits (feature, used_count, last_reset_date)
-                VALUES (?, 0, ?)
-            ''', (feature, today))
-            conn.commit()
-            return 0
-        
-        used_count, last_reset_date = row
-        if last_reset_date != today:
-            # New day, reset
-            cursor.execute('''
-                UPDATE user_limits 
-                SET used_count = 0, last_reset_date = ? 
-                WHERE feature = ?
-            ''', (today, feature))
-            conn.commit()
-            return 0
-            
-        return used_count
-        
-    def _increment_limit(self, feature: str):
+    def _consume(self, feature: str, max_allowed: int) -> tuple:
+        """Atomically take one unit of the daily quota for ``feature``.
+
+        Single conditional upsert: inserts the row on first use, resets a
+        stale date, or increments — all inside one statement under SQLite's
+        write lock. The DO UPDATE ... WHERE gate means an exhausted quota
+        (same-day count already at the cap) leaves the row untouched, so
+        concurrent requests can neither race the UNIQUE insert into a 500
+        nor push the counter past the cap.
+
+        Returns ``(consumed, used_count)`` where ``consumed`` mirrors the
+        statement's rowcount: True when the insert/reset/increment fired,
+        False when the quota was already exhausted today.
+        """
         today = datetime.now().strftime('%Y-%m-%d')
         conn = self.db.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            UPDATE user_limits 
-            SET used_count = used_count + 1 
-            WHERE feature = ?
-        ''', (feature,))
+            INSERT INTO user_limits (feature, used_count, last_reset_date)
+            VALUES (?, 1, ?)
+            ON CONFLICT(feature) DO UPDATE SET
+                used_count = CASE
+                    WHEN user_limits.last_reset_date < excluded.last_reset_date THEN 1
+                    ELSE user_limits.used_count + 1
+                END,
+                last_reset_date = excluded.last_reset_date
+            WHERE user_limits.last_reset_date < excluded.last_reset_date
+               OR user_limits.used_count < ?
+        ''', (feature, today, max_allowed))
+        consumed = cursor.rowcount > 0
+        cursor.execute(
+            'SELECT used_count FROM user_limits WHERE feature = ?', (feature,)
+        )
+        row = cursor.fetchone()
         conn.commit()
+        return consumed, (row[0] if row else 0)
+
+    def _get_effective_used(self, feature: str) -> int:
+        """Read-only view of today's usage (0 for a missing/stale row)."""
+        today = datetime.now().strftime('%Y-%m-%d')
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT used_count, last_reset_date FROM user_limits WHERE feature = ?', (feature,))
+        row = cursor.fetchone()
+        if row is None:
+            return 0
+        used_count, last_reset_date = row
+        return used_count if (last_reset_date or '') >= today else 0
 
     async def check_and_consume(self, feature: str, token: str = None) -> bool:
         """
@@ -110,24 +115,26 @@ class LimitService:
         if tier == 'premium':
             return True
             
-        # 3. Check Free Limits
+        # 3. Check Free Limits — consume atomically; rowcount tells whether
+        # this request actually took a unit (False = quota already spent).
         max_allowed = self.LIMITS.get(feature, 5)
-        current_used = await run_db_blocking(self._reset_if_needed, feature)
-        
-        if current_used >= max_allowed:
+        if max_allowed <= 0:
             raise LimitException(
-                message=f"本日免费额度已用完 ({max_allowed}次)。请登录账号并订阅高级版以继续使用。", 
+                message=f"本日免费额度已用完 ({max_allowed}次)。请登录账号并订阅高级版以继续使用。",
                 required_tier="premium"
             )
-            
-        # 4. Consume
-        await run_db_blocking(self._increment_limit, feature)
+        consumed, _used_count = await run_db_blocking(self._consume, feature, max_allowed)
+        if not consumed:
+            raise LimitException(
+                message=f"本日免费额度已用完 ({max_allowed}次)。请登录账号并订阅高级版以继续使用。",
+                required_tier="premium"
+            )
         return True
 
     def get_remaining(self, feature: str, token: str = None) -> dict:
         """Returns remaining limit usage info for UI"""
         max_allowed = self.LIMITS.get(feature, 5)
-        current_used = self._reset_if_needed(feature)
+        current_used = self._get_effective_used(feature)
         return {
             "feature": feature,
             "used": current_used,

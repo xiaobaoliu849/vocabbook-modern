@@ -13,7 +13,6 @@ from repositories.chat_repo import ChatRepository
 from repositories.cache_repo import CacheRepository
 from repositories.translations_repo import TranslationsRepository
 from repositories.families_repo import FamiliesRepository
-from repositories.limits_repo import LimitsRepository
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,6 @@ class DatabaseManager:
         self.cache = CacheRepository(self)
         self.translations = TranslationsRepository(self)
         self.families = FamiliesRepository(self)
-        self.limits = LimitsRepository(self)
 
         self.init_db()
         self.check_schema_updates()

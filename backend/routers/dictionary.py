@@ -3,6 +3,8 @@ Dictionary API Router
 词典查询服务
 """
 import asyncio
+import re
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -99,11 +101,18 @@ async def get_word_audio(word: str, accent: str = Query("us", pattern="^(us|uk)$
         raise HTTPException(status_code=404, detail=f"Audio file not found for '{trimmed}'")
 
     cache_status = "HIT" if filepath else "MISS"
+    # filename must be latin-1 encodable (HTTP header); non-ASCII words
+    # (zh/ja/ko/ru are supported by TTS) need the RFC 5987 ext form.
+    ascii_fallback = re.sub(r'[^A-Za-z0-9._-]', "_", trimmed) or "audio"
+    utf8_name = quote(f"{ascii_fallback}.mp3", safe="")
     return FileResponse(
         filepath,
         media_type="audio/mpeg",
         headers={
-            "Content-Disposition": f"inline; filename={trimmed}.mp3",
+            "Content-Disposition": (
+                f"inline; filename={ascii_fallback}.mp3; "
+                f"filename*=UTF-8''{utf8_name}"
+            ),
             "X-Cache": cache_status,
         },
     )
