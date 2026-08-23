@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = 60
     RATE_LIMIT_REGISTER_MAX: int = 5
     RATE_LIMIT_REGISTER_WINDOW_SECONDS: int = 3600
+    # Per-IP login budget across ALL accounts: without it one IP can try
+    # RATE_LIMIT_LOGIN_MAX passwords per account, forever.
+    RATE_LIMIT_LOGIN_IP_MAX: int = 60
+    # Payment creation per user (precreate/native): caps gateway thread-pool
+    # pressure and PENDING row spam from a looping client.
+    RATE_LIMIT_PAY_MAX: int = 10
+    RATE_LIMIT_PAY_WINDOW_SECONDS: int = 60
 
     # Alipay Configuration
     ALIPAY_APP_ID: str = "9021000161679538"

@@ -30,6 +30,9 @@ class Order(Base):
     trade_no = Column(String, nullable=True) # Alipay's transaction ID (populated after payment)
     payment_method = Column(String, default="alipay")
     amount_fen = Column(Integer) # Amount in cents (fen)
+    # Membership days granted on SUCCESS, snapshotted at order creation so a
+    # later plan-config change can't reprice an unpaid order.
+    license_days = Column(Integer, nullable=True)
     status = Column(String, default="PENDING") # PENDING, SUCCESS, FAIL
 
     description = Column(String)

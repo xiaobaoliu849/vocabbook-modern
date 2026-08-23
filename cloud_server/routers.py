@@ -51,6 +51,14 @@ login_rate_limiter = FixedWindowRateLimiter(
 register_rate_limiter = FixedWindowRateLimiter(
     settings.RATE_LIMIT_REGISTER_MAX, settings.RATE_LIMIT_REGISTER_WINDOW_SECONDS
 )
+# Per-IP budget across all accounts: the per-account bucket alone lets one IP
+# brute-force RATE_LIMIT_LOGIN_MAX passwords on every account, never 429ing.
+login_ip_rate_limiter = FixedWindowRateLimiter(
+    settings.RATE_LIMIT_LOGIN_IP_MAX, settings.RATE_LIMIT_LOGIN_WINDOW_SECONDS
+)
+payment_rate_limiter = FixedWindowRateLimiter(
+    settings.RATE_LIMIT_PAY_MAX, settings.RATE_LIMIT_PAY_WINDOW_SECONDS
+)
 
 ORDER_PENDING = "PENDING"
 ORDER_SUCCESS = "SUCCESS"
@@ -92,11 +100,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
             raise credentials_exception
     except auth.JWTError:
         raise credentials_exception
-        
+
     result = await db.execute(select(User).where(User.email == email))
     user = result.scalars().first()
     if user is None:
         raise credentials_exception
+    # A ban must actually bite: tokens live 30 days, so an issued token can't
+    # be the only gate — check the flag on every authenticated request.
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled")
     return user
 
 
@@ -118,7 +130,9 @@ async def register(user: UserCreate, request: Request, db: AsyncSession = Depend
         "Too many registration attempts, please try again later",
     )
     hashed_pw = auth.get_password_hash(user.password)
-    db_user = User(email=user.email, hashed_password=hashed_pw)
+    # Normalize case once: otherwise A@X.com and a@x.com become two accounts
+    # that can never log into each other.
+    db_user = User(email=user.email.strip().lower(), hashed_password=hashed_pw)
     try:
         db.add(db_user)
         await db.commit()
@@ -134,21 +148,31 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
+    username = form_data.username.strip().lower()
+    client_ip = get_client_ip(request)
     enforce_rate_limit(
         login_rate_limiter,
-        f"login:{get_client_ip(request)}:{form_data.username.strip().lower()}",
+        f"login:{client_ip}:{username}",
         "Too many login attempts, please try again later",
     )
-    result = await db.execute(select(User).where(User.email == form_data.username))
+    enforce_rate_limit(
+        login_ip_rate_limiter,
+        f"login-ip:{client_ip}",
+        "Too many login attempts from this network, please try again later",
+    )
+    result = await db.execute(select(User).where(User.email == username))
     user = result.scalars().first()
-    
+
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is disabled")
+
     access_token = auth.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -226,10 +250,27 @@ def _amount_yuan_to_fen(amount: str) -> int | None:
 
 
 def _license_days_for_order(order: Order) -> int:
+    # Prefer the days snapshotted when the order was created; the reverse
+    # lookup only serves legacy rows created before the column existed.
+    if order.license_days:
+        return int(order.license_days)
     for plan in _available_payment_plans().values():
         if order.amount_fen == plan["amount_fen"] and order.description == plan["description"]:
             return int(plan["license_days"])
     return 30
+
+
+def _normalize_expiry_to_utc_naive(dt: datetime | None) -> datetime | None:
+    """Store datetimes as UTC-naive (the SQLite storage convention).
+
+    An aware non-UTC value written directly loses its offset on the way into
+    SQLite, silently shifting expiry by hours.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 async def _claim_order_success(db: AsyncSession, order: Order, trade_no: str | None) -> bool:
@@ -307,6 +348,7 @@ async def _create_payment_order(
             user_id=current_user.id,
             out_trade_no=out_trade_no,
             amount_fen=amount_fen,
+            license_days=int(plan["license_days"]),
             status=ORDER_PENDING,
             description=description
         )
@@ -314,18 +356,38 @@ async def _create_payment_order(
         await db.commit()
         return PayResponse(code_url="https://qr.alipay.com/mock_qr_code", out_trade_no=out_trade_no)
 
+    enforce_rate_limit(
+        payment_rate_limiter,
+        f"pay:{current_user.id}",
+        "Too many payment requests, please try again later",
+    )
+
     out_trade_no = _build_out_trade_no("ORDER", current_user.id)
-    
+
+    new_order = Order(
+        user_id=current_user.id,
+        out_trade_no=out_trade_no,
+        amount_fen=amount_fen,
+        license_days=int(plan["license_days"]),
+        status=ORDER_PENDING,
+        description=description
+    )
+    # Persist BEFORE calling the gateway: saving only after a successful
+    # precreate meant a failed commit stranded an order the callback could
+    # never find (user pays, no row, money gone).
+    db.add(new_order)
+    await db.commit()
+
     # 支付宝 Precreate Model (当面付 - 扫码支付)
     model = AlipayTradePrecreateModel()
     model.out_trade_no = out_trade_no
     model.total_amount = f"{amount_fen / 100:.2f}" # Alipay requires Yuan format e.g., "29.00"
     model.subject = description
     model.timeout_express = "30m" # 30 minutes until expiration
-    
+
     request = AlipayTradePrecreateRequest(biz_model=model)
     request.notify_url = settings.ALIPAY_NOTIFY_URL
-    
+
     try:
         # The SDK client is synchronous (blocking HTTPS to the Alipay gateway,
         # 1-5s when it is slow). Run it in the default thread pool so the
@@ -335,29 +397,27 @@ async def _create_payment_order(
         )
         # response_content is a JSON string (already extracted by SDK)
         api_response = json.loads(response_content)
-        
+
         if api_response.get("code") == "10000": # 10000 means Success in Alipay API
-            # Save Order
-            new_order = Order(
-                user_id=current_user.id,
-                out_trade_no=out_trade_no,
-                amount_fen=amount_fen,
-                status=ORDER_PENDING,
-                description=description
-            )
-            db.add(new_order)
-            await db.commit()
-            
             # qr_code field contains the URL to generate QR locally
             return PayResponse(code_url=api_response.get("qr_code"), out_trade_no=out_trade_no)
         else:
             logger.error(f"Alipay API failed. Raw response: {response_content}")
-            raise HTTPException(status_code=400, detail=f"Alipay API Error: {response_content}")
+            await _mark_order_terminal(db, new_order.id, ORDER_FAIL)
+            await db.commit()
+            # Fixed client-facing text: the raw gateway response can leak
+            # configuration/gateway details; keep it in the log only.
+            raise HTTPException(status_code=400, detail="Alipay precreate failed, please try again later")
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Payment execution failed")
-        raise HTTPException(status_code=500, detail=f"Payment execution failed: {e}")
+        try:
+            await _mark_order_terminal(db, new_order.id, ORDER_FAIL)
+            await db.commit()
+        except Exception:
+            logger.exception("Failed to mark stranded order %s as FAIL", out_trade_no)
+        raise HTTPException(status_code=500, detail="Payment execution failed, please try again later")
 
 
 @app_router.post("/api/pay/alipay/precreate", response_model=PayResponse)
@@ -419,19 +479,28 @@ async def pay_notify(request: Request, db: AsyncSession = Depends(get_db)):
 
     # Signature is valid, Check trade status
     trade_status = params.get("trade_status")
-    if params.get("app_id") and params.get("app_id") != settings.ALIPAY_APP_ID:
-        logger.warning(f"Alipay app_id mismatch: got={params.get('app_id')} expected={settings.ALIPAY_APP_ID}")
+    app_id = params.get("app_id")
+    # Unconditional: a missing app_id used to skip the ownership check.
+    if not app_id or app_id != settings.ALIPAY_APP_ID:
+        logger.error(f"Alipay notify app_id missing/mismatch: got={app_id} expected={settings.ALIPAY_APP_ID}")
         return "fail"
 
     if trade_status in ["TRADE_SUCCESS", "TRADE_FINISHED"]:
         out_trade_no = params.get("out_trade_no")
         trade_no = params.get("trade_no") # Alipay's internal ID
-        
+
         # 1. Update Order
         result = await db.execute(select(Order).where(Order.out_trade_no == out_trade_no))
         order = result.scalars().first()
 
         if not order:
+            # A signed SUCCESS for an order we never issued: either our commit
+            # failed after precreate (pre-persist-first bug) or probing. Never
+            # silent — alert, but still ACK so Alipay stops retrying.
+            logger.error(
+                f"Alipay notify for UNKNOWN out_trade_no={out_trade_no} trade_no={trade_no} "
+                f"amount={params.get('total_amount')} — no matching order row"
+            )
             return "success"
 
         paid_amount_fen = _amount_yuan_to_fen(params.get("total_amount"))
@@ -565,7 +634,9 @@ async def admin_update_user_tier(
     else:
         if payload.license_expiry is not None:
             user.tier = "premium"
-            user.license_expiry = payload.license_expiry
+            # Normalize offsets away: SQLite drops tzinfo as-is, so a
+            # +08:00 value would otherwise expire 8 hours early.
+            user.license_expiry = _normalize_expiry_to_utc_naive(payload.license_expiry)
         else:
             # Statement-based extension so an admin extend racing a payment
             # callback cannot lose either side's days.
@@ -672,10 +743,16 @@ async def admin_update_order_status(
                 days=payload.extend_days or _license_days_for_order(order),
             )
     elif payload.status == ORDER_PENDING:
-        if order.status == ORDER_SUCCESS:
+        # Filtered UPDATE, not the stale ORM read: a late Alipay callback can
+        # flip the order to SUCCESS between our SELECT and this write, and the
+        # old read-then-write clobbered it back to PENDING.
+        pending_update = await db.execute(
+            update(Order)
+            .where(Order.id == order.id, Order.status != ORDER_SUCCESS)
+            .values(status=ORDER_PENDING, updated_at=datetime.now(timezone.utc))
+        )
+        if pending_update.rowcount == 0:
             raise HTTPException(status_code=400, detail="Paid orders cannot be moved back to PENDING")
-        order.status = ORDER_PENDING
-        order.updated_at = datetime.now(timezone.utc)
     else:
         await _mark_order_terminal(db, order.id, payload.status)
 

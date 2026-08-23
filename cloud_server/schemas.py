@@ -15,7 +15,9 @@ class UserBase(BaseModel):
     email: EmailStr
 
 class UserCreate(UserBase):
-    password: str
+    # min 8: no empty/1-char passwords; max 72: bcrypt silently truncates
+    # beyond 72 bytes, which would quietly shrink the effective entropy.
+    password: str = Field(min_length=8, max_length=72)
 
 class UserLogin(UserBase):
     password: str
