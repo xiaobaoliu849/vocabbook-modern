@@ -1,6 +1,6 @@
 {
     "name": "vocabbook-modern",
-    "version": "2.0.0",
+    "version": "0.1.0",
     "description": "智能生词本 - 现代化 AI 增强英语学习工具",
     "main": "main.js",
     "scripts": {
