@@ -38,14 +38,14 @@ const icons: Record<ToastType, typeof CheckCircle> = {
 const colors: Record<ToastType, string> = {
     success: 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400',
     error: 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400',
-    info: 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400',
+    info: 'bg-primary-50 dark:bg-primary-500/10 border-primary-200 dark:border-primary-500/30 text-primary-700 dark:text-primary-400',
     warning: 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400',
 }
 
 const iconColors: Record<ToastType, string> = {
     success: 'text-emerald-500',
     error: 'text-red-500',
-    info: 'text-blue-500',
+    info: 'text-primary-500',
     warning: 'text-amber-500',
 }
 
@@ -125,19 +125,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                                 className="absolute inset-0 bg-black/30 backdrop-blur-sm"
                                 onClick={() => handleConfirm(false)}
                             />
-                            <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 max-w-sm w-full animate-scale-in">
+                            <div className="relative bg-white dark:bg-warm-900 rounded-2xl shadow-2xl border border-warm-200 dark:border-warm-700 p-6 max-w-sm w-full animate-scale-in">
                                 <div className="flex items-start gap-3 mb-6">
                                     <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center shrink-0">
                                         <AlertTriangle size={20} className="text-amber-500" />
                                     </div>
-                                    <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed pt-2">
+                                    <p className="text-sm text-warm-700 dark:text-warm-200 leading-relaxed pt-2">
                                         {confirmState.message}
                                     </p>
                                 </div>
                                 <div className="flex gap-3 justify-end">
                                     <button
                                         onClick={() => handleConfirm(false)}
-                                        className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                                        className="px-4 py-2 text-sm font-medium text-warm-600 dark:text-warm-300 bg-warm-100 dark:bg-warm-800 hover:bg-warm-200 dark:hover:bg-warm-700 rounded-xl transition-colors"
                                     >
                                         Cancel
                                     </button>

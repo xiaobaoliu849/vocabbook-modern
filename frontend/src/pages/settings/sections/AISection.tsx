@@ -247,22 +247,22 @@ export default function AISection() {
     return (
         <div className="space-y-6 animate-fade-in">
             <div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+                <h3 className="text-xl font-bold text-warm-800 dark:text-white mb-2">
                     {t('settings.ai.title', 'AI 智能助手')}
                 </h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">
+                <p className="text-warm-500 dark:text-warm-400 text-sm">
                     {t('settings.ai.desc', '配置用于生成例句和助记的 AI 模型')}
                 </p>
             </div>
 
             <div className="glass-card p-6">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-warm-800 dark:text-white mb-4 flex items-center gap-2">
                     🤖 {t('settings.ai.modelSettings', 'Model Settings')}
                 </h3>
 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        <label className="block text-sm font-medium text-warm-700 dark:text-warm-300 mb-2">
                             {t('settings.ai.provider', 'AI Provider')}
                         </label>
                         <select
@@ -280,7 +280,7 @@ export default function AISection() {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        <label className="block text-sm font-medium text-warm-700 dark:text-warm-300 mb-2">
                             API Key
                         </label>
                         <div className="relative">
@@ -301,12 +301,12 @@ export default function AISection() {
                             <button
                                 type="button"
                                 onClick={() => setShowApiKey(!showApiKey)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600 dark:hover:text-warm-200 focus:outline-none"
                             >
                                 {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-xs text-warm-500 mt-1">
                             {t('settings.ai.apiKeyLocalOnly', 'Your key is stored locally and will not be uploaded to the server')}
                         </p>
                     </div>
@@ -314,7 +314,7 @@ export default function AISection() {
                     {/* Model selector - dynamic dropdown for Ollama, text input for others */}
                     {aiProvider !== 'custom' && (
                         <div className="animate-fade-in">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            <label className="block text-sm font-medium text-warm-700 dark:text-warm-300 mb-2">
                                 {t('settings.ai.modelName', 'Model Name')}
                             </label>
 
@@ -351,14 +351,14 @@ export default function AISection() {
                                         <button
                                             onClick={() => fetchOllamaModels()}
                                             disabled={ollamaLoading}
-                                            className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-1 shrink-0"
+                                            className="px-3 py-2 rounded-xl bg-warm-100 dark:bg-warm-800 text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-700 transition-all flex items-center gap-1 shrink-0"
                                             title={t('settings.ai.refreshModels', '刷新模型列表')}
                                         >
                                             <RefreshCw size={16} className={ollamaLoading ? 'animate-spin' : ''} />
                                         </button>
                                     </div>
                                     {ollamaLoading && (
-                                        <p className="text-xs text-indigo-500 mt-1 animate-pulse">{t('settings.ai.fetchingOllama', '⏳ 正在获取 Ollama 模型列表...')}</p>
+                                        <p className="text-xs text-primary-500 mt-1 animate-pulse">{t('settings.ai.fetchingOllama', '⏳ 正在获取 Ollama 模型列表...')}</p>
                                     )}
                                     {ollamaError && (
                                         <p className="text-xs text-amber-500 mt-1">⚠️ {ollamaError}，{t('settings.ai.manualInput', 'Please enter the model name manually')}</p>
@@ -381,7 +381,7 @@ export default function AISection() {
                                     />
                                     {PROVIDER_MODEL_PRESETS[aiProvider] && (
                                         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                                            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 mr-1">快捷预设模型:</span>
+                                            <span className="text-[11px] font-semibold text-warm-400 dark:text-warm-500 mr-1">快捷预设模型:</span>
                                             {PROVIDER_MODEL_PRESETS[aiProvider].map((preset) => {
                                                 const isSelected = aiModel === preset.id
                                                 return (
@@ -393,8 +393,8 @@ export default function AISection() {
                                                             setAiModels(prev => ({ ...prev, [aiProvider]: preset.id }))
                                                         }}
                                                         className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border ${isSelected
-                                                            ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white shadow-xs'
-                                                            : 'bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+                                                            ? 'bg-warm-900 text-white border-warm-900 dark:bg-white dark:text-warm-900 dark:border-white shadow-xs'
+                                                            : 'bg-white/60 dark:bg-warm-800/60 text-warm-600 dark:text-warm-300 border-warm-200 dark:border-warm-700/60 hover:bg-warm-100 dark:hover:bg-warm-700/60'
                                                             }`}
                                                     >
                                                         {preset.name}
@@ -410,7 +410,7 @@ export default function AISection() {
 
                     {(aiProvider === 'ollama' || aiProvider === 'custom') && (
                         <div className="animate-fade-in">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            <label className="block text-sm font-medium text-warm-700 dark:text-warm-300 mb-2">
                                 {t('settings.ai.baseUrl', 'API 地址 (Base URL)')}
                             </label>
                             <input
@@ -424,7 +424,7 @@ export default function AISection() {
                                 className="input-field w-full"
                             />
                             {aiProvider === 'ollama' && (
-                                <p className="text-xs text-slate-500 mt-1">
+                                <p className="text-xs text-warm-500 mt-1">
                                     {t('settings.ai.defaultBaseUrl', '默认地址为')} <code>http://localhost:11434/v1</code>
                                 </p>
                             )}
@@ -440,7 +440,7 @@ export default function AISection() {
                             disabled={isTesting}
                             className={`px-6 py-2 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${testResult?.success
                                 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                                : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                : 'bg-warm-100 text-warm-700 dark:bg-warm-800 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-700'
                                 }`}
                         >
                             {isTesting ? t('settings.ai.testing', '正在测试...') : t('settings.ai.testConnection', '测试连接')}
@@ -466,18 +466,18 @@ export default function AISection() {
             </div>
 
             {/* EverMemOS Settings */}
-            <div className="glass-card p-6 border-l-4 border-l-indigo-500">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            <div className="glass-card p-6 border-l-4 border-l-primary-500">
+                <h3 className="text-lg font-bold text-warm-800 dark:text-white mb-4 flex items-center gap-2">
                     🧠 {t('settings.ai.evermemos', '长期记忆 (EverMemOS)')}
                 </h3>
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <label className="text-sm font-medium text-warm-700 dark:text-warm-300">
                             {t('settings.ai.enableEvermem', '启用记忆增强')}
                         </label>
                         <button
                             onClick={() => setEvermemEnabled(!evermemEnabled)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${evermemEnabled ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'}`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${evermemEnabled ? 'bg-primary-600' : 'bg-warm-200 dark:bg-warm-700'}`}
                         >
                             <span
                                 className={`${evermemEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
@@ -488,7 +488,7 @@ export default function AISection() {
                     {evermemEnabled && (
                         <div className="animate-fade-in space-y-4 pt-2">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block text-sm font-medium text-warm-700 dark:text-warm-300 mb-1">
                                     {t('settings.ai.evermemApiUrl', 'API URL')}
                                 </label>
                                 <input
@@ -498,12 +498,12 @@ export default function AISection() {
                                     placeholder="https://api.evermind.ai"
                                     className="input-field w-full"
                                 />
-                                <p className="text-xs text-slate-400 mt-1">
+                                <p className="text-xs text-warm-400 mt-1">
                                     {t('settings.ai.evermemUrlHelp', '云端用 https://api.evermind.ai，自部署用 http://127.0.0.1:8000')}
                                 </p>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                <label className="block text-sm font-medium text-warm-700 dark:text-warm-300 mb-1">
                                     {t('settings.ai.evermemApiKey', 'API Key')}
                                 </label>
                                 <div className="relative">
@@ -517,7 +517,7 @@ export default function AISection() {
                                     <button
                                         type="button"
                                         onClick={() => setShowEvermemKey(!showEvermemKey)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus:outline-none"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-400 hover:text-warm-600 dark:hover:text-warm-200 focus:outline-none"
                                     >
                                         {showEvermemKey ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
@@ -527,13 +527,13 @@ export default function AISection() {
                                 <button
                                     type="button"
                                     onClick={() => setMemoryMgmtOpen(true)}
-                                    className="flex items-center gap-2 rounded-lg bg-indigo-500/10 px-3 py-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition"
+                                    className="flex items-center gap-2 rounded-lg bg-primary-500/10 px-3 py-2 text-xs font-bold text-primary-600 dark:text-primary-400 hover:bg-primary-500/20 transition"
                                 >
                                     🗂️ {t('settings.ai.manageMemories', 'Manage Memories')}
                                 </button>
                             </div>
-                            <p className="text-xs text-slate-500">
-                                {t('settings.ai.evermemHelpPrefix', 'Get an API key from ')}<a href="https://console.evermind.ai" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">EverMemOS Cloud</a>{t('settings.ai.evermemHelpMiddle', ', or ')}<a href="https://github.com/EverMind-AI/EverMemOS" target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">{t('settings.ai.selfHost', 'self-host it')}</a>{t('settings.ai.evermemHelpSuffix', '.')}
+                            <p className="text-xs text-warm-500">
+                                {t('settings.ai.evermemHelpPrefix', 'Get an API key from ')}<a href="https://console.evermind.ai" target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline">EverMemOS Cloud</a>{t('settings.ai.evermemHelpMiddle', ', or ')}<a href="https://github.com/EverMind-AI/EverMemOS" target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline">{t('settings.ai.selfHost', 'self-host it')}</a>{t('settings.ai.evermemHelpSuffix', '.')}
                             </p>
                             <MemoryManagementModal isOpen={memoryMgmtOpen} onClose={() => setMemoryMgmtOpen(false)} />
                         </div>

@@ -268,7 +268,7 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                         {onBack && (
                             <button
                                 onClick={onBack}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-warm-500 transition-colors hover:bg-warm-100 hover:text-warm-700 dark:text-warm-400 dark:hover:bg-warm-800 dark:hover:text-warm-200"
                                 title={t('sidebar.chat', 'AI Partner')}
                             >
                                 <ArrowLeft size={16} />
@@ -280,7 +280,7 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
                                   ${showHistory 
                                     ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' 
-                                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'}`}
+                                    : 'text-warm-500 hover:bg-warm-100 dark:text-warm-400 dark:hover:bg-warm-800'}`}
                         >
                             <Clock size={16} />
                             <span>{showHistory ? t('translation.hideHistory') : t('translation.history')}</span>
@@ -288,9 +288,9 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col flex-1">
+                <div className="bg-white dark:bg-warm-800 rounded-2xl shadow-lg border border-warm-200 dark:border-warm-700 overflow-hidden flex flex-col flex-1">
                     {/* Controls */}
-                    <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50">
+                    <div className="p-4 border-b border-warm-200 dark:border-warm-700 flex items-center gap-4 bg-warm-50 dark:bg-warm-800/50">
                         <div className="flex items-center gap-2">
                             <select
                                 value={sourceLang}
@@ -310,7 +310,7 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
 
                         <button
                             onClick={handleSwapLanguages}
-                            className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-500"
+                            className="p-2 rounded-full hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors text-warm-500"
                             title={t('translation.actions.swapLanguages')}
                         >
                             <ArrowRightLeft size={16} />
@@ -337,8 +337,8 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                         <button
                             onClick={handleClearAll}
                             disabled={!sourceText && !targetText}
-                            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300
-                                       hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed
+                            className="px-4 py-2 rounded-lg border border-warm-300 dark:border-warm-600 text-warm-600 dark:text-warm-300
+                                       hover:bg-warm-100 dark:hover:bg-warm-700 disabled:opacity-50 disabled:cursor-not-allowed
                                        transition-all font-medium flex items-center gap-2"
                             title={t('translation.actions.clearAll')}
                         >
@@ -348,7 +348,7 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                     </div>
 
                     {/* Input/Output Area */}
-                    <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-700 overflow-hidden">
+                    <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-warm-200 dark:divide-warm-700 overflow-hidden">
                         {/* Source */}
                         <div className="flex-1 flex flex-col p-4 relative group">
                             <textarea
@@ -358,7 +358,7 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                                     setSourceCopied(false)
                                 }}
                                 placeholder={t('translation.placeholders.sourceText')}
-                                className="w-full h-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-200 text-lg leading-relaxed placeholder-slate-400"
+                                className="w-full h-full bg-transparent resize-none outline-none text-warm-700 dark:text-warm-200 text-lg leading-relaxed placeholder-warm-400"
                                 onKeyDown={e => {
                                     if (e.key === 'Enter' && e.ctrlKey) {
                                         handleTranslate()
@@ -371,20 +371,20 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                                         text={sourceText}
                                         useTTS={true}
                                         size={16}
-                                        className="bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"
+                                        className="bg-white dark:bg-warm-700 shadow-sm border border-warm-200 dark:border-warm-600"
                                     />
                                     <button
                                         onClick={handleCopySource}
-                                        className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
-                                                   text-slate-500 hover:text-green-500 transition-colors"
+                                        className="p-2 rounded-lg bg-white dark:bg-warm-700 shadow-sm border border-warm-200 dark:border-warm-600
+                                                   text-warm-500 hover:text-green-500 transition-colors"
                                         title={t('translation.actions.copySource')}
                                     >
                                         {sourceCopied ? <Check size={16} /> : <Copy size={16} />}
                                     </button>
                                     <button
                                         onClick={handleClearSource}
-                                        className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
-                                                   text-slate-500 hover:text-amber-500 transition-colors"
+                                        className="p-2 rounded-lg bg-white dark:bg-warm-700 shadow-sm border border-warm-200 dark:border-warm-600
+                                                   text-warm-500 hover:text-amber-500 transition-colors"
                                         title={t('translation.actions.clearSource')}
                                     >
                                         <Eraser size={16} />
@@ -394,17 +394,17 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                         </div>
 
                         {/* Target */}
-                        <div className="flex-1 flex flex-col bg-slate-50/50 dark:bg-slate-900/30 relative group overflow-hidden">
+                        <div className="flex-1 flex flex-col bg-warm-50/50 dark:bg-warm-900/30 relative group overflow-hidden">
                             <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
                                 <div className="p-4 flex-1">
                                     {loading ? (
-                                    <div className="h-full flex items-center justify-center text-slate-400 gap-2">
+                                    <div className="h-full flex items-center justify-center text-warm-400 gap-2">
                                         <Loader2 className="animate-spin" />
                                         <span>{t('translation.loading.thinking')}</span>
                                     </div>
                                     ) : (
-                                    <div className="w-full h-full text-slate-800 dark:text-slate-100 text-lg leading-relaxed whitespace-pre-wrap min-h-[100px]">
-                                        {targetText || <span className="text-slate-400 italic">{t('translation.placeholders.result')}</span>}
+                                    <div className="w-full h-full text-warm-800 dark:text-warm-100 text-lg leading-relaxed whitespace-pre-wrap min-h-[100px]">
+                                        {targetText || <span className="text-warm-400 italic">{t('translation.placeholders.result')}</span>}
                                     </div>
                                     )}
                                 </div>
@@ -416,20 +416,20 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                                         text={targetText}
                                         useTTS={true}
                                         size={16}
-                                        className="bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600"
+                                        className="bg-white dark:bg-warm-700 shadow-sm border border-warm-200 dark:border-warm-600"
                                     />
                                     <button
                                         onClick={handleCopy}
-                                        className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
-                                                   text-slate-500 hover:text-green-500 transition-colors"
+                                        className="p-2 rounded-lg bg-white dark:bg-warm-700 shadow-sm border border-warm-200 dark:border-warm-600
+                                                   text-warm-500 hover:text-green-500 transition-colors"
                                         title={t('translation.actions.copyTarget')}
                                     >
                                         {copied ? <Check size={16} /> : <Copy size={16} />}
                                     </button>
                                     <button
                                         onClick={handleClearTarget}
-                                        className="p-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm border border-slate-200 dark:border-slate-600
-                                                   text-slate-500 hover:text-amber-500 transition-colors"
+                                        className="p-2 rounded-lg bg-white dark:bg-warm-700 shadow-sm border border-warm-200 dark:border-warm-600
+                                                   text-warm-500 hover:text-amber-500 transition-colors"
                                         title={t('translation.actions.clearTarget')}
                                     >
                                         <Eraser size={16} />
@@ -442,16 +442,16 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
             </div>
 
             {/* Right: History Sidebar */}
-            <div className={`fixed inset-y-0 right-0 w-80 bg-white dark:bg-slate-900 shadow-2xl transform transition-transform duration-300 z-20 border-l border-slate-200 dark:border-slate-700 flex flex-col
+            <div className={`fixed inset-y-0 right-0 w-80 bg-white dark:bg-warm-900 shadow-2xl transform transition-transform duration-300 z-20 border-l border-warm-200 dark:border-warm-700 flex flex-col
                             ${showHistory ? 'translate-x-0' : 'translate-x-full'} pt-20 pb-4 px-4`}>
                 <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 px-1">
+                <div className="flex items-center gap-2 text-warm-500 dark:text-warm-400 px-1">
                     <Clock size={16} />
                     <span className="text-sm font-medium">{t('translation.history')}</span>
                 </div>
                     <button 
                         onClick={() => setShowHistory(false)}
-                        className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
+                        className="p-1 rounded-full hover:bg-warm-100 dark:hover:bg-warm-800 text-warm-400"
                     >
                         <PanelRight size={18} />
                     </button>
@@ -459,7 +459,7 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
 
                 <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
                     {history.length === 0 ? (
-                        <div className="text-center text-slate-400 py-8 text-sm">
+                        <div className="text-center text-warm-400 py-8 text-sm">
                             {t('translation.emptyHistory')}
                         </div>
                     ) : (
@@ -472,26 +472,26 @@ export default function TranslationPage({ onBack }: { onBack?: () => void }) {
                                     setSourceLang(item.source_lang)
                                     setTargetLang(item.target_lang)
                                 }}
-                                className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 
+                                className="bg-white dark:bg-warm-800 p-3 rounded-xl border border-warm-200 dark:border-warm-700 
                                            hover:shadow-md hover:border-primary-200 dark:hover:border-primary-800 
                                            cursor-pointer group transition-all"
                             >
                                 <div className="flex items-center justify-between mb-2">
-                                    <div className="text-xs font-medium text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">
+                                    <div className="text-xs font-medium text-warm-400 bg-warm-100 dark:bg-warm-700 px-2 py-0.5 rounded-full">
                                         {getLanguageLabel(item.source_lang)} → {getLanguageLabel(item.target_lang)}
                                     </div>
                                     <button
                                         onClick={(e) => handleDelete(item.id, e)}
-                                        className="text-slate-400 hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                                        className="text-warm-400 hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                                         title={t('translation.actions.deleteRecord')}
                                     >
                                         <Trash2 size={14} />
                                     </button>
                                 </div>
-                                <div className="text-sm text-slate-800 dark:text-slate-200 line-clamp-2 mb-1">
+                                <div className="text-sm text-warm-800 dark:text-warm-200 line-clamp-2 mb-1">
                                     {item.source_text}
                                 </div>
-                                <div className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
+                                <div className="text-sm text-warm-500 dark:text-warm-400 line-clamp-2">
                                     {item.target_text}
                                 </div>
                             </div>

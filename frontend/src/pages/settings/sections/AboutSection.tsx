@@ -79,7 +79,7 @@ export default function AboutSection() {
     const renderUpdateButton = () => {
         if (!isElectron) {
             return (
-                <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+                <p className="text-sm text-warm-500 dark:text-warm-400 italic">
                     {t('settings.about.updateOnlyInPackaged', '自动更新仅在打包后的应用中可用')}
                 </p>
             )
@@ -110,18 +110,18 @@ export default function AboutSection() {
                 return (
                     <div className="space-y-3">
                         <div className="flex items-center justify-between text-sm">
-                            <span className="text-slate-600 dark:text-slate-400">{t('settings.about.downloading', '下载中...')}</span>
+                            <span className="text-warm-600 dark:text-warm-400">{t('settings.about.downloading', '下载中...')}</span>
                             <span className="text-primary-600 dark:text-primary-400 font-medium">
                                 {updateInfo?.percent?.toFixed(1) || 0}%
                             </span>
                         </div>
-                        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-2 bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
                             <div
                                 className="h-full bg-gradient-to-r from-primary-500 to-primary-600 transition-all duration-300"
                                 style={{ width: `${updateInfo?.percent || 0}%` }}
                             />
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                        <p className="text-xs text-warm-500 dark:text-warm-400">
                             {formatBytes(updateInfo?.transferred || 0)} / {formatBytes(updateInfo?.total || 0)}
                             {updateInfo?.bytesPerSecond && ` · ${formatBytes(updateInfo.bytesPerSecond)}/s`}
                         </p>
@@ -143,7 +143,7 @@ export default function AboutSection() {
             case 'not-available':
                 return (
                     <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                        <div className="flex items-center gap-2 text-warm-600 dark:text-warm-400">
                             <CheckCircle size={18} className="text-emerald-500" />
                             <span>{t('settings.about.isLatestVersion', '当前已是最新版本')}</span>
                         </div>
@@ -179,29 +179,29 @@ export default function AboutSection() {
     return (
         <div className="space-y-6 animate-fade-in">
             <div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+                <h3 className="text-xl font-bold text-warm-800 dark:text-white mb-2">
                     {t('settings.about.title', 'About')}
                 </h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">
+                <p className="text-warm-500 dark:text-warm-400 text-sm">
                     {t('settings.about.desc', '版本信息与软件更新')}
                 </p>
             </div>
 
             {/* Version Info Card */}
             <div className="glass-card p-6">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-warm-800 dark:text-white mb-4 flex items-center gap-2">
                     ℹ️ {t('settings.about.versionInfo', 'Version Information')}
                 </h3>
 
-                <div className="text-slate-600 dark:text-slate-400 space-y-4">
+                <div className="text-warm-600 dark:text-warm-400 space-y-4">
                     <div>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100 text-lg">{t('settings.about.appName', '智能生词本 Modern')}</p>
+                        <p className="font-semibold text-warm-900 dark:text-warm-100 text-lg">{t('settings.about.appName', '智能生词本 Modern')}</p>
                         <p className="text-sm opacity-80">{t('settings.about.versionLabel', 'Version')} {appVersion}</p>
                     </div>
 
                     <p>{t('settings.about.appDesc', '使用 React + FastAPI + AI 构建的现代化英语学习工具')}</p>
 
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl text-sm leading-relaxed">
+                    <div className="bg-warm-50 dark:bg-warm-800/50 p-4 rounded-xl text-sm leading-relaxed">
                         <p className="font-medium mb-1">{t('settings.about.features', '主要特性：')}</p>
                         <ul className="list-disc list-inside space-y-1 ml-1 opacity-90">
                             <li>{t('settings.about.feature1', 'SM-2 间隔重复记忆算法')}</li>
@@ -215,7 +215,7 @@ export default function AboutSection() {
 
             {/* Update Card */}
             <div className="glass-card p-6">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-warm-800 dark:text-white mb-4 flex items-center gap-2">
                     🔄 {t('settings.about.softwareUpdate', '软件更新')}
                 </h3>
 
@@ -226,7 +226,7 @@ export default function AboutSection() {
 
             {/* Footer */}
             <div className="text-center pt-4">
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-warm-400">
                     {t('settings.about.footer', 'Designed with ❤️ by VocabBook Team')}
                 </p>
             </div>

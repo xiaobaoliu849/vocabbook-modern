@@ -27,7 +27,7 @@ const AdminPanelPage = lazy(() => import('./pages/AdminPanel'))
 
 function PageFallback() {
   return (
-    <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-slate-200 bg-white/70 text-sm text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+    <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-warm-200 bg-white/70 text-sm text-warm-500 shadow-sm dark:border-warm-700 dark:bg-warm-900/40 dark:text-warm-300">
       Loading page...
     </div>
   )
@@ -210,20 +210,20 @@ function AppContent() {
       {/* Keyboard Shortcuts Help Panel */}
       {showHelp && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-warm-900/60 backdrop-blur-sm animate-fade-in"
           onClick={() => setShowHelp(false)}
         >
           <div
-            className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto animate-scale-up border border-slate-200 dark:border-slate-700"
+            className="bg-white dark:bg-warm-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto animate-scale-up border border-warm-200 dark:border-warm-700"
             onClick={e => e.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-700">
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white/80 dark:bg-warm-800/80 backdrop-blur-md border-b border-warm-100 dark:border-warm-700">
+              <h3 className="text-xl font-bold text-warm-800 dark:text-white flex items-center gap-2">
                 {t('shortcuts.title', '⌨️ Keyboard Shortcuts')}
               </h3>
               <button
                 onClick={() => setShowHelp(false)}
-                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-slate-400 hover:text-slate-600"
+                className="p-2 rounded-xl hover:bg-warm-100 dark:hover:bg-warm-700 transition-all text-warm-400 hover:text-warm-600"
               >
                 ✕
               </button>
@@ -245,7 +245,7 @@ function AppContent() {
 
                 return (
                   <div key={group.id}>
-                    <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                    <h4 className="text-sm font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-3">
                       {t(group.titleKey, group.fallbackTitle)}
                     </h4>
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -275,15 +275,15 @@ function AppContent() {
 // Shortcut display component
 function ShortcutItem({ bindings, desc, platform }: { bindings: string[]; desc: string; platform: string }) {
   return (
-    <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50">
-      <span className="text-sm text-slate-600 dark:text-slate-300">{desc}</span>
+    <div className="flex items-center justify-between p-2 rounded-lg bg-warm-50 dark:bg-warm-900/50">
+      <span className="text-sm text-warm-600 dark:text-warm-300">{desc}</span>
       <div className="flex flex-wrap justify-end gap-2">
         {bindings.map((binding) => (
           <div key={binding} className="flex gap-1">
             {formatShortcutBinding(binding, platform).map((key) => (
               <kbd
                 key={`${binding}-${key}`}
-                className="px-2 py-1 text-xs font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded border border-slate-300 dark:border-slate-600 shadow-sm"
+                className="px-2 py-1 text-xs font-mono bg-warm-200 dark:bg-warm-700 text-warm-700 dark:text-warm-300 rounded border border-warm-300 dark:border-warm-600 shadow-sm"
               >
                 {key}
               </kbd>

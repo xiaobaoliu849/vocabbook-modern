@@ -14,18 +14,18 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
         return (
             <div className="space-y-6">
                 <div>
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">{t('settings.account.title', '账户')}</h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">{t('settings.account.desc', '管理您的账户信息和会员状态')}</p>
+                    <h3 className="text-xl font-bold text-warm-800 dark:text-white mb-2">{t('settings.account.title', '账户')}</h3>
+                    <p className="text-warm-500 dark:text-warm-400 text-sm">{t('settings.account.desc', '管理您的账户信息和会员状态')}</p>
                 </div>
 
                 <div className="bg-gradient-to-br from-primary-50 to-accent-50 dark:from-primary-900/20 dark:to-accent-900/20 rounded-2xl p-8 text-center border border-primary-100 dark:border-primary-800/30">
                     <div className="w-16 h-16 bg-primary-100 dark:bg-primary-800/30 rounded-2xl mx-auto mb-4 flex items-center justify-center">
                         <Shield size={32} className="text-primary-600 dark:text-primary-400" />
                     </div>
-                    <h4 className="text-lg font-semibold text-slate-800 dark:text-white mb-2">
+                    <h4 className="text-lg font-semibold text-warm-800 dark:text-white mb-2">
                         {t('settings.account.loginForSync', '登录以使用云同步')}
                     </h4>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                    <p className="text-sm text-warm-500 dark:text-warm-400 max-w-sm mx-auto">
                         {t('settings.account.loginForSyncDesc', '登录后，您的生词本数据将自动同步到云端，支持多设备访问。')}
                     </p>
                 </div>
@@ -40,14 +40,14 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
         <div className="space-y-6">
             {/* Section Header */}
             <div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">{t('settings.account.title', '账户')}</h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">{t('settings.account.desc', '管理您的账户信息和会员状态')}</p>
+                <h3 className="text-xl font-bold text-warm-800 dark:text-white mb-2">{t('settings.account.title', '账户')}</h3>
+                <p className="text-warm-500 dark:text-warm-400 text-sm">{t('settings.account.desc', '管理您的账户信息和会员状态')}</p>
             </div>
 
             {/* Profile Card */}
             <div className={`rounded-2xl p-6 border ${isPremium
                 ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-200 dark:border-amber-800/30'
-                : 'bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/50 dark:to-slate-900/50 border-slate-200 dark:border-slate-700'
+                : 'bg-gradient-to-br from-warm-50 to-warm-100 dark:from-warm-800/50 dark:to-warm-900/50 border-warm-200 dark:border-warm-700'
                 }`}>
                 <div className="flex items-start gap-5">
                     {/* Avatar */}
@@ -56,7 +56,7 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
                     >
                         {initials}
                         {isPremium && (
-                            <div className="absolute -top-2 -right-2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-slate-900">
+                            <div className="absolute -top-2 -right-2 w-8 h-8 bg-amber-400 rounded-full flex items-center justify-center shadow-md ring-2 ring-white dark:ring-warm-900">
                                 <Crown size={16} className="text-amber-800" />
                             </div>
                         )}
@@ -64,10 +64,10 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
 
                     {/* User Info */}
                     <div className="flex-1 min-w-0">
-                        <h4 className="text-xl font-bold text-slate-800 dark:text-white">
+                        <h4 className="text-xl font-bold text-warm-800 dark:text-white">
                             {user.email.split('@')[0]}
                         </h4>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-1">
+                        <p className="text-sm text-warm-500 dark:text-warm-400 flex items-center gap-1.5 mt-1">
                             <Mail size={14} />
                             {user.email}
                         </p>
@@ -80,7 +80,7 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
                                     {t('settings.account.premium', '专业版会员')}
                                 </span>
                             ) : (
-                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-warm-200 text-warm-600 dark:bg-warm-700 dark:text-warm-300">
                                     {t('settings.account.free', '免费版')}
                                 </span>
                             )}
@@ -97,10 +97,10 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
                             <Crown size={24} className="text-white" />
                         </div>
                         <div className="flex-1">
-                            <h4 className="font-semibold text-slate-800 dark:text-white mb-1">
+                            <h4 className="font-semibold text-warm-800 dark:text-white mb-1">
                                 {t('settings.account.upgradeTitle', '升级至专业版')}
                             </h4>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+                            <p className="text-sm text-warm-500 dark:text-warm-400 mb-3">
                                 {t('settings.account.upgradeDesc', '解锁无限制 AI 生成、云端同步、多设备支持等高级功能')}
                             </p>
                             <button
@@ -121,39 +121,39 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
             )}
 
             {/* Cloud Sync Status */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 p-6 opacity-80">
+            <div className="rounded-2xl border border-warm-200 dark:border-warm-700 bg-white/50 dark:bg-warm-800/50 p-6 opacity-80">
                 <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center">
-                        <Cloud size={20} className="text-slate-500 dark:text-slate-400" />
+                    <div className="w-10 h-10 bg-warm-100 dark:bg-warm-800 rounded-xl flex items-center justify-center">
+                        <Cloud size={20} className="text-warm-500 dark:text-warm-400" />
                     </div>
                     <div>
-                        <h4 className="font-semibold text-slate-800 dark:text-white">{t('settings.account.cloudSync', '云同步')}</h4>
+                        <h4 className="font-semibold text-warm-800 dark:text-white">{t('settings.account.cloudSync', '云同步')}</h4>
                         <p className="text-xs text-amber-600 dark:text-amber-400">{t('settings.account.comingSoon', '敬请期待')}</p>
                     </div>
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm text-warm-500 dark:text-warm-400">
                     {t('settings.account.cloudSyncPendingDesc', '多设备生词本云端同步功能正在紧锣密鼓地开发中，未来将为您提供无缝的多端学习体验。')}
                 </p>
             </div>
 
             {/* Device Info */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 p-6">
+            <div className="rounded-2xl border border-warm-200 dark:border-warm-700 bg-white/50 dark:bg-warm-800/50 p-6">
                 <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
-                        <Smartphone size={20} className="text-blue-600 dark:text-blue-400" />
+                    <div className="w-10 h-10 bg-primary-100 dark:bg-primary-900/30 rounded-xl flex items-center justify-center">
+                        <Smartphone size={20} className="text-primary-600 dark:text-primary-400" />
                     </div>
                     <div>
-                        <h4 className="font-semibold text-slate-800 dark:text-white">{t('settings.account.currentDevice', '当前设备')}</h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{t('settings.account.desktopApp', '桌面应用')}</p>
+                        <h4 className="font-semibold text-warm-800 dark:text-white">{t('settings.account.currentDevice', '当前设备')}</h4>
+                        <p className="text-xs text-warm-500 dark:text-warm-400">{t('settings.account.desktopApp', '桌面应用')}</p>
                     </div>
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="text-sm text-warm-500 dark:text-warm-400">
                     {t('settings.account.deviceSyncDesc', '此设备已登录您的账户，数据将实时同步。')}
                 </p>
             </div>
 
             {onOpenAdmin && (
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 p-6">
+                <div className="rounded-2xl border border-warm-200 dark:border-warm-700 bg-white/50 dark:bg-warm-800/50 p-6">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <div className="flex items-center gap-3 mb-2">
@@ -161,11 +161,11 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
                                     <Shield size={20} className="text-violet-600 dark:text-violet-400" />
                                 </div>
                                 <div>
-                                    <h4 className="font-semibold text-slate-800 dark:text-white">{t('admin.title', 'Cloud Admin')}</h4>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('sidebar.adminTooltip', 'Manage cloud users, tiers, and orders')}</p>
+                                    <h4 className="font-semibold text-warm-800 dark:text-white">{t('admin.title', 'Cloud Admin')}</h4>
+                                    <p className="text-xs text-warm-500 dark:text-warm-400">{t('sidebar.adminTooltip', 'Manage cloud users, tiers, and orders')}</p>
                                 </div>
                             </div>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                            <p className="text-sm text-warm-500 dark:text-warm-400">
                                 {t('admin.subtitle', 'Manage registered users, premium access, and payment orders from the deployed cloud API.')}
                             </p>
                         </div>
@@ -181,7 +181,7 @@ export default function AccountSection({ onOpenAdmin }: { onOpenAdmin?: () => vo
             )}
 
             {/* Logout Section */}
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="pt-4 border-t border-warm-200 dark:border-warm-700">
                 <button
                     onClick={logout}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"

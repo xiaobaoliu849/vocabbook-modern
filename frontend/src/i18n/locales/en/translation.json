@@ -286,6 +286,16 @@
       "retry": "Retry",
       "checkUpdate": "Check for Updates",
       "footer": "Designed with ❤️ by VocabBook Team"
+    },
+    "appearance": {
+      "paletteTitle": "Color Palette",
+      "paletteDesc": "Switch the overall color scheme; remembered independently of light/dark mode",
+      "paletteCream": "Cream Terracotta",
+      "paletteCreamDesc": "Terracotta on warm cream — cozy and inviting",
+      "palettePeach": "Peach Latte",
+      "palettePeachDesc": "Soft peach with sage — gentle and sweet",
+      "paletteStone": "Minimal Stone",
+      "paletteStoneDesc": "Notion-style restrained neutrals"
     }
   },
   "auth": {

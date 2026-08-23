@@ -110,10 +110,10 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
 
     return createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
-            <div ref={trapRef} role="dialog" aria-modal="true" className="bg-white/10 dark:bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/20 dark:border-white/10 p-8 rounded-3xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto flex flex-col">
+            <div ref={trapRef} role="dialog" aria-modal="true" className="bg-white/10 dark:bg-warm-800/90 backdrop-blur-xl border border-white/20 dark:border-white/10 p-8 rounded-3xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto flex flex-col">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors z-10"
+                    className="absolute top-4 right-4 text-warm-400 hover:text-white transition-colors z-10"
                 >
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -121,10 +121,10 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                 </button>
 
                 <div className="text-center mb-10">
-                    <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400 mb-2">
+                    <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-400 to-primary-400 mb-2">
                         {t('subscription.title', 'Upgrade to Premium')}
                     </h2>
-                    <p className="text-slate-400 text-lg">{t('subscription.subtitle', 'Unlock the full potential of vocabulary learning.')}</p>
+                    <p className="text-warm-400 text-lg">{t('subscription.subtitle', 'Unlock the full potential of vocabulary learning.')}</p>
                 </div>
 
                 {error && (
@@ -139,36 +139,36 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                             {/* Free Tier */}
                             <div className="bg-black/20 border border-white/5 rounded-2xl p-6 relative">
                                 {user?.tier === 'free' && (
-                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-600 text-white text-xs px-3 py-1 rounded-full font-medium">
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-warm-600 text-white text-xs px-3 py-1 rounded-full font-medium">
                                         {t('subscription.currentPlan', 'Current plan')}
                                     </div>
                                 )}
                                 <h3 className="text-xl font-semibold text-white mb-2">{t('subscription.free.name', 'Free')}</h3>
-                                <div className="text-3xl font-bold text-white mb-6">¥0 <span className="text-sm text-slate-400 font-normal">{t('subscription.free.priceSuffix', '/ lifetime')}</span></div>
-                                <ul className="space-y-3 text-slate-300">
+                                <div className="text-3xl font-bold text-white mb-6">¥0 <span className="text-sm text-warm-400 font-normal">{t('subscription.free.priceSuffix', '/ lifetime')}</span></div>
+                                <ul className="space-y-3 text-warm-300">
                                     <li className="flex items-center"><span className="text-green-400 mr-2">✓</span> {t('subscription.free.features.basicSync', 'Basic vocabulary sync')}</li>
                                     <li className="flex items-center"><span className="text-green-400 mr-2">✓</span> {t('subscription.free.features.sm2', 'SM-2 spaced repetition')}</li>
-                                    <li className="flex items-center"><span className="text-slate-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.aiChatLimit', 'AI chat (10/day)')}</li>
-                                    <li className="flex items-center"><span className="text-slate-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.edgeTtsLimit', 'Edge TTS (30/day)')}</li>
-                                    <li className="flex items-center"><span className="text-slate-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.aiGenerationLimit', 'AI sentence generation (15/day)')}</li>
+                                    <li className="flex items-center"><span className="text-warm-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.aiChatLimit', 'AI chat (10/day)')}</li>
+                                    <li className="flex items-center"><span className="text-warm-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.edgeTtsLimit', 'Edge TTS (30/day)')}</li>
+                                    <li className="flex items-center"><span className="text-warm-500 mr-2 border rounded-full px-1 text-xs">!</span> {t('subscription.free.features.aiGenerationLimit', 'AI sentence generation (15/day)')}</li>
                                 </ul>
                             </div>
 
                             {/* Premium Tier */}
-                            <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border border-blue-500/30 rounded-2xl p-6 relative transform md:-translate-y-2 shadow-xl shadow-blue-500/10">
+                            <div className="bg-gradient-to-br from-primary-900/40 to-primary-900/40 border border-primary-500/30 rounded-2xl p-6 relative transform md:-translate-y-2 shadow-xl shadow-primary-500/10">
                                 {user?.tier === 'premium' && (
-                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs px-3 py-1 rounded-full font-bold shadow-lg">
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary-500 to-primary-500 text-white text-xs px-3 py-1 rounded-full font-bold shadow-lg">
                                         {t('subscription.currentActive', 'Currently active')}
                                     </div>
                                 )}
-                                <h3 className="text-xl font-semibold text-blue-300 mb-2">{t('subscription.premium.name', 'Premium')}</h3>
-                                <div className="text-3xl font-bold text-white mb-6">¥29 <span className="text-sm text-blue-200/50 font-normal">{t('subscription.premium.priceSuffix', '/ month')}</span></div>
-                                <ul className="space-y-3 text-blue-100">
-                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> {t('subscription.premium.features.unlimitedAiChat', 'Unlimited AI chat')}</li>
-                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> {t('subscription.premium.features.unlimitedEdgeTts', 'Unlimited Edge TTS')}</li>
-                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> {t('subscription.premium.features.unlimitedAiGeneration', 'Unlimited AI generation')}</li>
-                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> {t('subscription.premium.features.prioritySupport', 'Priority support')}</li>
-                                    <li className="flex items-center"><span className="text-blue-400 mr-2">★</span> {t('subscription.premium.features.deviceSync', 'Multi-device sync')}</li>
+                                <h3 className="text-xl font-semibold text-primary-300 mb-2">{t('subscription.premium.name', 'Premium')}</h3>
+                                <div className="text-3xl font-bold text-white mb-6">¥29 <span className="text-sm text-primary-200/50 font-normal">{t('subscription.premium.priceSuffix', '/ month')}</span></div>
+                                <ul className="space-y-3 text-primary-100">
+                                    <li className="flex items-center"><span className="text-primary-400 mr-2">★</span> {t('subscription.premium.features.unlimitedAiChat', 'Unlimited AI chat')}</li>
+                                    <li className="flex items-center"><span className="text-primary-400 mr-2">★</span> {t('subscription.premium.features.unlimitedEdgeTts', 'Unlimited Edge TTS')}</li>
+                                    <li className="flex items-center"><span className="text-primary-400 mr-2">★</span> {t('subscription.premium.features.unlimitedAiGeneration', 'Unlimited AI generation')}</li>
+                                    <li className="flex items-center"><span className="text-primary-400 mr-2">★</span> {t('subscription.premium.features.prioritySupport', 'Priority support')}</li>
+                                    <li className="flex items-center"><span className="text-primary-400 mr-2">★</span> {t('subscription.premium.features.deviceSync', 'Multi-device sync')}</li>
                                 </ul>
                             </div>
                         </div>
@@ -177,7 +177,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                             <button
                                 onClick={handleSubscribe}
                                 disabled={loading || user?.tier === 'premium'}
-                                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 px-12 rounded-2xl transition-all shadow-lg shadow-blue-500/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+                                className="bg-gradient-to-r from-primary-600 to-primary-600 hover:from-primary-500 hover:to-primary-500 text-white font-bold py-4 px-12 rounded-2xl transition-all shadow-lg shadow-primary-500/25 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-lg"
                             >
                                 {loading
                                     ? t('subscription.actions.processing', 'Processing...')
@@ -189,13 +189,13 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
 
                         {/* Alternative: Contact Admin */}
                         <div className="mt-6 pt-5 border-t border-white/10">
-                            <p className="text-slate-400 text-sm mb-3 text-center">
+                            <p className="text-warm-400 text-sm mb-3 text-center">
                                 {t('subscription.altMethods.title', '其他开通方式')}
                             </p>
                             <div className="flex flex-col sm:flex-row justify-center gap-3">
                                 <a
                                     href="mailto:381450393@qq.com"
-                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-sm hover:bg-white/10 transition-colors"
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-warm-300 text-sm hover:bg-white/10 transition-colors"
                                 >
                                     <span>📧</span>
                                     {t('subscription.altMethods.email', '邮件联系管理员')}
@@ -206,24 +206,24 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                                         setWechatCopied(true);
                                         setTimeout(() => setWechatCopied(false), 2000);
                                     }}
-                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-sm hover:bg-white/10 transition-colors"
+                                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-warm-300 text-sm hover:bg-white/10 transition-colors"
                                 >
                                     <span>💬</span>
                                     <span>{wechatCopied ? t('subscription.altMethods.copied', '已复制!') : t('subscription.altMethods.wechat', '微信: xiaobaoliu849')}</span>
                                 </button>
                             </div>
-                            <p className="text-slate-500 text-xs mt-3 text-center">
+                            <p className="text-warm-500 text-xs mt-3 text-center">
                                 {t('subscription.altMethods.hint', '联系管理员后，将在 24 小时内为您开通会员权限')}
                             </p>
                         </div>
                     </>
                 ) : (
                     <div className="bg-white rounded-2xl p-8 flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
-                        <h3 className="text-slate-800 font-bold mb-4 text-xl">{t('subscription.actions.scanWithAlipay', 'Scan with Alipay')}</h3>
-                        <div className="p-4 bg-slate-50 rounded-xl mb-4 border">
+                        <h3 className="text-warm-800 font-bold mb-4 text-xl">{t('subscription.actions.scanWithAlipay', 'Scan with Alipay')}</h3>
+                        <div className="p-4 bg-warm-50 rounded-xl mb-4 border">
                             <QRCodeSVG value={qrCodeUrl} size={200} />
                         </div>
-                        <p className="text-sm text-slate-500 mb-6 font-mono text-center">
+                        <p className="text-sm text-warm-500 mb-6 font-mono text-center">
                             {t('subscription.payment.orderNo', {
                                 defaultValue: 'Order No: {{orderNo}}',
                                 orderNo: orderNo || ''
@@ -232,7 +232,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                         <button
                             onClick={handleCheckStatus}
                             disabled={loading}
-                            className="text-blue-600 font-medium hover:bg-blue-50 py-2 px-6 rounded-lg transition-colors"
+                            className="text-primary-600 font-medium hover:bg-primary-50 py-2 px-6 rounded-lg transition-colors"
                         >
                             {loading
                                 ? t('subscription.actions.checking', 'Checking...')
@@ -242,7 +242,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
                         <div className="flex gap-4 mt-3">
                             <button
                                 onClick={() => { setQrCodeUrl(null); setOrderNo(null); setError(''); }}
-                                className="text-slate-400 text-sm hover:text-slate-600 transition-colors py-1.5"
+                                className="text-warm-400 text-sm hover:text-warm-600 transition-colors py-1.5"
                             >
                                 {t('subscription.actions.cancelPayment', 'Cancel payment')}
                             </button>

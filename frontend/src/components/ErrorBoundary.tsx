@@ -64,13 +64,13 @@ export class ErrorBoundary extends Component<Props, State> {
             }
 
             return (
-                <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 p-6">
+                <div className="min-h-screen flex items-center justify-center bg-warm-50 dark:bg-warm-900 p-6">
                     <div className="glass-card p-8 max-w-md w-full text-center space-y-6">
                         <div className="text-6xl">😵</div>
-                        <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+                        <h2 className="text-2xl font-bold text-warm-800 dark:text-white">
                             {t('errorBoundary.title', 'Oops, something went wrong!')}
                         </h2>
-                        <p className="text-slate-500 dark:text-slate-400">
+                        <p className="text-warm-500 dark:text-warm-400">
                             {t('errorBoundary.description', 'The app encountered an unexpected error. Please try refreshing the page.')}
                         </p>
 

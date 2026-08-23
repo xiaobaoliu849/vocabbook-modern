@@ -584,7 +584,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-96">
-                <div className="text-xl text-slate-500 animate-pulse">{t('review.loading')}</div>
+                <div className="text-xl text-warm-500 animate-pulse">{t('review.loading')}</div>
             </div>
         )
     }
@@ -594,8 +594,8 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
         return (
             <div className="animate-fade-in text-center py-16">
-                <span className="text-slate-400 dark:text-slate-500">{difficultMode ? <Dumbbell size={48} /> : practiceMode ? <BookOpen size={48} /> : hasPendingDue ? <BookOpen size={48} /> : <Trophy size={48} />}</span>
-                <h2 className="text-2xl font-bold mt-4 text-slate-800 dark:text-white">
+                <span className="text-warm-400 dark:text-warm-500">{difficultMode ? <Dumbbell size={48} /> : practiceMode ? <BookOpen size={48} /> : hasPendingDue ? <BookOpen size={48} /> : <Trophy size={48} />}</span>
+                <h2 className="text-2xl font-bold mt-4 text-warm-800 dark:text-white">
                     {difficultMode
                         ? t('review.empty.difficultTitle')
                         : practiceMode
@@ -604,7 +604,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                 ? t('review.empty.pendingTitle')
                                 : t('review.empty.normalTitle')}
                 </h2>
-                <p className="text-slate-500 mt-2">
+                <p className="text-warm-500 mt-2">
                     {difficultMode
                         ? t('review.empty.difficultDesc')
                         : practiceMode
@@ -633,7 +633,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                         <Flame size={16} /> {t('review.empty.difficultMode')}
                     </button>
                 </div>
-                <p className="text-xs text-slate-400 mt-4">
+                <p className="text-xs text-warm-400 mt-4">
                     {t('review.empty.modeHint')}
                 </p>
             </div>
@@ -691,7 +691,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 <div className="mb-4 flex items-start justify-between gap-6">
                     <div className="min-w-0 flex-1 space-y-3">
                         <div className="flex flex-wrap items-center gap-3">
-                            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+                            <h2 className="text-2xl font-bold text-warm-800 dark:text-white">
                                 {t('review.title')}
                             </h2>
                             {practiceMode && (
@@ -717,12 +717,12 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                 </button>
                             )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500 dark:text-slate-400">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-warm-500 dark:text-warm-400">
                             <span>{t('review.progress', { current: currentIndex + 1, total: progressTotal, reviewed: sessionStats.reviewed })}</span>
-                            <span className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600" />
-                            <span className="text-slate-400 dark:text-slate-500">{reviewModes.find(mode => mode.key === reviewMode)?.label}</span>
+                            <span className="h-1 w-1 rounded-full bg-warm-300 dark:bg-warm-600" />
+                            <span className="text-warm-400 dark:text-warm-500">{reviewModes.find(mode => mode.key === reviewMode)?.label}</span>
                         </div>
-                        <div className="inline-flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/75 p-1.5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/65 dark:shadow-[0_16px_36px_rgba(0,0,0,0.24)]">
+                        <div className="inline-flex flex-wrap items-center gap-1.5 rounded-2xl border border-warm-200/80 bg-white/75 p-1.5 shadow-[0_14px_34px_rgba(15,23,42,0.06)] backdrop-blur-sm dark:border-warm-700/70 dark:bg-warm-900/65 dark:shadow-[0_16px_36px_rgba(0,0,0,0.24)]">
                             {reviewModes.map(mode => {
                                 const Icon = mode.icon
                                 const isActiveMode = reviewMode === mode.key
@@ -731,11 +731,11 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                         key={mode.key}
                                         onClick={() => switchReviewMode(mode.key)}
                                         className={`group inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all ${isActiveMode
-                                            ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80 dark:bg-slate-800 dark:text-white dark:ring-slate-700/80'
-                                            : 'text-slate-500 hover:bg-white/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-200'
+                                            ? 'bg-white text-warm-900 shadow-sm ring-1 ring-warm-200/80 dark:bg-warm-800 dark:text-white dark:ring-warm-700/80'
+                                            : 'text-warm-500 hover:bg-white/80 hover:text-warm-800 dark:text-warm-400 dark:hover:bg-warm-800/80 dark:hover:text-warm-200'
                                             }`}
                                     >
-                                        <span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${isActiveMode ? mode.iconAccent : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                                        <span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${isActiveMode ? mode.iconAccent : 'bg-warm-100 text-warm-500 dark:bg-warm-800 dark:text-warm-400'}`}>
                                             <Icon size={15} className={isActiveMode ? mode.accent : ''} />
                                         </span>
                                         <span>{mode.label}</span>
@@ -744,15 +744,15 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                             })}
                         </div>
                     </div>
-                    <div className="hidden shrink-0 md:flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/78 px-4 py-3 text-left shadow-[0_14px_34px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/60 dark:shadow-[0_16px_34px_rgba(0,0,0,0.22)]">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
+                    <div className="hidden shrink-0 md:flex items-center gap-3 rounded-2xl border border-warm-200/80 bg-white/78 px-4 py-3 text-left shadow-[0_14px_34px_rgba(15,23,42,0.05)] backdrop-blur-sm dark:border-warm-700/70 dark:bg-warm-900/60 dark:shadow-[0_16px_34px_rgba(0,0,0,0.22)]">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-warm-900 text-white dark:bg-warm-100 dark:text-warm-900">
                             <Keyboard size={16} />
                         </div>
                         <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-warm-400 dark:text-warm-500">
                                 {t('review.labels.controls', 'Controls')}
                             </p>
-                            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                            <p className="text-sm font-medium text-warm-600 dark:text-warm-300">
                                 {topShortcutText}
                             </p>
                         </div>
@@ -760,7 +760,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                 </div>
 
                 {/* Progress Bar */}
-                <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div className="h-2 bg-warm-200 dark:bg-warm-700 rounded-full overflow-hidden">
                     <div
                         className="h-full bg-linear-to-r from-primary-500 to-accent-500 transition-all duration-300"
                         style={{ width: `${((currentIndex + 1) / progressTotal) * 100}%` }}
@@ -818,14 +818,14 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                         >
                             <div className="flip-card-inner relative w-full h-full">
                                 {/* Front */}
-                                <div className={`flip-card-front absolute inset-0 bg-white dark:bg-slate-800 flex flex-col overflow-hidden backface-hidden ${isFlipped ? 'pointer-events-none' : 'pointer-events-auto'}`}>
+                                <div className={`flip-card-front absolute inset-0 bg-white dark:bg-warm-800 flex flex-col overflow-hidden backface-hidden ${isFlipped ? 'pointer-events-none' : 'pointer-events-auto'}`}>
                                     {reviewMode === 'flashcard' ? (
                                         <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-6 py-4">
-                                            <h3 className="text-5xl font-bold text-slate-800 dark:text-white mb-4 text-center">
+                                            <h3 className="text-5xl font-bold text-warm-800 dark:text-white mb-4 text-center">
                                                 {currentWord.word}
                                             </h3>
                                             {currentWord.phonetic && (
-                                                <p className="text-2xl text-slate-500 mb-3 font-mono">{currentWord.phonetic}</p>
+                                                <p className="text-2xl text-warm-500 mb-3 font-mono">{currentWord.phonetic}</p>
                                             )}
                                             <AudioButton
                                                 word={currentWord.word}
@@ -839,7 +839,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                             {/* Meaning Display Area - Grows */}
                                             <div ref={spellingScrollRef} data-review-scroll="true" className="flex-1 overflow-y-auto w-full px-8 py-6 custom-scrollbar flex flex-col justify-start">
                                                 {currentWord.meaning && (
-                                                    <div className="text-xl text-slate-700 dark:text-slate-300 text-left space-y-3 leading-relaxed max-w-3xl mx-auto">
+                                                    <div className="text-xl text-warm-700 dark:text-warm-300 text-left space-y-3 leading-relaxed max-w-3xl mx-auto">
                                                         {currentWord.meaning.split('\n').map((line, i) => (
                                                             <div key={i}>{line}</div>
                                                         ))}
@@ -848,7 +848,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                             </div>
 
                                             {/* Input Area - Fixed at bottom */}
-                                            <div className="flex-none p-6 bg-gradient-to-t from-white/50 to-transparent dark:from-slate-900/50 flex flex-col items-center gap-4">
+                                            <div className="flex-none p-6 bg-gradient-to-t from-white/50 to-transparent dark:from-warm-900/50 flex flex-col items-center gap-4">
                                                 <input
                                                     type="text"
                                                     value={spellingInput}
@@ -865,7 +865,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                                             ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
                                                             : spellingStatus === 'incorrect'
                                                                 ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                                                                : 'border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 focus:border-primary-500'
+                                                                : 'border-warm-200 dark:border-warm-700 bg-white/80 dark:bg-warm-800/80 focus:border-primary-500'
                                                     }
                                             `}
                                                 />
@@ -893,7 +893,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                                             e.stopPropagation()
                                                             setShowSpellingHint(!showSpellingHint)
                                                         }}
-                                                        className="text-slate-400 hover:text-primary-500 text-sm underline decoration-dotted underline-offset-4"
+                                                        className="text-warm-400 hover:text-primary-500 text-sm underline decoration-dotted underline-offset-4"
                                                     >
                                                         {showSpellingHint ? currentWord.word[0] + '...' : t('review.spelling.hint')}
                                                     </button>
@@ -904,10 +904,10 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                 </div>
 
                                 {/* Back */}
-                                <div className={`flip-card-back absolute inset-0 bg-white dark:bg-slate-800 flex flex-col overflow-hidden backface-hidden ${isFlipped ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+                                <div className={`flip-card-back absolute inset-0 bg-white dark:bg-warm-800 flex flex-col overflow-hidden backface-hidden ${isFlipped ? 'pointer-events-auto' : 'pointer-events-none'}`}>
                                     {/* Compact header — keep word visible without stealing scroll space */}
-                                    <div className="flex-none bg-white dark:bg-slate-800 py-2.5 px-6 z-10 border-b border-slate-100 dark:border-slate-700/50">
-                                        <h3 className="text-2xl font-bold text-slate-800 dark:text-white text-center">
+                                    <div className="flex-none bg-white dark:bg-warm-800 py-2.5 px-6 z-10 border-b border-warm-100 dark:border-warm-700/50">
+                                        <h3 className="text-2xl font-bold text-warm-800 dark:text-white text-center">
                                             {currentWord.word}
                                         </h3>
                                     </div>
@@ -916,22 +916,22 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                     <div ref={answerScrollRef} data-review-scroll="true" className="flex-1 min-h-0 overflow-y-auto px-6 py-4 custom-scrollbar">
                                         <div className="max-w-4xl mx-auto space-y-6">
                                             {/* Meaning Section */}
-                                            <div className="text-xl text-slate-700 dark:text-slate-300 text-left leading-relaxed font-medium">
+                                            <div className="text-xl text-warm-700 dark:text-warm-300 text-left leading-relaxed font-medium">
                                                 {isEditingMeaning ? (
-                                                    <div className="space-y-3 bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60">
+                                                    <div className="space-y-3 bg-warm-50 dark:bg-warm-900/60 p-4 rounded-2xl border border-warm-200 dark:border-warm-700/60">
                                                         <textarea
                                                             value={customMeaningInput}
                                                             onChange={e => setCustomMeaningInput(e.target.value)}
                                                             placeholder="请输入或修改中文释义..."
                                                             rows={3}
-                                                            className="w-full p-3 text-base rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                                                            className="w-full p-3 text-base rounded-xl border border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800 text-warm-800 dark:text-warm-100 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
                                                             autoFocus
                                                         />
                                                         <div className="flex items-center justify-end gap-2">
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsEditingMeaning(false)}
-                                                                className="px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                                                className="px-3 py-1.5 text-xs font-semibold rounded-lg text-warm-500 hover:bg-warm-200 dark:hover:bg-warm-700 transition-colors"
                                                             >
                                                                 取消
                                                             </button>
@@ -946,8 +946,8 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                                         </div>
                                                     </div>
                                                 ) : (!currentWord.meaning || currentWord.meaning.trim() === '暂无释义') ? (
-                                                    <div className="flex flex-col items-start gap-3 py-3 bg-slate-50/70 dark:bg-slate-900/40 p-5 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700/60">
-                                                        <span className="text-slate-400 dark:text-slate-500 italic text-base">暂无释义（词典未能找到该词的定义）</span>
+                                                    <div className="flex flex-col items-start gap-3 py-3 bg-warm-50/70 dark:bg-warm-900/40 p-5 rounded-2xl border border-dashed border-warm-200 dark:border-warm-700/60">
+                                                        <span className="text-warm-400 dark:text-warm-500 italic text-base">暂无释义（词典未能找到该词的定义）</span>
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             <button
                                                                 type="button"
@@ -974,7 +974,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                                                     setCustomMeaningInput('')
                                                                     setIsEditingMeaning(true)
                                                                 }}
-                                                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
+                                                                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800 text-warm-600 dark:text-warm-300 hover:bg-warm-100 dark:hover:bg-warm-700 transition-all cursor-pointer"
                                                             >
                                                                 <Edit3 size={14} />
                                                                 <span>手动添加释义</span>
@@ -999,7 +999,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                                                 setIsEditingMeaning(true)
                                                             }}
                                                             title="编辑释义"
-                                                            className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-2 -top-2 p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-2 -top-2 p-1.5 rounded-lg bg-warm-100 dark:bg-warm-700 text-warm-400 hover:text-warm-600 dark:hover:text-warm-200 cursor-pointer"
                                                         >
                                                             <Edit3 size={14} />
                                                         </button>
@@ -1009,14 +1009,14 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
                                             {/* Examples Section */}
                                             {currentWord.example && (
-                                                <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 text-left border border-slate-100 dark:border-slate-700/50">
-                                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                                <div className="bg-warm-50 dark:bg-warm-900/50 rounded-2xl p-6 text-left border border-warm-100 dark:border-warm-700/50">
+                                                    <p className="text-xs font-bold text-warm-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-warm-400"></span>
                                                         {t('review.examples')}
                                                     </p>
                                                     <div className="space-y-4">
                                                         {splitExamples(currentWord.example).map((ex, i) => (
-                                                            <div key={i} className="flex items-start gap-3 p-3 bg-white/50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700/50 hover:border-primary-200 dark:hover:border-primary-800 transition-colors">
+                                                            <div key={i} className="flex items-start gap-3 p-3 bg-white/50 dark:bg-warm-800/50 rounded-xl border border-warm-100 dark:border-warm-700/50 hover:border-primary-200 dark:hover:border-primary-800 transition-colors">
                                                                 <AudioButton
                                                                     text={extractEnglish(ex)}
                                                                     useTTS={true}
@@ -1025,7 +1025,7 @@ export default function Review({ isActive }: { isActive?: boolean }) {
                                                                     className="mt-0.5 flex-shrink-0 bg-emerald-50/50 hover:bg-emerald-100 dark:bg-emerald-900/10"
                                                                 />
                                                                 <div className="flex-1">
-                                                                    <p className="text-base text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">
+                                                                    <p className="text-base text-warm-700 dark:text-warm-300 whitespace-pre-line leading-relaxed">
                                                                         {ex}
                                                                     </p>
                                                                 </div>
@@ -1042,62 +1042,62 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
                         {/* Integrated footer — hint / rating inside the card to reclaim vertical space */}
                         {showBottomDock && (
-                            <div className="flex-none shrink-0 border-t border-slate-100 dark:border-slate-700/50 bg-white dark:bg-slate-800 px-4 py-2.5">
+                            <div className="flex-none shrink-0 border-t border-warm-100 dark:border-warm-700/50 bg-white dark:bg-warm-800 px-4 py-2.5">
                                 {isFlipped ? (
                                     <div className="flex justify-center gap-2 w-full max-w-4xl mx-auto animate-slide-up">
                                         <button
                                             onClick={() => handleRating(1)}
-                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
-                                                bg-white dark:bg-[#1f1f1f] hover:bg-red-50 dark:hover:bg-red-900/20
+                                            className="flex-1 h-9 rounded-lg border border-warm-200 dark:border-warm-700
+                                                bg-white dark:bg-warm-900 hover:bg-red-50 dark:hover:bg-red-900/20
                                                 hover:border-red-200 dark:hover:border-red-800
-                                                text-stone-600 dark:text-stone-400 hover:text-red-600 dark:hover:text-red-400
+                                                text-warm-600 dark:text-warm-400 hover:text-red-600 dark:hover:text-red-400
                                                 font-medium text-sm transition-all duration-150"
                                         >
                                             {t('review.rating.1')}
                                         </button>
                                         <button
                                             onClick={() => handleRating(2)}
-                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
-                                                bg-white dark:bg-[#1f1f1f] hover:bg-orange-50 dark:hover:bg-orange-900/20
+                                            className="flex-1 h-9 rounded-lg border border-warm-200 dark:border-warm-700
+                                                bg-white dark:bg-warm-900 hover:bg-orange-50 dark:hover:bg-orange-900/20
                                                 hover:border-orange-200 dark:hover:border-orange-800
-                                                text-stone-600 dark:text-stone-400 hover:text-orange-600 dark:hover:text-orange-400
+                                                text-warm-600 dark:text-warm-400 hover:text-orange-600 dark:hover:text-orange-400
                                                 font-medium text-sm transition-all duration-150"
                                         >
                                             {t('review.rating.2')}
                                         </button>
                                         <button
                                             onClick={() => handleRating(3)}
-                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
-                                                bg-white dark:bg-[#1f1f1f] hover:bg-amber-50 dark:hover:bg-amber-900/20
+                                            className="flex-1 h-9 rounded-lg border border-warm-200 dark:border-warm-700
+                                                bg-white dark:bg-warm-900 hover:bg-amber-50 dark:hover:bg-amber-900/20
                                                 hover:border-amber-200 dark:hover:border-amber-800
-                                                text-stone-600 dark:text-stone-400 hover:text-amber-600 dark:hover:text-amber-400
+                                                text-warm-600 dark:text-warm-400 hover:text-amber-600 dark:hover:text-amber-400
                                                 font-medium text-sm transition-all duration-150"
                                         >
                                             {t('review.rating.3')}
                                         </button>
                                         <button
                                             onClick={() => handleRating(4)}
-                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
-                                                bg-white dark:bg-[#1f1f1f] hover:bg-blue-50 dark:hover:bg-blue-900/20
-                                                hover:border-blue-200 dark:hover:border-blue-800
-                                                text-stone-600 dark:text-stone-400 hover:text-blue-600 dark:hover:text-blue-400
+                                            className="flex-1 h-9 rounded-lg border border-warm-200 dark:border-warm-700
+                                                bg-white dark:bg-warm-900 hover:bg-primary-50 dark:hover:bg-primary-900/20
+                                                hover:border-primary-200 dark:hover:border-primary-800
+                                                text-warm-600 dark:text-warm-400 hover:text-primary-600 dark:hover:text-primary-400
                                                 font-medium text-sm transition-all duration-150"
                                         >
                                             {t('review.rating.4')}
                                         </button>
                                         <button
                                             onClick={() => handleRating(5)}
-                                            className="flex-1 h-9 rounded-lg border border-stone-200 dark:border-stone-700
-                                                bg-white dark:bg-[#1f1f1f] hover:bg-green-50 dark:hover:bg-green-900/20
+                                            className="flex-1 h-9 rounded-lg border border-warm-200 dark:border-warm-700
+                                                bg-white dark:bg-warm-900 hover:bg-green-50 dark:hover:bg-green-900/20
                                                 hover:border-green-200 dark:hover:border-green-800
-                                                text-stone-600 dark:text-stone-400 hover:text-green-600 dark:hover:text-green-400
+                                                text-warm-600 dark:text-warm-400 hover:text-green-600 dark:hover:text-green-400
                                                 font-medium text-sm transition-all duration-150"
                                         >
                                             {t('review.rating.5')}
                                         </button>
                                     </div>
                                 ) : (
-                                    <div className="text-slate-400 text-sm text-center animate-pulse">
+                                    <div className="text-warm-400 text-sm text-center animate-pulse">
                                         {bottomHintText}
                                     </div>
                                 )}

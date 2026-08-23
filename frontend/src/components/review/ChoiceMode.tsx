@@ -99,11 +99,11 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
         <div className="w-full h-full min-h-0 flex flex-col p-6 md:p-8">
             {/* Word Display */}
             <div className="flex-none text-center pb-6">
-                <h3 className="text-4xl font-bold text-slate-800 dark:text-white mb-3 md:text-5xl">
+                <h3 className="text-4xl font-bold text-warm-800 dark:text-white mb-3 md:text-5xl">
                     {word.word}
                 </h3>
                 {word.phonetic && (
-                    <p className="text-xl text-slate-500 mb-4 font-mono md:text-2xl">{word.phonetic}</p>
+                    <p className="text-xl text-warm-500 mb-4 font-mono md:text-2xl">{word.phonetic}</p>
                 )}
                 <AudioButton
                     word={word.word}
@@ -116,7 +116,7 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
             <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
                 <div className="mx-auto grid w-full max-w-2xl grid-cols-2 content-start gap-4">
                     {options.map((option, index) => {
-                        let bgClass = 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'
+                        let bgClass = 'bg-white dark:bg-warm-800 hover:bg-warm-50 dark:hover:bg-warm-700 border-warm-200 dark:border-warm-700'
 
                         if (showResult) {
                             if (option.isCorrect) {
@@ -124,7 +124,7 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
                             } else if (index === selectedIndex) {
                                 bgClass = 'bg-red-100 dark:bg-red-900/40 border-red-500 text-red-800 dark:text-red-300'
                             } else {
-                                bgClass = 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-50'
+                                bgClass = 'bg-warm-100 dark:bg-warm-800 border-warm-200 dark:border-warm-700 opacity-50'
                             }
                         }
 
@@ -139,7 +139,7 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
                                     ${!showResult ? 'cursor-pointer transform hover:scale-[1.02]' : 'cursor-default'}
                                 `}
                             >
-                                <span className="text-xs font-bold text-slate-400 mr-2 pt-0.5">{index + 1}</span>
+                                <span className="text-xs font-bold text-warm-400 mr-2 pt-0.5">{index + 1}</span>
                                 <span className="text-base leading-relaxed">{option.text}</span>
                             </button>
                         )

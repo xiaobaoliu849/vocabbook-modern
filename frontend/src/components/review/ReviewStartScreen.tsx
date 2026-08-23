@@ -16,7 +16,7 @@ export default function ReviewStartScreen({ dueCount, onStart, onStartPractice }
             icon: <Layers size={24} />,
             title: t('review.start.modes.flashcard.title'),
             desc: t('review.start.modes.flashcard.desc'),
-            color: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
+            color: 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
         },
         {
             id: 'spelling',
@@ -44,10 +44,10 @@ export default function ReviewStartScreen({ dueCount, onStart, onStartPractice }
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in p-6">
             <div className="text-center mb-10">
-                <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">
+                <h1 className="text-3xl font-bold text-warm-800 dark:text-white mb-2">
                     {t('review.start.title')}
                 </h1>
-                <p className="text-slate-500 text-lg">
+                <p className="text-warm-500 text-lg">
                     {t('review.start.todayDue', { count: dueCount })}
                 </p>
             </div>
@@ -57,16 +57,16 @@ export default function ReviewStartScreen({ dueCount, onStart, onStartPractice }
                     <button
                         key={mode.id}
                         onClick={() => onStart(mode.id)}
-                        className="flex items-center p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 hover:shadow-lg hover:scale-[1.02] transition-all text-left group"
+                        className="flex items-center p-4 bg-white dark:bg-warm-800 rounded-2xl border border-warm-100 dark:border-warm-700 hover:shadow-lg hover:scale-[1.02] transition-all text-left group"
                     >
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl mr-4 ${mode.color}`}>
                             {mode.icon}
                         </div>
                         <div>
-                            <h3 className="font-bold text-slate-700 dark:text-slate-200 group-hover:text-primary-600 transition-colors">
+                            <h3 className="font-bold text-warm-700 dark:text-warm-200 group-hover:text-primary-600 transition-colors">
                                 {mode.title}
                             </h3>
-                            <p className="text-sm text-slate-400 dark:text-slate-500">
+                            <p className="text-sm text-warm-400 dark:text-warm-500">
                                 {mode.desc}
                             </p>
                         </div>
@@ -77,7 +77,7 @@ export default function ReviewStartScreen({ dueCount, onStart, onStartPractice }
             <div className="flex gap-4">
                 <button
                     onClick={() => onStartPractice('flashcard')}
-                    className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    className="px-6 py-2.5 rounded-xl border border-warm-200 dark:border-warm-700 text-warm-500 hover:text-warm-700 hover:bg-warm-50 dark:hover:bg-warm-800 transition-colors"
                 >
                     {t('review.start.freePractice')}
                 </button>

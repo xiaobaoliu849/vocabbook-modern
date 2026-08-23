@@ -71,14 +71,14 @@ export function MemoryPanel({
 
     return (
         <>
-            <div className={`absolute inset-y-0 right-0 z-30 w-full max-w-sm border-l border-white/20 dark:border-slate-800/20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className={`absolute inset-y-0 right-0 z-30 w-full max-w-sm border-l border-white/20 dark:border-warm-800/20 bg-white/60 dark:bg-warm-900/60 backdrop-blur-xl shadow-2xl transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="flex h-full flex-col">
-                    <div className="flex items-start justify-between gap-3 border-b border-slate-200/20 dark:border-slate-700/20 px-6 py-6">
+                    <div className="flex items-start justify-between gap-3 border-b border-warm-200/20 dark:border-warm-700/20 px-6 py-6">
                         <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                            <p className="text-xs font-bold text-warm-400 dark:text-warm-500 uppercase tracking-widest">
                                 {t('chat.memory.panel.title')}
                             </p>
-                            <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
+                            <p className="mt-1 text-lg font-bold text-warm-900 dark:text-warm-100">
                                 {t('chat.memory.panel.subtitle')}
                             </p>
                             {updatedAt && (
@@ -90,7 +90,7 @@ export function MemoryPanel({
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setMemoryMgmtOpen(true)}
-                                className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-xs font-bold text-slate-500 transition-all hover:bg-white/50 hover:text-amber-600 dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-amber-400"
+                                className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-xs font-bold text-warm-500 transition-all hover:bg-white/50 hover:text-amber-600 dark:text-warm-400 dark:hover:bg-warm-800/50 dark:hover:text-amber-400"
                                 title={t('chat.memory.panel.manage')}
                                 aria-label={t('chat.memory.panel.manage')}
                             >
@@ -99,14 +99,14 @@ export function MemoryPanel({
                             </button>
                             <button
                                 onClick={onRefresh}
-                                className="rounded-xl p-2.5 text-slate-400 transition-all hover:bg-white/50 dark:hover:bg-slate-800/50 hover:text-amber-500"
+                                className="rounded-xl p-2.5 text-warm-400 transition-all hover:bg-white/50 dark:hover:bg-warm-800/50 hover:text-amber-500"
                                 title={t('chat.memory.panel.refresh')}
                             >
                                 <RotateCw size={16} className={loading ? 'animate-spin' : ''} />
                             </button>
                             <button
                                 onClick={onClose}
-                                className="rounded-xl p-2.5 text-slate-400 transition-all hover:bg-white/50 dark:hover:bg-slate-800/50 hover:text-slate-600"
+                                className="rounded-xl p-2.5 text-warm-400 transition-all hover:bg-white/50 dark:hover:bg-warm-800/50 hover:text-warm-600"
                                 title={t('chat.memory.panel.close')}
                             >
                                 <X size={18} />
@@ -118,7 +118,7 @@ export function MemoryPanel({
                         {loading && !memoryOverview && (
                             <div className="flex flex-col items-center justify-center h-40 space-y-3">
                                 <div className="w-8 h-8 border-3 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{t('chat.memory.panel.loading')}</p>
+                                <p className="text-xs font-bold text-warm-400 uppercase tracking-widest">{t('chat.memory.panel.loading')}</p>
                             </div>
                         )}
 
@@ -136,9 +136,9 @@ export function MemoryPanel({
 
                         {!loading && !memoryOverview?.requires_auth && (
                             <>
-                                <div className="rounded-2xl border border-slate-200/30 bg-white/40 dark:bg-slate-800/40 p-5 shadow-sm">
+                                <div className="rounded-2xl border border-warm-200/30 bg-white/40 dark:bg-warm-800/40 p-5 shadow-sm">
                                     <div className="flex items-center justify-between gap-3 mb-4">
-                                        <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                        <p className="text-xs font-bold text-warm-400 dark:text-warm-500 uppercase tracking-widest">
                                             {t('chat.memory.panel.reviewFocusTitle')}
                                         </p>
                                         <div className="flex gap-2">
@@ -151,17 +151,17 @@ export function MemoryPanel({
                                     {weakWords.length > 0 ? (
                                         <div className="space-y-2">
                                             {weakWords.slice(0, 4).map(item => (
-                                                <div key={item.word} className="rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-900/40 px-3 py-2.5 transition-all hover:bg-white/80 dark:hover:bg-slate-900/60">
+                                                <div key={item.word} className="rounded-xl border border-white/60 dark:border-warm-700/60 bg-white/40 dark:bg-warm-900/40 px-3 py-2.5 transition-all hover:bg-white/80 dark:hover:bg-warm-900/60">
                                                     <div className="flex items-center justify-between gap-3">
                                                         <div className="min-w-0">
-                                                            <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
+                                                            <p className="truncate text-sm font-bold text-warm-900 dark:text-warm-100">
                                                                 {item.word}
                                                             </p>
-                                                            <p className="truncate text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                                                            <p className="truncate text-[11px] text-warm-500 dark:text-warm-400 font-medium mt-0.5">
                                                                 {item.meaning || t('chat.memory.panel.noMeaning')}
                                                             </p>
                                                         </div>
-                                                        <span className={`shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] font-bold ${item.is_due ? 'bg-amber-500/10 text-amber-600 border border-amber-200/30' : 'bg-slate-500/10 text-slate-500 border border-slate-200/30'}`}>
+                                                        <span className={`shrink-0 rounded-lg px-1.5 py-0.5 text-[10px] font-bold ${item.is_due ? 'bg-amber-500/10 text-amber-600 border border-amber-200/30' : 'bg-warm-500/10 text-warm-500 border border-warm-200/30'}`}>
                                                             {item.error_count}x
                                                         </span>
                                                     </div>
@@ -169,7 +169,7 @@ export function MemoryPanel({
                                             ))}
                                         </div>
                                     ) : (
-                                        <p className="text-xs font-medium text-slate-400 italic">
+                                        <p className="text-xs font-medium text-warm-400 italic">
                                             {t('chat.memory.panel.noWeakWords')}
                                         </p>
                                     )}
@@ -185,18 +185,18 @@ export function MemoryPanel({
                                 </div>
 
                                 {(memoryOverview?.foresights?.length ?? 0) > 0 && (
-                                    <div className="rounded-2xl border border-blue-200/30 bg-blue-500/5 p-5 shadow-sm">
-                                        <p className="text-xs font-bold text-blue-500 dark:text-blue-400 uppercase tracking-widest mb-4">
+                                    <div className="rounded-2xl border border-primary-200/30 bg-primary-500/5 p-5 shadow-sm">
+                                        <p className="text-xs font-bold text-primary-500 dark:text-primary-400 uppercase tracking-widest mb-4">
                                             {t('chat.memory.panel.foresightTitle')}
                                         </p>
                                         <div className="space-y-3">
                                             {(memoryOverview?.foresights || []).map((fs, index) => (
-                                                <div key={fs.memory_id || index} className="relative pl-4 border-l-2 border-blue-500/20 pr-6">
-                                                    <p className="text-[13px] font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
+                                                <div key={fs.memory_id || index} className="relative pl-4 border-l-2 border-primary-500/20 pr-6">
+                                                    <p className="text-[13px] font-medium text-warm-700 dark:text-warm-200 leading-relaxed">
                                                         {fs.content}
                                                     </p>
                                                     {fs.timestamp && (
-                                                        <span className="text-[10px] font-bold text-slate-400 mt-1 block">
+                                                        <span className="text-[10px] font-bold text-warm-400 mt-1 block">
                                                             {formatMemoryTimestamp(fs.timestamp)}
                                                         </span>
                                                     )}
@@ -204,7 +204,7 @@ export function MemoryPanel({
                                                         <button
                                                             type="button"
                                                             onClick={() => onDismissForesight(fs.memory_id!)}
-                                                            className="absolute top-0 right-0 rounded-lg p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-all"
+                                                            className="absolute top-0 right-0 rounded-lg p-1 text-warm-400 hover:text-warm-600 dark:hover:text-warm-200 hover:bg-warm-200/50 dark:hover:bg-warm-700/50 transition-all"
                                                             title={t('chat.memory.panel.foresightDismiss')}
                                                         >
                                                             <X size={12} />
@@ -216,27 +216,27 @@ export function MemoryPanel({
                                     </div>
                                 )}
 
-                                <div className="rounded-2xl border border-slate-200/30 bg-white/40 dark:bg-slate-800/40 p-5 shadow-sm">
-                                    <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
+                                <div className="rounded-2xl border border-warm-200/30 bg-white/40 dark:bg-warm-800/40 p-5 shadow-sm">
+                                    <p className="text-xs font-bold text-warm-400 dark:text-warm-500 uppercase tracking-widest mb-4">
                                         {t('chat.memory.panel.profileTitle')}
                                     </p>
                                     <div className="flex flex-wrap gap-2">
                                         {(memoryOverview?.profile_facts || []).length > 0 ? (
                                             memoryOverview?.profile_facts.map((fact, index) => (
-                                                <div key={`${fact}-${index}`} className="rounded-xl border border-white/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-900/40 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                <div key={`${fact}-${index}`} className="rounded-xl border border-white/60 dark:border-warm-700/60 bg-white/40 dark:bg-warm-900/40 px-3 py-2 text-xs font-bold text-warm-600 dark:text-warm-300">
                                                     {fact}
                                                 </div>
                                             ))
                                         ) : (
-                                            <p className="text-xs font-medium text-slate-400 italic">
+                                            <p className="text-xs font-medium text-warm-400 italic">
                                                 {t('chat.memory.panel.noProfile')}
                                             </p>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="rounded-2xl border border-slate-200/30 bg-white/40 dark:bg-slate-800/40 p-5 shadow-sm">
-                                    <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">
+                                <div className="rounded-2xl border border-warm-200/30 bg-white/40 dark:bg-warm-800/40 p-5 shadow-sm">
+                                    <p className="text-xs font-bold text-warm-400 dark:text-warm-500 uppercase tracking-widest mb-4">
                                         {t('chat.memory.panel.recentTitle')}
                                     </p>
                                     <div className="space-y-3">
@@ -247,17 +247,17 @@ export function MemoryPanel({
                                                         <span className={`text-[10px] font-bold uppercase tracking-widest ${item.bucket === 'review' ? 'text-emerald-500' : 'text-amber-500'}`}>
                                                             {item.bucket === 'review' ? t('chat.memory.panel.reviewBucket') : t('chat.memory.panel.chatBucket')}
                                                         </span>
-                                                        <span className="text-[10px] font-bold text-slate-400">
+                                                        <span className="text-[10px] font-bold text-warm-400">
                                                             {formatMemoryTimestamp(item.timestamp)}
                                                         </span>
                                                     </div>
-                                                    <p className="text-[13px] font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
+                                                    <p className="text-[13px] font-medium text-warm-700 dark:text-warm-200 leading-relaxed">
                                                         {item.content}
                                                     </p>
                                                 </div>
                                             ))
                                         ) : (
-                                            <p className="text-xs font-medium text-slate-400 italic">
+                                            <p className="text-xs font-medium text-warm-400 italic">
                                                 {t('chat.memory.panel.noRecent')}
                                             </p>
                                         )}
@@ -274,7 +274,7 @@ export function MemoryPanel({
                                                 <button
                                                     key={`${item}-${index}`}
                                                     onClick={() => onPickSuggestion(item)}
-                                                    className="w-full text-left rounded-xl bg-white/60 dark:bg-slate-900/40 px-3.5 py-3 text-[13px] font-bold leading-snug text-slate-600 dark:text-slate-300 border border-white/60 dark:border-slate-700/60 hover:bg-white dark:hover:bg-slate-900/80 transition-all"
+                                                    className="w-full text-left rounded-xl bg-white/60 dark:bg-warm-900/40 px-3.5 py-3 text-[13px] font-bold leading-snug text-warm-600 dark:text-warm-300 border border-white/60 dark:border-warm-700/60 hover:bg-white dark:hover:bg-warm-900/80 transition-all"
                                                 >
                                                     {item}
                                                 </button>

@@ -360,7 +360,7 @@ export default function DictionaryPopup() {
             role="dialog"
             aria-modal="true"
             data-selection-overlay="true"
-            className="absolute z-[9999] w-[340px] bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700/60 flex flex-col overflow-hidden animate-scale-up"
+            className="absolute z-[9999] w-[340px] bg-white dark:bg-warm-800 rounded-2xl shadow-2xl border border-warm-200 dark:border-warm-700/60 flex flex-col overflow-hidden animate-scale-up"
             style={{
                 top: `${position.top}px`,
                 left: `${position.left}px`,
@@ -369,20 +369,20 @@ export default function DictionaryPopup() {
         >
             {/* Header / Drag Handle area mock */}
             <div
-                className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/80 shrink-0 cursor-move select-none"
+                className="flex items-center justify-between px-4 py-3 border-b border-warm-100 dark:border-warm-700/60 bg-warm-50/50 dark:bg-warm-800/80 shrink-0 cursor-move select-none"
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerUp}
             >
                 <div className="flex items-center gap-2 overflow-hidden pointer-events-none">
-                    <Search size={16} className="text-slate-400 flex-shrink-0" />
-                    <span className="font-bold text-slate-700 dark:text-slate-200 truncate">{word}</span>
+                    <Search size={16} className="text-warm-400 flex-shrink-0" />
+                    <span className="font-bold text-warm-700 dark:text-warm-200 truncate">{word}</span>
                 </div>
                 <button
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={() => setIsVisible(false)}
-                    className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500 transition-colors shrink-0"
+                    className="p-1 rounded-full hover:bg-warm-200 dark:hover:bg-warm-700 text-warm-400 dark:text-warm-500 transition-colors shrink-0"
                 >
                     <X size={16} />
                 </button>
@@ -391,12 +391,12 @@ export default function DictionaryPopup() {
             {/* Content Area - Scrollable */}
             <div className="p-4 overflow-y-auto flex-1 custom-scrollbar text-left w-full">
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                    <div className="flex flex-col items-center justify-center py-8 text-warm-400">
                         <Loader2 size={24} className="animate-spin mb-2" />
                         <span className="text-sm">{t('addWord.searching', 'Searching...')}</span>
                     </div>
                 ) : error ? (
-                    <div className="text-center py-6 text-slate-500">
+                    <div className="text-center py-6 text-warm-500">
                         <p className="text-sm">{error}</p>
                     </div>
                 ) : result?.word ? (
@@ -404,11 +404,11 @@ export default function DictionaryPopup() {
                         {/* Word Info Header */}
                         <div className="flex items-start justify-between">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-1">
+                                <h3 className="text-xl font-bold text-warm-800 dark:text-white mb-1">
                                     {result.word}
                                 </h3>
                                 {(displayData?.phonetic || result.phonetic) && (
-                                    <p className="text-sm text-slate-500 font-serif">
+                                    <p className="text-sm text-warm-500 font-serif">
                                         {displayData?.phonetic || result.phonetic}
                                     </p>
                                 )}
@@ -441,8 +441,8 @@ export default function DictionaryPopup() {
                                     onClick={handleAiExplanation}
                                     title={t('dictionaryPopup.aiDeepAnalysis', 'AI deep analysis')}
                                     className={`p-1.5 rounded-lg transition-colors ${showAiExplanation
-                                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
-                                        : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                        ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300'
+                                        : 'bg-primary-50 text-primary-600 hover:bg-primary-100 dark:bg-primary-900/30 dark:text-primary-400'
                                         }`}
                                 >
                                     <Sparkles size={16} className={isAiLoading ? "animate-pulse" : ""} />
@@ -452,14 +452,14 @@ export default function DictionaryPopup() {
 
                         {/* Meaning */}
                         {displayData?.meaning && (
-                            <div className="text-[14px] text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">
+                            <div className="text-[14px] text-warm-700 dark:text-warm-300 whitespace-pre-line leading-relaxed">
                                 {displayData.meaning}
                             </div>
                         )}
 
                         {/* Example (truncate if too long or just show first) */}
                         {displayData?.example && (
-                            <div className="mt-3 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <div className="mt-3 bg-warm-50 dark:bg-warm-900/50 p-3 rounded-xl border border-warm-100 dark:border-warm-800">
                                 {displayData.example.split('\n').map((line: string, idx: number) => {
                                     const hasChinese = /[\u4e00-\u9fa5]/.test(line);
                                     const hasLetters = /[a-zA-Z]/.test(line);
@@ -467,7 +467,7 @@ export default function DictionaryPopup() {
 
                                     return (
                                         <div key={idx} className={`flex items-start gap-2 ${idx !== 0 ? 'mt-2' : ''}`}>
-                                            <p className={`text-[13px] font-mono leading-relaxed flex-1 ${showAudio ? 'text-slate-600 dark:text-slate-300' : 'text-slate-500 dark:text-slate-500 ml-1'}`}>
+                                            <p className={`text-[13px] font-mono leading-relaxed flex-1 ${showAudio ? 'text-warm-600 dark:text-warm-300' : 'text-warm-500 dark:text-warm-500 ml-1'}`}>
                                                 {line}
                                             </p>
                                             {showAudio && (
@@ -490,7 +490,7 @@ export default function DictionaryPopup() {
                         {result.tags && (
                             <div className="flex flex-wrap gap-1 mt-2">
                                 {result.tags.split(',').slice(0, 3).map((tag: string) => (
-                                    <span key={tag} className="px-2 py-0.5 text-[10px] rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                    <span key={tag} className="px-2 py-0.5 text-[10px] rounded-full bg-warm-100 text-warm-500 dark:bg-warm-800 dark:text-warm-400">
                                         {tag.trim()}
                                     </span>
                                 ))}
@@ -499,18 +499,18 @@ export default function DictionaryPopup() {
 
                         {/* AI Explanation Area */}
                         {showAiExplanation && (
-                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 animate-fade-in relative">
-                                <div className="absolute top-0 right-0 -mt-2.5 bg-white dark:bg-slate-800 px-2 text-xs font-semibold text-indigo-500 flex items-center gap-1">
+                            <div className="mt-4 pt-4 border-t border-warm-100 dark:border-warm-800 animate-fade-in relative">
+                                <div className="absolute top-0 right-0 -mt-2.5 bg-white dark:bg-warm-800 px-2 text-xs font-semibold text-primary-500 flex items-center gap-1">
                                     <Sparkles size={12} />
                                     {t('dictionaryPopup.aiAnalysis', 'AI analysis')}
                                 </div>
-                                <div className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-headings:text-slate-700 dark:prose-headings:text-slate-300 prose-a:text-indigo-500 max-w-none text-[13px] text-slate-600 dark:text-slate-300">
+                                <div className="prose prose-sm dark:prose-invert prose-p:leading-relaxed prose-headings:text-warm-700 dark:prose-headings:text-warm-300 prose-a:text-primary-500 max-w-none text-[13px] text-warm-600 dark:text-warm-300">
                                     {aiContent ? (
                                         <Suspense fallback={null}>
                                             <Markdown>{aiContent}</Markdown>
                                         </Suspense>
                                     ) : (
-                                        <div className="flex items-center gap-2 text-indigo-400/70 py-4 justify-center whitespace-pre">
+                                        <div className="flex items-center gap-2 text-primary-400/70 py-4 justify-center whitespace-pre">
                                             <Loader2 size={16} className="animate-spin" />
                                             <span>{t('dictionaryPopup.aiGenerating', 'Generating an in-depth explanation with AI...')}</span>
                                         </div>
@@ -520,7 +520,7 @@ export default function DictionaryPopup() {
                         )}
                     </div>
                 ) : (
-                    <div className="text-center py-4 text-slate-400 text-sm">{t('dictionaryPopup.noData', 'No data available')}</div>
+                    <div className="text-center py-4 text-warm-400 text-sm">{t('dictionaryPopup.noData', 'No data available')}</div>
                 )}
             </div>
         </div>

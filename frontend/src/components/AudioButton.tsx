@@ -243,7 +243,7 @@ export default function AudioButton({
         ? 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
         : isExample
           ? 'hover:bg-emerald-100 text-emerald-500 hover:text-emerald-600 dark:hover:bg-emerald-900/20 dark:text-emerald-400'
-          : 'hover:bg-slate-100 text-slate-500 hover:text-primary-600 dark:hover:bg-slate-800 dark:text-slate-400'
+          : 'hover:bg-warm-100 text-warm-500 hover:text-primary-600 dark:hover:bg-warm-800 dark:text-warm-400'
         } ${isPlaying || isLoading ? 'pointer-events-none' : ''} ${className}`}
       title={isExample
         ? t('audio.readExample', 'Read example aloud')

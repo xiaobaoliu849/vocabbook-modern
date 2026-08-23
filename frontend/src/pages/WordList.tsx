@@ -181,7 +181,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
         if (word.next_review_time <= now) {
             return <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">{t('wordList.status.review')}</span>
         }
-        return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">{t('wordList.status.learning')}</span>
+        return <span className="px-2 py-1 text-xs rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">{t('wordList.status.learning')}</span>
     }
 
     // Scroll selected item into view
@@ -320,7 +320,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             {/* Filters */}
             <div className="glass-card p-4 flex flex-wrap gap-4">
                 <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-warm-400" />
                     <input
                         ref={searchInputRef}
                         type="text"
@@ -347,23 +347,23 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                 {fetchError && !loading ? (
                     <div className="p-8 text-center">
                         <AlertTriangle size={32} className="text-red-400 mx-auto mb-3" />
-                        <p className="text-slate-600 dark:text-slate-300 mb-4">{fetchError}</p>
+                        <p className="text-warm-600 dark:text-warm-300 mb-4">{fetchError}</p>
                         <button onClick={() => { setFetchError(''); startFetch(); }} className="btn-primary">
                             Retry
                         </button>
                     </div>
                 ) : loading && words.length === 0 ? (
-                    <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
+                    <div className="p-12 text-center text-warm-500 flex flex-col items-center justify-center gap-3">
                         <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
                         <div className="animate-pulse">{t('wordList.loading')}</div>
                     </div>
                 ) : words.length === 0 ? (
-                    <div className="p-12 text-center text-slate-500">
-                        <BookOpen className="w-16 h-16 mx-auto mb-4 text-slate-300 dark:text-slate-600 opacity-50" />
+                    <div className="p-12 text-center text-warm-500">
+                        <BookOpen className="w-16 h-16 mx-auto mb-4 text-warm-300 dark:text-warm-600 opacity-50" />
                         <p className="text-lg">{t('wordList.empty')}</p>
                     </div>
                 ) : (
-                    <div ref={listRef} className="divide-y divide-slate-200 dark:divide-slate-700 max-h-[70vh] overflow-y-auto">
+                    <div ref={listRef} className="divide-y divide-warm-200 dark:divide-warm-700 max-h-[70vh] overflow-y-auto">
                         {words.map((word, index) => (
                             <div
                                 key={word.id}
@@ -372,7 +372,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                     setSelectedIndex(index)
                                     setSelectedWord(word)
                                 }}
-                                className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 
+                                className={`p-4 hover:bg-warm-50 dark:hover:bg-warm-800/50 
                            transition-colors cursor-pointer group
                            ${index === 0 ? 'rounded-t-3xl' : ''}
                            ${index === words.length - 1 ? 'rounded-b-3xl' : ''}
@@ -381,24 +381,24 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                 <div className="flex items-start justify-between w-full">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3">
-                                            <h3 className="font-bold text-lg text-slate-800 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                                            <h3 className="font-bold text-lg text-warm-800 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
                                                 {word.word}
                                             </h3>
-                                            {word.phonetic && <span className="text-slate-400">{word.phonetic}</span>}
+                                            {word.phonetic && <span className="text-warm-400">{word.phonetic}</span>}
                                             {getStatusBadge(word)}
                                             <div className="flex flex-wrap gap-1">
                                                 {word.tags && word.tags.split(',').map((tag, idx) => tag.trim() && (
                                                     <span
                                                         key={idx}
-                                                        className="px-2 py-0.5 text-xs rounded bg-slate-100 dark:bg-slate-700 
-                                         text-slate-600 dark:text-slate-300"
+                                                        className="px-2 py-0.5 text-xs rounded bg-warm-100 dark:bg-warm-700 
+                                         text-warm-600 dark:text-warm-300"
                                                     >
                                                         {tag.trim()}
                                                     </span>
                                                 ))}
                                             </div>
                                         </div>
-                                        <p className="text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
+                                        <p className="text-warm-600 dark:text-warm-400 mt-1 line-clamp-2">
                                             {word.meaning}
                                         </p>
                                     </div>
@@ -409,7 +409,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                             <button
                                                 onClick={(e) => handleMarkMastered(word.word, e)}
                                                 className="p-2 rounded-xl hover:bg-green-100 dark:hover:bg-green-900/30 
-                                   transition-all text-slate-400 hover:text-green-600 hover:scale-110 active:scale-95"
+                                   transition-all text-warm-400 hover:text-green-600 hover:scale-110 active:scale-95"
                                                 title={t('wordList.actions.markMastered')}
                                             >
                                                 <CheckCircle size={20} />
@@ -418,7 +418,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                         <button
                                             onClick={(e) => handleDelete(word.word, e)}
                                             className="p-2 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/30 
-                                 transition-all text-slate-400 hover:text-red-600 hover:scale-110 active:scale-95"
+                                 transition-all text-warm-400 hover:text-red-600 hover:scale-110 active:scale-95"
                                             title={t('wordList.actions.delete')}
                                         >
                                             <Trash2 size={20} />
@@ -432,7 +432,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
 
                 {isFetching && words.length > 0 && (
                     <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-3">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-warm-200/80 bg-white/90 px-3 py-1.5 text-xs font-medium text-warm-500 shadow-sm dark:border-warm-700 dark:bg-warm-900/90 dark:text-warm-300">
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-500" />
                             {t('wordList.loading')}
                         </div>
@@ -460,7 +460,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
             {totalPages > 1 && (
                 <div className="glass-card p-4 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm text-slate-500 dark:text-slate-400">{t('wordList.pagination.itemsPerPage')}</span>
+                        <span className="text-sm text-warm-500 dark:text-warm-400">{t('wordList.pagination.itemsPerPage')}</span>
                         <select
                             value={itemsPerPage}
                             onChange={(e) => {
@@ -480,7 +480,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         <button
                             onClick={() => setCurrentPage(1)}
                             disabled={currentPage === 1 || isFetching}
-                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
+                            className="p-2 rounded-lg hover:bg-warm-100 dark:hover:bg-warm-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title={t('wordList.pagination.first')}
                         >
@@ -489,7 +489,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         <button
                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                             disabled={currentPage === 1 || isFetching}
-                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
+                            className="p-2 rounded-lg hover:bg-warm-100 dark:hover:bg-warm-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title={t('wordList.pagination.previous')}
                         >
@@ -526,13 +526,13 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                                             className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors
                                                 ${currentPage === page
                                                     ? 'bg-primary-500 text-white'
-                                                    : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}
+                                                    : 'hover:bg-warm-100 dark:hover:bg-warm-800 text-warm-600 dark:text-warm-400'}
                                                 ${isFetching ? ' disabled:cursor-not-allowed disabled:opacity-50' : ''}`}
                                         >
                                             {page}
                                         </button>
                                     ) : (
-                                        <span key={idx} className="px-1 text-slate-400">…</span>
+                                        <span key={idx} className="px-1 text-warm-400">…</span>
                                     )
                                 ))
                             })()}
@@ -541,7 +541,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         <button
                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                             disabled={currentPage === totalPages || isFetching}
-                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
+                            className="p-2 rounded-lg hover:bg-warm-100 dark:hover:bg-warm-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title={t('wordList.pagination.next')}
                         >
@@ -550,7 +550,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         <button
                             onClick={() => setCurrentPage(totalPages)}
                             disabled={currentPage === totalPages || isFetching}
-                            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 
+                            className="p-2 rounded-lg hover:bg-warm-100 dark:hover:bg-warm-800 
                                        disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             title={t('wordList.pagination.last')}
                         >
@@ -558,7 +558,7 @@ export default function WordList({ isActive }: { isActive?: boolean }) {
                         </button>
                     </div>
 
-                    <div className="text-sm text-slate-500 dark:text-slate-400">
+                    <div className="text-sm text-warm-500 dark:text-warm-400">
                         {t('wordList.pagination.hint', { count: totalItems })}
                     </div>
                 </div>

@@ -201,7 +201,7 @@ export default function SelectionActionBar() {
                     className="fixed z-[10001] animate-scale-in"
                     style={{ left: actionBar.barPosition.x, top: actionBar.barPosition.y }}
                 >
-                    <div className="flex items-center gap-1 rounded-2xl border border-slate-200/80 bg-white/96 p-1.5 shadow-[0_14px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-slate-700/70 dark:bg-slate-900/96 dark:shadow-[0_18px_42px_rgba(0,0,0,0.42)]">
+                    <div className="flex items-center gap-1 rounded-2xl border border-warm-200/80 bg-white/96 p-1.5 shadow-[0_14px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl dark:border-warm-700/70 dark:bg-warm-900/96 dark:shadow-[0_18px_42px_rgba(0,0,0,0.42)]">
                         {actions.map(action => (
                             <button
                                 key={action.id}

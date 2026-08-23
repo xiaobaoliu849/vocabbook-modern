@@ -91,7 +91,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
                 <div className="mb-4">
                     <span className="text-6xl">🎧</span>
                 </div>
-                <p className="text-slate-500 dark:text-slate-400 mb-4">
+                <p className="text-warm-500 dark:text-warm-400 mb-4">
                     {t('review.dictation.instruction')}
                 </p>
                 <AudioButton
@@ -99,7 +99,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
                     className="!w-20 !h-20 !text-3xl !bg-primary-100 hover:!bg-primary-200 text-primary-700 dark:!bg-primary-900/30 dark:text-primary-400 border-none"
                     size={36}
                 />
-                <p className="text-sm text-slate-400 mt-2">{t('review.dictation.playHint')}</p>
+                <p className="text-sm text-warm-400 mt-2">{t('review.dictation.playHint')}</p>
             </div>
 
             {/* Input Section */}
@@ -122,7 +122,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
                                 ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
                                 : status === 'incorrect'
                                     ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:border-primary-500'
+                                    : 'border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-800 focus:border-primary-500'
                             }
                             ${showAnswer ? 'opacity-50' : ''}
                         `}
@@ -142,7 +142,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
                         )}
                         {showAnswer && (
                             <div className="text-center">
-                                <p className="mb-1 text-slate-500">{t('review.dictation.answer')}</p>
+                                <p className="mb-1 text-warm-500">{t('review.dictation.answer')}</p>
                                 <p className="text-3xl font-bold text-primary-600 dark:text-primary-400">
                                     {word.word}
                                 </p>
@@ -155,7 +155,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
                         {!showAnswer && status !== 'correct' && (
                             <button
                                 onClick={handleGiveUp}
-                                className="px-4 py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline decoration-dotted underline-offset-4"
+                                className="px-4 py-2 text-sm text-warm-400 hover:text-warm-600 dark:hover:text-warm-300 underline decoration-dotted underline-offset-4"
                             >
                                 {t('review.dictation.showAnswer')}
                             </button>
@@ -164,7 +164,7 @@ export default function DictationMode({ word, onComplete, playAudio }: ReviewMod
 
                     {/* Phonetic hint after first wrong attempt */}
                     {attempts >= 1 && !showAnswer && word.phonetic && (
-                        <div className="mt-6 text-center text-slate-400">
+                        <div className="mt-6 text-center text-warm-400">
                             <span className="text-sm">{t('review.dictation.phoneticHint')}</span>
                             <span className="ml-2 font-mono text-lg">{word.phonetic}</span>
                         </div>

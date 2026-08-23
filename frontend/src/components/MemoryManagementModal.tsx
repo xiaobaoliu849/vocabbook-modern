@@ -204,25 +204,25 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={handleBackdropClick}
         >
-            <div className="relative flex w-full max-w-3xl max-h-[85vh] flex-col rounded-3xl bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
-                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-6 py-4">
+            <div className="relative flex w-full max-w-3xl max-h-[85vh] flex-col rounded-3xl bg-white dark:bg-warm-900 shadow-2xl overflow-hidden">
+                <div className="flex items-center justify-between border-b border-warm-200 dark:border-warm-700 px-6 py-4">
                     <div className="flex items-center gap-3">
-                        <div className="rounded-xl bg-indigo-500/10 p-2">
-                            <Database size={20} className="text-indigo-500" />
+                        <div className="rounded-xl bg-primary-500/10 p-2">
+                            <Database size={20} className="text-primary-500" />
                         </div>
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h2>
+                        <h2 className="text-lg font-bold text-warm-900 dark:text-white">{title}</h2>
                     </div>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                        className="rounded-lg p-2 text-warm-500 hover:bg-warm-100 dark:hover:bg-warm-800 transition"
                         aria-label={t('memoryMgmt.close', 'Close')}
                     >
                         <X size={18} />
                     </button>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700 px-6 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-warm-200 dark:border-warm-700 px-6 py-3">
                     <div className="flex flex-wrap gap-2">
                         {MEMORY_TYPES.map((mt) => (
                             <button
@@ -231,8 +231,8 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                                 onClick={() => setMemoryType(mt)}
                                 className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
                                     memoryType === mt
-                                        ? 'bg-indigo-500 text-white shadow-sm'
-                                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                        ? 'bg-primary-500 text-white shadow-sm'
+                                        : 'bg-warm-100 text-warm-600 dark:bg-warm-800 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-700'
                                 }`}
                             >
                                 {typeLabels[mt]}
@@ -244,7 +244,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                             type="button"
                             onClick={handleRefresh}
                             disabled={loading || !configured}
-                            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-40"
+                            className="rounded-lg p-2 text-warm-500 hover:bg-warm-100 dark:hover:bg-warm-800 transition disabled:opacity-40"
                             aria-label={t('memoryMgmt.refresh', 'Refresh')}
                         >
                             <RefreshCcw size={16} />
@@ -275,7 +275,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                     )}
 
                     {configured && loading && (
-                        <div className="py-12 text-center text-sm text-slate-500">
+                        <div className="py-12 text-center text-sm text-warm-500">
                             {t('memoryMgmt.loading', 'Loading memories...')}
                         </div>
                     )}
@@ -296,7 +296,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                     )}
 
                     {configured && !loading && !error && emptyHint && (
-                        <div className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                        <div className="py-12 text-center text-sm text-warm-500 dark:text-warm-400">
                             {t('memoryMgmt.empty', 'No memories of this type yet.')}
                         </div>
                     )}
@@ -306,13 +306,13 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                             {items.map((it, idx) => (
                                 <div
                                     key={it.memory_id || `${it.type}-${idx}`}
-                                    className="group rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 transition hover:bg-white dark:hover:bg-slate-800"
+                                    className="group rounded-2xl border border-warm-200 dark:border-warm-700 bg-warm-50 dark:bg-warm-800/50 p-4 transition hover:bg-white dark:hover:bg-warm-800"
                                 >
-                                    <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words">
+                                    <p className="text-sm text-warm-800 dark:text-warm-200 leading-relaxed break-words">
                                         {it.content || it.raw_content || '—'}
                                     </p>
                                     <div className="mt-2 flex items-center justify-between gap-3">
-                                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-semibold text-warm-400 uppercase tracking-wider">
                                             {it.group_id && <span>group: {it.group_id}</span>}
                                             {formatMemoryTimestamp(it.timestamp) && (
                                                 <span>{formatMemoryTimestamp(it.timestamp)}</span>
@@ -342,23 +342,23 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                 </div>
 
                 {configured && (items.length > 0 || page > 1) && (
-                    <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 px-6 py-3">
+                    <div className="flex items-center justify-between border-t border-warm-200 dark:border-warm-700 px-6 py-3">
                         <button
                             type="button"
                             onClick={prevPage}
                             disabled={page <= 1}
-                            className="rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition disabled:opacity-40"
+                            className="rounded-lg bg-warm-100 dark:bg-warm-800 px-3 py-1.5 text-xs font-bold text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-700 transition disabled:opacity-40"
                         >
                             {t('memoryMgmt.prev', 'Previous')}
                         </button>
-                        <span className="text-xs font-semibold text-slate-500">
+                        <span className="text-xs font-semibold text-warm-500">
                             {t('memoryMgmt.pageInfo', 'Page {{page}}', { page })}
                         </span>
                         <button
                             type="button"
                             onClick={nextPage}
                             disabled={items.length < PAGE_SIZE}
-                            className="rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition disabled:opacity-40"
+                            className="rounded-lg bg-warm-100 dark:bg-warm-800 px-3 py-1.5 text-xs font-bold text-warm-600 dark:text-warm-300 hover:bg-warm-200 dark:hover:bg-warm-700 transition disabled:opacity-40"
                         >
                             {t('memoryMgmt.next', 'Next')}
                         </button>
@@ -370,16 +370,16 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                         className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6"
                         onClick={(e) => { if (e.target === e.currentTarget) setConfirmClear(false) }}
                     >
-                        <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 p-6 shadow-2xl">
+                        <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-warm-900 p-6 shadow-2xl">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="rounded-xl bg-red-500/10 p-2">
                                     <AlertTriangle size={20} className="text-red-500" />
                                 </div>
-                                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                                <h3 className="text-base font-bold text-warm-900 dark:text-white">
                                     {t('memoryMgmt.clearConfirmTitle', 'Clear All Memories?')}
                                 </h3>
                             </div>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                            <p className="text-sm text-warm-600 dark:text-warm-400 leading-relaxed">
                                 {t(
                                     'memoryMgmt.clearConfirmBody',
                                     'This will permanently delete all memories for your account across all types. This action cannot be undone.',
@@ -390,7 +390,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                                     type="button"
                                     onClick={() => setConfirmClear(false)}
                                     disabled={clearing}
-                                    className="rounded-lg bg-slate-100 dark:bg-slate-800 px-4 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                                    className="rounded-lg bg-warm-100 dark:bg-warm-800 px-4 py-2 text-sm font-bold text-warm-700 dark:text-warm-200 hover:bg-warm-200 dark:hover:bg-warm-700 transition"
                                 >
                                     {t('common.cancel', 'Cancel')}
                                 </button>

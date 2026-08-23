@@ -46,23 +46,23 @@ export function ChatHeader({
     return (
         <>
             {/* Header */}
-            <div className="flex-none h-16 border-b border-slate-200/30 dark:border-slate-700/30 flex items-center justify-between px-6 bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl sticky top-0 z-10">
+            <div className="flex-none h-16 border-b border-warm-200/30 dark:border-warm-700/30 flex items-center justify-between px-6 bg-white/40 dark:bg-warm-900/40 backdrop-blur-2xl sticky top-0 z-10">
                 <div className="flex items-center gap-3 min-w-0 flex-shrink-1">
                     <button
                         onClick={onToggleSidebar}
-                        className="p-2 -ml-2 text-slate-500 hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400 rounded-xl hover:bg-white/50 dark:hover:bg-slate-800/50 transition-all border border-transparent hover:border-slate-200/50 dark:hover:border-slate-700/50"
+                        className="p-2 -ml-2 text-warm-500 hover:text-primary-600 dark:text-warm-400 dark:hover:text-primary-400 rounded-xl hover:bg-white/50 dark:hover:bg-warm-800/50 transition-all border border-transparent hover:border-warm-200/50 dark:hover:border-warm-700/50"
                         title={sidebarOpen ? t('chat.actions.collapseHistory') : t('chat.actions.expandHistory')}
                     >
                         <Menu size={18} />
                     </button>
 
                     <div className="flex items-center gap-2.5 min-w-0">
-                        <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5 flex-shrink-0">
+                        <h2 className="text-base font-black text-warm-900 dark:text-white tracking-tight flex items-center gap-1.5 flex-shrink-0">
                             <span>{t('chat.header.title')}</span>
                         </h2>
-                        <span className="text-slate-200 dark:text-slate-800 text-xs">|</span>
+                        <span className="text-warm-200 dark:text-warm-800 text-xs">|</span>
                         <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100/80 dark:bg-slate-800/80 text-[11px] font-bold text-slate-500 dark:text-slate-400 border border-slate-200/20 dark:border-slate-700/20">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-warm-100/80 dark:bg-warm-800/80 text-[11px] font-bold text-warm-500 dark:text-warm-400 border border-warm-200/20 dark:border-warm-700/20">
                                 <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
                                 <span className="truncate max-w-[120px]">{model || t('chat.header.defaultModel')}</span>
                             </span>
@@ -80,7 +80,7 @@ export function ChatHeader({
                     {onOpenTranslation && (
                         <button
                             onClick={onOpenTranslation}
-                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200/50 bg-white/30 text-xs font-bold text-slate-600 transition-all hover:bg-white/60 hover:border-primary-200 dark:border-slate-700/50 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60 shadow-sm"
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-warm-200/50 bg-white/30 text-xs font-bold text-warm-600 transition-all hover:bg-white/60 hover:border-primary-200 dark:border-warm-700/50 dark:bg-warm-800/30 dark:text-warm-300 dark:hover:bg-warm-800/60 shadow-sm"
                             title={t('sidebar.translationTooltip')}
                         >
                             <Languages size={13} />
@@ -92,17 +92,17 @@ export function ChatHeader({
                             onClick={onToggleMemoryPanel}
                             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-xs ${memoryPanelOpen
                                 ? 'border-amber-300/60 bg-amber-50/80 text-amber-800 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200'
-                                : 'border-slate-200/50 bg-white/30 text-slate-600 hover:bg-white/60 hover:border-amber-300/50 dark:border-slate-700/50 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60'
+                                : 'border-warm-200/50 bg-white/30 text-warm-600 hover:bg-white/60 hover:border-amber-300/50 dark:border-warm-700/50 dark:bg-warm-800/30 dark:text-warm-300 dark:hover:bg-warm-800/60'
                                 }`}
                             title={t('chat.memory.panel.title')}
                         >
-                            <Sparkles size={13} className={memoryPanelOpen ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'} />
+                            <Sparkles size={13} className={memoryPanelOpen ? 'text-amber-600 dark:text-amber-400' : 'text-warm-400'} />
                             <span className={`hidden ${sidebarOpen ? 'xl:inline' : 'sm:inline'}`}>{t('chat.memory.panel.button')}</span>
                         </button>
                     )}
                     <button
                         onClick={onNewSession}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:scale-[1.02] active:scale-[0.98] text-xs font-bold rounded-xl transition-all shadow-sm"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-warm-900 dark:bg-warm-100 text-white dark:text-warm-900 hover:scale-[1.02] active:scale-[0.98] text-xs font-bold rounded-xl transition-all shadow-sm"
                         title={t('chat.actions.newChatTitle')}
                     >
                         <Plus size={14} />
@@ -122,7 +122,7 @@ export function ChatHeader({
                                     setShowChatActions(true);
                                 }
                             }}
-                            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-white/50 dark:hover:bg-slate-800/50 transition-all border border-transparent hover:border-slate-200/50 dark:hover:border-slate-700/50"
+                            className="p-2 text-warm-400 hover:text-warm-600 dark:hover:text-warm-200 rounded-xl hover:bg-white/50 dark:hover:bg-warm-800/50 transition-all border border-transparent hover:border-warm-200/50 dark:hover:border-warm-700/50"
                             title={t('chat.actions.moreOptions')}
                         >
                             <MoreHorizontal size={18} />
@@ -134,11 +134,11 @@ export function ChatHeader({
             {/* Chat Actions Dropdown */}
             {showChatActions && (
                 <div
-                    className="fixed z-50 min-w-[200px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/60 dark:border-slate-800/60 overflow-hidden p-1.5 animate-scale-in"
+                    className="fixed z-50 min-w-[200px] bg-white/80 dark:bg-warm-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/60 dark:border-warm-800/60 overflow-hidden p-1.5 animate-scale-in"
                     style={{ top: actionsPos.top, right: actionsPos.right }}
                 >
                     <button
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-slate-700 dark:text-slate-300 hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 rounded-xl transition-all text-left font-bold text-xs uppercase tracking-wider"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-warm-700 dark:text-warm-300 hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 rounded-xl transition-all text-left font-bold text-xs uppercase tracking-wider"
                         onClick={() => {
                             setShowChatActions(false);
                             onClearSession();

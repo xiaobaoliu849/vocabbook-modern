@@ -87,9 +87,12 @@ export default function StatisticsPage() {
         fetchHeatmapData()
     })
 
-    const textColor = isDark ? '#94a3b8' : '#475569'
-    const tooltipBg = isDark ? '#1e293b' : '#ffffff'
-    const tooltipBorder = isDark ? '#334155' : '#e2e8f0'
+    // Chart chrome reads the live palette CSS variables so recharts SVG
+    // follows the active theme; data-series hues stay semantic.
+    const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    const textColor = cssVar('--text-secondary')
+    const tooltipBg = isDark ? cssVar('--bg-card') : '#ffffff'
+    const tooltipBorder = cssVar('--border-color')
 
     const last7DaysData = useMemo(() => {
         const result = []
@@ -115,8 +118,8 @@ export default function StatisticsPage() {
         if (!stats) return []
         return [
             { name: t('statistics.cards.mastered'), value: stats.mastered, color: '#10b981' },
-            { name: t('statistics.cards.learning'), value: stats.learning, color: '#3b82f6' },
-            { name: t('statistics.cards.new', 'New'), value: stats.new || 0, color: '#64748b' }
+            { name: t('statistics.cards.learning'), value: stats.learning, color: cssVar('--primary-500') },
+            { name: t('statistics.cards.new', 'New'), value: stats.new || 0, color: cssVar('--warm-500') }
         ].filter(item => item.value > 0)
     }, [stats, t])
 
@@ -141,11 +144,11 @@ export default function StatisticsPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {stats ? (
                     <>
-                        <StatCard label={t('statistics.cards.totalWords')} value={stats.total_words} color="text-slate-700 dark:text-slate-200" />
+                        <StatCard label={t('statistics.cards.totalWords')} value={stats.total_words} color="text-warm-700 dark:text-warm-200" />
                         <StatCard label={t('statistics.cards.mastered')} value={stats.mastered} color="text-green-600" />
-                        <StatCard label={t('statistics.cards.learning')} value={stats.learning} color="text-blue-600" />
+                        <StatCard label={t('statistics.cards.learning')} value={stats.learning} color="text-primary-600" />
                         <StatCard label={t('statistics.cards.dueToday')} value={stats.due_today} color="text-orange-600" />
-                        <StatCard label={t('statistics.cards.reviewedToday')} value={stats.reviewed_today} color="text-indigo-600" />
+                        <StatCard label={t('statistics.cards.reviewedToday')} value={stats.reviewed_today} color="text-primary-600" />
                         <StatCard
                             label={t('statistics.cards.streakDays')}
                             value={
@@ -158,7 +161,7 @@ export default function StatisticsPage() {
                     </>
                 ) : (
                     Array(6).fill(0).map((_, i) => (
-                        <div key={i} className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 h-24 animate-pulse" />
+                        <div key={i} className="bg-warm-50 dark:bg-warm-800 rounded-xl p-4 h-24 animate-pulse" />
                     ))
                 )}
             </div>
@@ -167,7 +170,7 @@ export default function StatisticsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Weekly Study Trends (Bar Chart) */}
                 <div className="glass-card p-6 flex flex-col h-[320px]">
-                    <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">
+                    <h3 className="text-base font-bold text-warm-800 dark:text-white mb-4">
                         {t('statistics.weeklyTrendsTitle', 'Weekly Review Trends')}
                     </h3>
                     <div className="flex-1 w-full min-h-0">
@@ -186,7 +189,7 @@ export default function StatisticsPage() {
                                         contentStyle={{
                                             backgroundColor: tooltipBg,
                                             borderColor: tooltipBorder,
-                                            color: isDark ? '#f8fafc' : '#0f172a',
+                                            color: cssVar('--text-primary'),
                                             borderRadius: '12px',
                                             fontSize: '13px',
                                             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
@@ -197,7 +200,7 @@ export default function StatisticsPage() {
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                            <div className="h-full flex items-center justify-center text-sm text-warm-400">
                                 {t('statistics.noTrendData', 'No review history found')}
                             </div>
                         )}
@@ -206,7 +209,7 @@ export default function StatisticsPage() {
 
                 {/* Mastery Distribution (Donut Chart) */}
                 <div className="glass-card p-6 flex flex-col h-[320px]">
-                    <h3 className="text-base font-bold text-slate-800 dark:text-white mb-4">
+                    <h3 className="text-base font-bold text-warm-800 dark:text-white mb-4">
                         {t('statistics.masteryDistributionTitle', 'Mastery Distribution')}
                     </h3>
                     <div className="flex-1 w-full min-h-0 flex items-center justify-between">
@@ -232,7 +235,7 @@ export default function StatisticsPage() {
                                                 contentStyle={{
                                                     backgroundColor: tooltipBg,
                                                     borderColor: tooltipBorder,
-                                                    color: isDark ? '#f8fafc' : '#0f172a',
+                                                    color: cssVar('--text-primary'),
                                                     borderRadius: '12px',
                                                     fontSize: '13px',
                                                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
@@ -246,10 +249,10 @@ export default function StatisticsPage() {
                                         <div key={index} className="flex items-center gap-2.5">
                                             <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
                                             <div className="min-w-0">
-                                                <div className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">
+                                                <div className="text-xs font-bold text-warm-700 dark:text-warm-200 truncate">
                                                     {entry.name}
                                                 </div>
-                                                <div className="text-[11px] text-slate-400 dark:text-slate-500 font-semibold mt-0.5">
+                                                <div className="text-[11px] text-warm-400 dark:text-warm-500 font-semibold mt-0.5">
                                                     {entry.value} {t('statistics.wordsUnit', 'words')}
                                                 </div>
                                             </div>
@@ -258,7 +261,7 @@ export default function StatisticsPage() {
                                 </div>
                             </>
                         ) : (
-                            <div className="h-full w-full flex items-center justify-center text-sm text-slate-400">
+                            <div className="h-full w-full flex items-center justify-center text-sm text-warm-400">
                                 {t('statistics.empty', 'No words found')}
                             </div>
                         )}
@@ -268,7 +271,7 @@ export default function StatisticsPage() {
 
             {/* Heatmap Section - Full Width */}
             <div className="glass-card p-6">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-warm-800 dark:text-white mb-4 flex items-center gap-2">
                     {t('statistics.heatmapTitle')}
                 </h3>
                 <Heatmap />
@@ -280,12 +283,12 @@ export default function StatisticsPage() {
                 {studyTime && (
                     <div className="glass-card p-6 flex flex-col justify-center">
                         <div className="flex items-center gap-3 mb-2">
-                            <Clock size={36} className="text-slate-400 dark:text-slate-500" />
+                            <Clock size={36} className="text-warm-400 dark:text-warm-500" />
                             <div>
-                                <h3 className="font-bold text-slate-800 dark:text-white text-lg">
+                                <h3 className="font-bold text-warm-800 dark:text-white text-lg">
                                     {t('statistics.studyTimeTitle')}
                                 </h3>
-                                <p className="text-sm text-slate-500">{t('statistics.studyTimeSubtitle')}</p>
+                                <p className="text-sm text-warm-500">{t('statistics.studyTimeSubtitle')}</p>
                             </div>
                         </div>
                         <div className="text-4xl font-bold text-primary-600 mt-2">{studyTime.formatted}</div>
@@ -294,31 +297,31 @@ export default function StatisticsPage() {
 
                 {/* Progress Card */}
                 <div className="glass-card p-6">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
+                    <h3 className="text-lg font-bold text-warm-800 dark:text-white mb-4">
                         {t('statistics.progressTitle')}
                     </h3>
                     {stats && stats.total_words > 0 ? (
                         <div className="space-y-4">
                             <div className="flex items-end justify-between">
-                                <span className="text-3xl font-bold text-slate-800 dark:text-white">
+                                <span className="text-3xl font-bold text-warm-800 dark:text-white">
                                     {Math.round((stats.mastered / stats.total_words) * 100)}%
                                 </span>
-                                <span className="text-sm text-slate-500 mb-1">
+                                <span className="text-sm text-warm-500 mb-1">
                                     {stats.mastered} / {stats.total_words}
                                 </span>
                             </div>
-                            <div className="h-4 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div className="h-4 bg-warm-100 dark:bg-warm-700 rounded-full overflow-hidden">
                                 <div
                                     className="h-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-1000 ease-out"
                                     style={{ width: `${(stats.mastered / stats.total_words) * 100}%` }}
                                 />
                             </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-2">
+                            <p className="text-xs text-warm-500 dark:text-warm-400 text-center mt-2">
                                 {t('statistics.progressEncouragement')}
                             </p>
                         </div>
                     ) : (
-                        <div className="text-slate-500 text-center py-8">{t('statistics.empty')}</div>
+                        <div className="text-warm-500 text-center py-8">{t('statistics.empty')}</div>
                     )}
                 </div>
             </div>
@@ -330,7 +333,7 @@ function StatCard({ label, value, color }: { label: string, value: ReactNode, co
     return (
         <div className="glass-card p-4 rounded-xl hover:shadow-md transition-shadow">
             <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-            <div className="text-xs text-stone-500 dark:text-stone-400 mt-1 font-medium">{label}</div>
+            <div className="text-xs text-warm-500 dark:text-warm-400 mt-1 font-medium">{label}</div>
         </div>
     )
 }

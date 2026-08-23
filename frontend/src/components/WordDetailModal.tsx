@@ -20,7 +20,7 @@ interface WordDetailProps {
 
 // Section Header Component for consistent, impeccable typography
 const SectionHeader = ({ children }: { children: React.ReactNode }) => (
-  <h4 className="text-[11px] font-bold text-blue-500/80 dark:text-blue-400 uppercase tracking-[0.2em] mb-4">
+  <h4 className="text-[11px] font-bold text-primary-500/80 dark:text-primary-400 uppercase tracking-[0.2em] mb-4">
     {children}
   </h4>
 );
@@ -217,12 +217,12 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
    if (!word) return null
  
    return (
-     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-sm animate-fade-in transition-all">
+     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-warm-900/20 backdrop-blur-sm animate-fade-in transition-all">
        <div
          ref={setModalRef}
          role="dialog"
          aria-modal="true"
-         className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl shadow-blue-900/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-up ring-1 ring-slate-100 dark:ring-white/10"
+         className="bg-white dark:bg-warm-900 rounded-3xl shadow-2xl shadow-primary-900/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-up ring-1 ring-warm-100 dark:ring-white/10"
          style={{ 
            transform: `translate(${position.x}px, ${position.y}px)`,
            transition: isDragging ? 'none' : 'transform 0.1s ease-out'
@@ -230,10 +230,10 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
        >
          {/* Minimalist Header without harsh borders - Now Draggable */}
          <div 
-           className="sticky top-0 z-10 flex items-center justify-between px-8 py-5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md cursor-grab active:cursor-grabbing group select-none"
+           className="sticky top-0 z-10 flex items-center justify-between px-8 py-5 bg-white/90 dark:bg-warm-900/90 backdrop-blur-md cursor-grab active:cursor-grabbing group select-none"
            onMouseDown={handleMouseDown}
          >
-           <div className="flex items-center gap-4 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 transition-colors">
+           <div className="flex items-center gap-4 text-warm-300 dark:text-warm-600 group-hover:text-warm-400 transition-colors">
              <GripHorizontal size={18} className="opacity-50" />
            </div>
            <button
@@ -241,7 +241,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
                e.stopPropagation()
                handleCloseWithSave()
              }}
-             className="p-2 -mr-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-all text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+             className="p-2 -mr-2 rounded-full hover:bg-warm-100 dark:hover:bg-white/5 transition-all text-warm-400 hover:text-warm-600 dark:hover:text-warm-200"
            >
              <X size={20} strokeWidth={2} />
            </button>
@@ -251,7 +251,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
            <div className="space-y-6">
              <div>
                <div className="flex flex-wrap items-center gap-4 mb-3">
-                 <h2 className="text-5xl font-extrabold text-slate-800 dark:text-slate-50 tracking-tight">
+                 <h2 className="text-5xl font-extrabold text-warm-800 dark:text-warm-50 tracking-tight">
                    {word.word}
                  </h2>
                  {word.mastered && (
@@ -261,13 +261,13 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
                    </span>
                  )}
                  {word.tags && word.tags.split(',').map((tag: string) => tag.trim() && (
-                   <span key={tag} className="px-2.5 py-1 text-xs rounded-lg bg-blue-50 text-blue-600 border border-blue-100/50 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800/30 font-medium">
+                   <span key={tag} className="px-2.5 py-1 text-xs rounded-lg bg-primary-50 text-primary-600 border border-primary-100/50 dark:bg-primary-900/20 dark:text-primary-300 dark:border-primary-800/30 font-medium">
                      {tag.trim()}
                    </span>
                  ))}
                </div>
                <div className="flex items-center gap-4">
-                 <span className="text-2xl text-slate-400 dark:text-slate-500 font-medium tracking-wide">
+                 <span className="text-2xl text-warm-400 dark:text-warm-500 font-medium tracking-wide">
                    {word.phonetic}
                  </span>
                  <AudioButton
@@ -279,22 +279,22 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
              </div>
 
              {/* SM-2 Review Stats Visualization */}
-             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/50">
+             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-warm-50 dark:bg-warm-800/30 border border-warm-100 dark:border-warm-800/50">
                <div className="text-center sm:text-left">
-                 <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{t('wordDetail.reviews', 'Reviews')}</span>
-                 <span className="text-lg font-extrabold text-slate-800 dark:text-slate-100">{word.review_count || 0}</span>
+                 <span className="block text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider mb-0.5">{t('wordDetail.reviews', 'Reviews')}</span>
+                 <span className="text-lg font-extrabold text-warm-800 dark:text-warm-100">{word.review_count || 0}</span>
                </div>
-               <div className="text-center sm:text-left border-l border-slate-200/50 dark:border-slate-800/80 pl-4">
-                 <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{t('wordDetail.sm2Interval', 'Interval')}</span>
-                 <span className="text-lg font-extrabold text-slate-800 dark:text-slate-100">{word.interval || 0} {t('common.days', 'd')}</span>
+               <div className="text-center sm:text-left border-l border-warm-200/50 dark:border-warm-800/80 pl-4">
+                 <span className="block text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider mb-0.5">{t('wordDetail.sm2Interval', 'Interval')}</span>
+                 <span className="text-lg font-extrabold text-warm-800 dark:text-warm-100">{word.interval || 0} {t('common.days', 'd')}</span>
                </div>
-               <div className="text-center sm:text-left border-l border-slate-200/50 dark:border-slate-800/80 pl-4">
-                 <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{t('wordDetail.sm2Stage', 'SM-2 Stage')}</span>
-                 <span className="text-lg font-extrabold text-slate-800 dark:text-slate-100">{word.stage !== undefined ? word.stage : 0} / 5</span>
+               <div className="text-center sm:text-left border-l border-warm-200/50 dark:border-warm-800/80 pl-4">
+                 <span className="block text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider mb-0.5">{t('wordDetail.sm2Stage', 'SM-2 Stage')}</span>
+                 <span className="text-lg font-extrabold text-warm-800 dark:text-warm-100">{word.stage !== undefined ? word.stage : 0} / 5</span>
                </div>
-               <div className="text-center sm:text-left border-l border-slate-200/50 dark:border-slate-800/80 pl-4">
-                 <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">{t('wordDetail.nextReview', 'Next Review')}</span>
-                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300 block truncate mt-1">
+               <div className="text-center sm:text-left border-l border-warm-200/50 dark:border-warm-800/80 pl-4">
+                 <span className="block text-[10px] font-bold text-warm-400 dark:text-warm-500 uppercase tracking-wider mb-0.5">{t('wordDetail.nextReview', 'Next Review')}</span>
+                 <span className="text-xs font-bold text-warm-600 dark:text-warm-300 block truncate mt-1">
                    {word.next_review_time ? new Date(word.next_review_time * 1000).toLocaleDateString() : t('wordDetail.notScheduled', 'Not scheduled')}
                  </span>
                </div>
@@ -304,7 +304,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
            {/* Meaning - Clean sans-serif, softer slate color */}
            <div className="relative">
              <SectionHeader>{t('wordDetail.meaning', 'Meaning')}</SectionHeader>
-             <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line text-[1.05rem] leading-[1.8] font-medium">
+             <p className="text-warm-700 dark:text-warm-300 whitespace-pre-line text-[1.05rem] leading-[1.8] font-medium">
                {word.meaning}
              </p>
            </div>
@@ -315,7 +315,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
                {word.roots && (
                  <div>
                    <SectionHeader>{t('wordDetail.roots', 'Roots & memory')}</SectionHeader>
-                   <p className="text-slate-600 dark:text-slate-400 text-[0.95rem] leading-relaxed whitespace-pre-line">
+                   <p className="text-warm-600 dark:text-warm-400 text-[0.95rem] leading-relaxed whitespace-pre-line">
                      {word.roots}
                    </p>
                  </div>
@@ -323,7 +323,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
                {word.synonyms && (
                  <div>
                    <SectionHeader>{t('wordDetail.synonyms', 'Synonyms')}</SectionHeader>
-                   <p className="text-slate-600 dark:text-slate-400 text-[0.95rem] leading-relaxed whitespace-pre-line">
+                   <p className="text-warm-600 dark:text-warm-400 text-[0.95rem] leading-relaxed whitespace-pre-line">
                      {word.synonyms}
                    </p>
                  </div>
@@ -337,13 +337,13 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
                <SectionHeader>{t('wordDetail.wordFamily', 'Word Family')}</SectionHeader>
                <div className="space-y-4">
                  {wordFamily.family.map((fam: any, fIdx: number) => (
-                   <div key={fIdx} className="p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+                   <div key={fIdx} className="p-4 bg-warm-50 dark:bg-warm-800/30 rounded-2xl border border-warm-100 dark:border-warm-800/50">
                      <div className="flex items-baseline gap-2 mb-2">
-                       <span className="text-sm font-extrabold text-blue-600 dark:text-blue-400">
+                       <span className="text-sm font-extrabold text-primary-600 dark:text-primary-400">
                          Root: {fam.root}
                        </span>
                        {fam.root_meaning && (
-                         <span className="text-xs text-slate-400 dark:text-slate-500">
+                         <span className="text-xs text-warm-400 dark:text-warm-500">
                            ({fam.root_meaning})
                          </span>
                        )}
@@ -355,7 +355,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
                            className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-all ${
                              fWord.in_vocab
                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/50 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30 font-bold'
-                               : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                               : 'bg-warm-100 text-warm-500 dark:bg-warm-800 dark:text-warm-400'
                            }`}
                            title={fWord.in_vocab ? t('wordDetail.inVocab', 'In your vocabulary') : t('wordDetail.notInVocab', 'Not in vocabulary')}
                          >
@@ -374,7 +374,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
              <div>
                <div className="flex items-center gap-2 mb-4">
                  <SectionHeader>{t('wordDetail.examples', 'Examples')}</SectionHeader>
-                 <span className="text-[11px] font-medium text-slate-300 dark:text-slate-600 mb-4 ml-1">
+                 <span className="text-[11px] font-medium text-warm-300 dark:text-warm-600 mb-4 ml-1">
                    ({examples.length})
                  </span>
                </div>
@@ -388,9 +388,9 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
                          useTTS={true}
                          isExample={true}
                          size={16}
-                         className="mt-1 flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800"
+                         className="mt-1 flex-shrink-0 opacity-50 group-hover:opacity-100 transition-opacity bg-transparent hover:bg-warm-100 dark:hover:bg-warm-800"
                        />
-                       <p className="text-slate-700 dark:text-slate-300 whitespace-pre-line text-[0.95rem] leading-relaxed">
+                       <p className="text-warm-700 dark:text-warm-300 whitespace-pre-line text-[0.95rem] leading-relaxed">
                          {example}
                        </p>
                      </div>
@@ -401,15 +401,15 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
            )}
  
            {/* Personal Note - Light, fresh blue-tinted textarea */}
-           <div className="pt-6 border-t border-slate-100 dark:border-slate-800/60">
+           <div className="pt-6 border-t border-warm-100 dark:border-warm-800/60">
              <div className="flex items-center justify-between mb-2">
                <SectionHeader>{t('wordDetail.notes', 'Personal notes')}</SectionHeader>
                <div className="flex items-center gap-3 mb-4">
-                 <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                 <span className="text-[11px] text-warm-400 dark:text-warm-500">
                    {note.length} {t('wordDetail.chars', 'chars')}
                  </span>
                  {isSavingNote && (
-                   <span className="text-[11px] uppercase tracking-wider text-slate-400 animate-pulse">
+                   <span className="text-[11px] uppercase tracking-wider text-warm-400 animate-pulse">
                       {t('wordDetail.saving', 'Saving...')}
                    </span>
                  )}
@@ -426,7 +426,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
                   onChange={(e) => setNote(e.target.value)}
                   onBlur={handleSaveNote}
                   placeholder={t('wordDetail.notePlaceholder', 'Add your mnemonics, associations, or reflections...')}
-                  className="w-full p-4 bg-blue-50/40 hover:bg-blue-50/70 focus:bg-blue-50 dark:bg-slate-800/30 dark:hover:bg-slate-800/50 dark:focus:bg-slate-800/80 rounded-2xl text-slate-700 dark:text-slate-200 placeholder:text-slate-400/70 focus:outline-none ring-1 ring-transparent focus:ring-blue-200/50 dark:focus:ring-slate-700 resize-none min-h-[120px] transition-all text-[0.95rem] leading-relaxed"
+                  className="w-full p-4 bg-primary-50/40 hover:bg-primary-50/70 focus:bg-primary-50 dark:bg-warm-800/30 dark:hover:bg-warm-800/50 dark:focus:bg-warm-800/80 rounded-2xl text-warm-700 dark:text-warm-200 placeholder:text-warm-400/70 focus:outline-none ring-1 ring-transparent focus:ring-primary-200/50 dark:focus:ring-warm-700 resize-none min-h-[120px] transition-all text-[0.95rem] leading-relaxed"
                 />
              </div>
            </div>

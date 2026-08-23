@@ -39,10 +39,10 @@ export default function SettingsLayout({ initialTab, onTabChange, onOpenAdmin }:
             {/* Sidebar - 固定不滚动 */}
             <div className="shrink-0 md:w-48 flex flex-col">
                 <div className="mb-6 px-2">
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+                    <h2 className="text-2xl font-bold text-warm-800 dark:text-white">
                         {t('settings.title', '设置')}
                     </h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                    <p className="text-warm-500 dark:text-warm-400 text-sm mt-1">
                         {t('settings.subtitle', 'Preferences')}
                     </p>
                 </div>

@@ -42,10 +42,10 @@ export function ChatMessages({
             {messages.length === 0 && (
                 <div className="h-full flex flex-col items-center justify-center animate-fade-in select-none px-4">
                     <div className="max-w-lg w-full flex flex-col items-center">
-                        <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight text-center">
+                        <h1 className="text-2xl font-black text-warm-900 dark:text-white tracking-tight text-center">
                             {t('chat.empty.title')}
                         </h1>
-                        <p className="mt-2 text-[15px] text-slate-400 dark:text-slate-500 font-medium text-center">
+                        <p className="mt-2 text-[15px] text-warm-400 dark:text-warm-500 font-medium text-center">
                             {t('chat.empty.subtitle')}
                         </p>
 
@@ -59,13 +59,13 @@ export function ChatMessages({
                                 <button
                                     key={starter.titleKey}
                                     onClick={() => onPickStarter(starter.prompt)}
-                                    className="group text-left rounded-2xl border border-slate-200/60 dark:border-slate-700/40 bg-white/50 dark:bg-slate-800/30 backdrop-blur-xl p-4 transition-all duration-300 hover:border-amber-400/40 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 hover:shadow-lg hover:shadow-amber-500/5 active:scale-[0.98] sm:p-5"
+                                    className="group text-left rounded-2xl border border-warm-200/60 dark:border-warm-700/40 bg-white/50 dark:bg-warm-800/30 backdrop-blur-xl p-4 transition-all duration-300 hover:border-amber-400/40 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 hover:shadow-lg hover:shadow-amber-500/5 active:scale-[0.98] sm:p-5"
                                 >
-                                    <starter.icon size={20} className="text-slate-400 dark:text-slate-500 group-hover:text-amber-500 transition-colors" />
-                                    <p className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">
+                                    <starter.icon size={20} className="text-warm-400 dark:text-warm-500 group-hover:text-amber-500 transition-colors" />
+                                    <p className="mt-3 text-sm font-bold text-warm-700 dark:text-warm-200">
                                         {t(starter.titleKey)}
                                     </p>
-                                    <p className="mt-1.5 text-[13px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    <p className="mt-1.5 text-[13px] text-warm-500 dark:text-warm-400 leading-relaxed">
                                         {t(starter.descKey)}
                                     </p>
                                 </button>
@@ -80,8 +80,8 @@ export function ChatMessages({
                                 </span>
                                 {memoryOverview.review_focus.difficult_count > 0 && (
                                     <>
-                                        <span className="text-slate-300 dark:text-slate-600">·</span>
-                                        <span className="text-slate-500 dark:text-slate-400 font-medium">
+                                        <span className="text-warm-300 dark:text-warm-600">·</span>
+                                        <span className="text-warm-500 dark:text-warm-400 font-medium">
                                             {memoryOverview.review_focus.difficult_count} {t('chat.memory.difficultWords', 'difficult words')}
                                         </span>
                                     </>

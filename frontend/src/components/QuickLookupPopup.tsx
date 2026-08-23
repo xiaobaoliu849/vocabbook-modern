@@ -377,9 +377,9 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
 
     return (
         <div ref={popupRef} style={popupStyle} data-selection-overlay="true" className="animate-scale-in">
-            <div className="flex flex-col overflow-hidden rounded-2xl border border-white/30 bg-white/95 shadow-2xl shadow-black/20 backdrop-blur-2xl dark:border-slate-600/50 dark:bg-slate-800/95 dark:shadow-black/50">
+            <div className="flex flex-col overflow-hidden rounded-2xl border border-white/30 bg-white/95 shadow-2xl shadow-black/20 backdrop-blur-2xl dark:border-warm-600/50 dark:bg-warm-800/95 dark:shadow-black/50">
                 <div
-                    className="flex shrink-0 cursor-move select-none items-center justify-between border-b border-slate-100 bg-gradient-to-r from-primary-500/10 to-accent-500/10 px-4 py-3 dark:border-slate-700/50 dark:from-primary-900/30 dark:to-accent-900/30"
+                    className="flex shrink-0 cursor-move select-none items-center justify-between border-b border-warm-100 bg-gradient-to-r from-primary-500/10 to-accent-500/10 px-4 py-3 dark:border-warm-700/50 dark:from-primary-900/30 dark:to-accent-900/30"
                     onPointerDown={handleDragStart}
                 >
                     <div className="flex items-center gap-2">
@@ -390,7 +390,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                         ) : (
                             <Sparkles size={16} className="text-amber-500" />
                         )}
-                        <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <span className="text-xs font-medium uppercase tracking-wider text-warm-500 dark:text-warm-400">
                             {type === 'word'
                                 ? t('quickLookup.wordTitle', 'Quick lookup')
                                 : type === 'translate'
@@ -401,9 +401,9 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                     <button
                         onClick={onClose}
                         onPointerDown={(event) => event.stopPropagation()}
-                        className="rounded-lg p-1 transition-colors hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                        className="rounded-lg p-1 transition-colors hover:bg-warm-200/50 dark:hover:bg-warm-700/50"
                     >
-                        <X size={16} className="text-slate-400" />
+                        <X size={16} className="text-warm-400" />
                     </button>
                 </div>
 
@@ -411,7 +411,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                     {loading ? (
                         <div className="flex flex-col items-center justify-center gap-3 py-8">
                             <Loader2 size={24} className="animate-spin text-primary-500" />
-                            <span className="text-sm text-slate-400">
+                            <span className="text-sm text-warm-400">
                                 {type === 'word'
                                     ? t('quickLookup.loadingWord', 'Looking up word...')
                                     : type === 'translate'
@@ -422,17 +422,17 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                     ) : error ? (
                         <div className="py-6 text-center">
                             <span className="text-3xl">😕</span>
-                            <p className="mt-2 text-sm text-slate-500">{error}</p>
+                            <p className="mt-2 text-sm text-warm-500">{error}</p>
                         </div>
                     ) : type === 'word' && wordData ? (
                         <div className="space-y-2.5">
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <h3 className="text-xl font-bold leading-tight text-slate-800 dark:text-white">
+                                    <h3 className="text-xl font-bold leading-tight text-warm-800 dark:text-white">
                                         {wordData.word}
                                     </h3>
                                     {displayData?.phonetic && (
-                                        <p className="mt-0.5 font-serif text-sm text-slate-400">{displayData.phonetic}</p>
+                                        <p className="mt-0.5 font-serif text-sm text-warm-400">{displayData.phonetic}</p>
                                     )}
                                 </div>
                                 <AudioButton
@@ -453,8 +453,8 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                 </div>
                             )}
 
-                            <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 dark:border-slate-600/30 dark:bg-slate-700/50">
-                                <p className="whitespace-pre-line break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                            <div className="rounded-xl border border-warm-100 bg-warm-50 p-2.5 dark:border-warm-600/30 dark:bg-warm-700/50">
+                                <p className="whitespace-pre-line break-words text-sm leading-relaxed text-warm-700 dark:text-warm-200">
                                     {displayData?.meaning || t('addWord.noMeaning', 'No meaning available')}
                                 </p>
                             </div>
@@ -468,7 +468,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                         </p>
                                     )}
                                     {wordData.synonyms && (
-                                        <p className="text-xs leading-snug text-indigo-600 dark:text-indigo-400">
+                                        <p className="text-xs leading-snug text-primary-600 dark:text-primary-400">
                                             <RefreshCw size={12} className="mr-1 inline -mt-0.5" />
                                             {wordData.synonyms}
                                         </p>
@@ -486,7 +486,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                                 {lines.map((line: string, lineIndex: number) => (
                                                     <p
                                                         key={lineIndex}
-                                                        className={`text-xs leading-relaxed ${/[\u4e00-\u9fff]/.test(line) ? 'text-slate-400 dark:text-slate-500' : 'text-slate-600 dark:text-slate-300'}`}
+                                                        className={`text-xs leading-relaxed ${/[\u4e00-\u9fff]/.test(line) ? 'text-warm-400 dark:text-warm-500' : 'text-warm-600 dark:text-warm-300'}`}
                                                     >
                                                         {line.trim()}
                                                     </p>
@@ -500,43 +500,43 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                     ) : type === 'translate' && translation ? (
                         <div className="space-y-3">
                             <div>
-                                <p className="mb-1 text-xs font-medium text-slate-400">{t('quickLookup.sourceText', 'Source')}</p>
-                                <p className="line-clamp-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                                <p className="mb-1 text-xs font-medium text-warm-400">{t('quickLookup.sourceText', 'Source')}</p>
+                                <p className="line-clamp-4 text-sm leading-relaxed text-warm-600 dark:text-warm-300">
                                     {text}
                                 </p>
                             </div>
 
-                            <div className="border-t border-slate-100 dark:border-slate-700/50" />
+                            <div className="border-t border-warm-100 dark:border-warm-700/50" />
 
                             <div>
                                 <div className="mb-1 flex items-center justify-between">
                                     <p className="text-xs font-medium text-accent-500">{t('quickLookup.translation', 'Translation')}</p>
                                     <button
                                         onClick={() => handleCopy(translation)}
-                                        className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700/50 dark:hover:text-slate-300"
+                                        className="rounded-md p-1 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600 dark:hover:bg-warm-700/50 dark:hover:text-warm-300"
                                         title={t('quickLookup.copyTranslation', 'Copy translation')}
                                     >
                                         {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
                                     </button>
                                 </div>
-                                <p className="text-sm leading-relaxed text-slate-800 dark:text-white">
+                                <p className="text-sm leading-relaxed text-warm-800 dark:text-white">
                                     {translation}
                                 </p>
                             </div>
                         </div>
                     ) : type === 'explain' && explanation !== null ? (
                         <div className="space-y-4">
-                            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/90 p-3 dark:border-slate-700/70 dark:bg-slate-900/40">
+                            <div className="rounded-2xl border border-warm-200/80 bg-warm-50/90 p-3 dark:border-warm-700/70 dark:bg-warm-900/40">
                                 <div className="mb-2 flex items-start justify-between gap-3">
                                     <div>
-                                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wider text-warm-400">
                                             {wordData?.word ? t('quickLookup.wordTitle', 'Quick lookup') : t('quickLookup.sourceText', 'Source')}
                                         </p>
-                                        <p className="mt-1 text-base font-semibold text-slate-800 dark:text-slate-100">
+                                        <p className="mt-1 text-base font-semibold text-warm-800 dark:text-warm-100">
                                             {wordData?.word || text}
                                         </p>
                                         {displayData?.phonetic && (
-                                            <p className="mt-1 font-serif text-sm text-slate-400">{displayData.phonetic}</p>
+                                            <p className="mt-1 font-serif text-sm text-warm-400">{displayData.phonetic}</p>
                                         )}
                                     </div>
                                     {wordData?.word && (
@@ -549,7 +549,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                     )}
                                 </div>
                                 {displayData?.meaning && (
-                                    <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                                    <p className="whitespace-pre-line text-sm leading-relaxed text-warm-600 dark:text-warm-300">
                                         {displayData.meaning}
                                     </p>
                                 )}
@@ -567,13 +567,13 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                     </div>
                                     <button
                                         onClick={() => handleCopy(explanation)}
-                                        className="rounded-md p-1 text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-slate-800/50 dark:hover:text-slate-300"
+                                        className="rounded-md p-1 text-warm-400 transition-colors hover:bg-white/70 hover:text-warm-600 dark:hover:bg-warm-800/50 dark:hover:text-warm-300"
                                         title={t('quickLookup.copyExplanation', 'Copy explanation')}
                                     >
                                         {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
                                     </button>
                                 </div>
-                                <p className="whitespace-pre-line text-sm leading-7 text-slate-700 dark:text-slate-100">
+                                <p className="whitespace-pre-line text-sm leading-7 text-warm-700 dark:text-warm-100">
                                     {explanation || (streaming ? '...' : '')}
                                 </p>
                             </div>
@@ -587,7 +587,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                         </div>
                                     )}
                                     {wordData?.synonyms && (
-                                        <div className="rounded-xl border border-indigo-200/70 bg-indigo-50/80 p-3 text-xs leading-relaxed text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-900/20 dark:text-indigo-300">
+                                        <div className="rounded-xl border border-primary-200/70 bg-primary-50/80 p-3 text-xs leading-relaxed text-primary-700 dark:border-primary-900/40 dark:bg-primary-900/20 dark:text-primary-300">
                                             <RefreshCw size={12} className="mr-1 inline -mt-0.5" />
                                             {wordData.synonyms}
                                         </div>
@@ -599,14 +599,14 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                 </div>
 
                 {!loading && !error && (
-                    <div className="flex shrink-0 items-center justify-between border-t border-slate-100 bg-slate-50/50 px-4 py-2 dark:border-slate-700/50 dark:bg-slate-800/50">
+                    <div className="flex shrink-0 items-center justify-between border-t border-warm-100 bg-warm-50/50 px-4 py-2 dark:border-warm-700/50 dark:bg-warm-800/50">
                         <div className="flex items-center gap-2 text-xs">
                             {showSavedBadge && (
                                 <>
                                     {saved === 'idle' && wordData?.sources_data && (
                                         <div className="flex gap-1">
                                             {Object.keys(wordData.sources_data).map((source: string) => (
-                                                <span key={source} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                                                <span key={source} className="rounded bg-warm-100 px-1.5 py-0.5 text-[10px] text-warm-500 dark:bg-warm-700 dark:text-warm-400">
                                                     {t(`addWord.dictionarySources.${source}`, source)}
                                                 </span>
                                             ))}
@@ -614,8 +614,8 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                                     )}
                                     {saved === 'saving' && (
                                         <>
-                                            <Loader2 size={12} className="animate-spin text-slate-400" />
-                                            <span className="text-slate-400">{t('quickLookup.saving', 'Saving...')}</span>
+                                            <Loader2 size={12} className="animate-spin text-warm-400" />
+                                            <span className="text-warm-400">{t('quickLookup.saving', 'Saving...')}</span>
                                         </>
                                     )}
                                     {saved === 'saved' && (
@@ -655,7 +655,7 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
                             )}
                             <button
                                 onClick={onClose}
-                                className="rounded-lg px-2 py-1 text-xs text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700/50 dark:hover:text-slate-300"
+                                className="rounded-lg px-2 py-1 text-xs text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600 dark:hover:bg-warm-700/50 dark:hover:text-warm-300"
                             >
                                 {t('quickLookup.close', 'Close')}
                             </button>

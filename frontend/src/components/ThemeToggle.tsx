@@ -15,9 +15,9 @@ export default function ThemeToggle({ className = '', collapsed = false }: Theme
         <button
             onClick={toggleTheme}
             className={`relative flex items-center gap-3 p-2 rounded-xl 
-        text-slate-600 dark:text-slate-400 
-        hover:bg-slate-100 dark:hover:bg-slate-800 
-        border border-transparent hover:border-slate-200 dark:hover:border-slate-700
+        text-warm-600 dark:text-warm-400 
+        hover:bg-warm-100 dark:hover:bg-warm-800 
+        border border-transparent hover:border-warm-200 dark:hover:border-warm-700
         transition-all duration-300
         ${className}`}
             title={isDark ? t('settings.general.switchToLightMode') : t('settings.general.switchToDarkMode')}

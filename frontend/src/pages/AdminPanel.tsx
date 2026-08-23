@@ -200,23 +200,23 @@ export default function AdminPanel() {
         <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">
+                    <h2 className="text-2xl font-bold text-warm-800 dark:text-white mb-1">
                         {t('admin.title', 'Cloud Admin')}
                     </h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm max-w-2xl">
+                    <p className="text-warm-500 dark:text-warm-400 text-sm max-w-2xl">
                         {t('admin.subtitle', 'Manage registered users, premium access, and payment orders from the deployed cloud API.')}
                     </p>
                 </div>
 
                 <div className="glass-card p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-2">
                     <div className="relative min-w-[280px]">
-                        <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-warm-400" />
                         <input
                             type="password"
                             value={adminTokenInput}
                             onChange={(e) => setAdminTokenInput(e.target.value)}
                             placeholder={t('admin.token.placeholder', 'Enter admin token')}
-                            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-10 py-2.5 text-sm text-slate-700 dark:text-slate-200 shadow-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900/30"
+                            className="w-full rounded-xl border border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-900 px-10 py-2.5 text-sm text-warm-700 dark:text-warm-200 shadow-sm outline-none transition focus:border-primary-400 focus:ring-2 focus:ring-primary-100 dark:focus:ring-primary-900/30"
                         />
                     </div>
                     <button
@@ -228,7 +228,7 @@ export default function AdminPanel() {
                     <button
                         onClick={() => loadAdminData()}
                         disabled={!activeAdminToken || isLoading}
-                        className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-xl border border-warm-200 dark:border-warm-700 px-4 py-2.5 text-sm font-medium text-warm-600 dark:text-warm-300 transition hover:bg-warm-50 dark:hover:bg-warm-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <span className="inline-flex items-center gap-2">
                             <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
@@ -237,7 +237,7 @@ export default function AdminPanel() {
                     </button>
                     <button
                         onClick={clearToken}
-                        className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-500 dark:text-slate-400 transition hover:bg-slate-50 dark:hover:bg-slate-800"
+                        className="rounded-xl border border-warm-200 dark:border-warm-700 px-4 py-2.5 text-sm font-medium text-warm-500 dark:text-warm-400 transition hover:bg-warm-50 dark:hover:bg-warm-800"
                     >
                         {t('admin.token.clear', 'Clear')}
                     </button>
@@ -255,7 +255,7 @@ export default function AdminPanel() {
                     icon={<Users size={18} />}
                     label={t('admin.summary.totalUsers', 'Total Users')}
                     value={summary?.total_users ?? '—'}
-                    accent="text-slate-700 dark:text-slate-200"
+                    accent="text-warm-700 dark:text-warm-200"
                 />
                 <SummaryCard
                     icon={<Crown size={18} />}
@@ -280,16 +280,16 @@ export default function AdminPanel() {
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.3fr_1fr]">
                 <section className="glass-card overflow-hidden">
-                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    <div className="flex items-center justify-between border-b border-warm-100 px-5 py-4 dark:border-warm-800">
                         <div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                            <h3 className="text-lg font-bold text-warm-800 dark:text-white">
                                 {t('admin.users.title', 'Users')}
                             </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-xs text-warm-500 dark:text-warm-400">
                                 {t('admin.users.subtitle', 'Recent registered accounts and their current membership state.')}
                             </p>
                             <div className="relative mt-2">
-                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-warm-400" />
                                 <input
                                     type="text"
                                     value={searchQuery}
@@ -300,14 +300,14 @@ export default function AdminPanel() {
                                         searchTimeoutRef.current = window.setTimeout(() => { searchUsers() }, 500)
                                     }}
                                     placeholder={t('admin.users.searchPlaceholder', 'Search by email...')}
-                                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 pl-9 pr-3 py-2 text-sm text-slate-700 dark:text-slate-200 outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100 dark:focus:ring-primary-900/30"
+                                    className="w-full rounded-lg border border-warm-200 dark:border-warm-700 bg-white dark:bg-warm-900 pl-9 pr-3 py-2 text-sm text-warm-700 dark:text-warm-200 outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100 dark:focus:ring-primary-900/30"
                                 />
                             </div>
                         </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
-                            <thead className="bg-slate-50/80 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400">
+                            <thead className="bg-warm-50/80 dark:bg-warm-900/60 text-warm-500 dark:text-warm-400">
                                 <tr>
                                     <th className="px-5 py-3 text-left font-semibold">{t('admin.users.email', 'Email')}</th>
                                     <th className="px-5 py-3 text-left font-semibold">{t('admin.users.tier', 'Tier')}</th>
@@ -319,7 +319,7 @@ export default function AdminPanel() {
                             <tbody>
                                 {users.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-5 py-10 text-center text-slate-500 dark:text-slate-400">
+                                        <td colSpan={5} className="px-5 py-10 text-center text-warm-500 dark:text-warm-400">
                                             {activeAdminToken
                                                 ? t('admin.users.empty', 'No users found yet.')
                                                 : t('admin.users.locked', 'Enter an admin token to load user data.')}
@@ -330,22 +330,22 @@ export default function AdminPanel() {
                                         const isBusy = loadingTarget?.type === 'user' && loadingTarget.id === user.id
                                         const isPremium = user.tier === 'premium'
                                         return (
-                                            <tr key={user.id} className="border-t border-slate-100 dark:border-slate-800">
+                                            <tr key={user.id} className="border-t border-warm-100 dark:border-warm-800">
                                                 <td className="px-5 py-4">
-                                                    <div className="font-medium text-slate-800 dark:text-slate-100">{user.email}</div>
-                                                    <div className="text-xs text-slate-500 dark:text-slate-400">{user.id.slice(0, 8)}...</div>
+                                                    <div className="font-medium text-warm-800 dark:text-warm-100">{user.email}</div>
+                                                    <div className="text-xs text-warm-500 dark:text-warm-400">{user.id.slice(0, 8)}...</div>
                                                 </td>
                                                 <td className="px-5 py-4">
                                                     <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
                                                         isPremium
                                                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                                            : 'bg-warm-100 text-warm-600 dark:bg-warm-800 dark:text-warm-300'
                                                     }`}>
                                                         {isPremium ? t('admin.users.premium', 'Premium') : t('admin.users.free', 'Free')}
                                                     </span>
                                                 </td>
-                                                <td className="px-5 py-4 text-slate-600 dark:text-slate-300">{formatDateTime(user.license_expiry)}</td>
-                                                <td className="px-5 py-4 text-slate-500 dark:text-slate-400">{formatDateTime(user.created_at)}</td>
+                                                <td className="px-5 py-4 text-warm-600 dark:text-warm-300">{formatDateTime(user.license_expiry)}</td>
+                                                <td className="px-5 py-4 text-warm-500 dark:text-warm-400">{formatDateTime(user.created_at)}</td>
                                                 <td className="px-5 py-4">
                                                     <div className="flex flex-wrap justify-end gap-1.5">
                                                         <button
@@ -379,7 +379,7 @@ export default function AdminPanel() {
                                                         <button
                                                             onClick={() => updateTier(user.id, 'free')}
                                                             disabled={isBusy}
-                                                            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            className="rounded-lg border border-warm-200 px-2.5 py-1.5 text-xs font-semibold text-warm-600 transition hover:bg-warm-50 dark:border-warm-700 dark:text-warm-300 dark:hover:bg-warm-800 disabled:cursor-not-allowed disabled:opacity-50"
                                                         >
                                                             {t('admin.users.setFree', 'Set Free')}
                                                         </button>
@@ -395,19 +395,19 @@ export default function AdminPanel() {
                 </section>
 
                 <section className="glass-card overflow-hidden">
-                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                    <div className="flex items-center justify-between border-b border-warm-100 px-5 py-4 dark:border-warm-800">
                         <div>
-                            <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                            <h3 className="text-lg font-bold text-warm-800 dark:text-white">
                                 {t('admin.orders.title', 'Orders')}
                             </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                            <p className="text-xs text-warm-500 dark:text-warm-400">
                                 {t('admin.orders.subtitle', 'Latest payment records returned by the cloud service.')}
                             </p>
                         </div>
                     </div>
                     <div className="space-y-3 p-4">
                         {orders.length === 0 ? (
-                            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                            <div className="rounded-2xl border border-dashed border-warm-200 px-4 py-10 text-center text-sm text-warm-500 dark:border-warm-700 dark:text-warm-400">
                                 {activeAdminToken
                                     ? t('admin.orders.empty', 'No orders yet.')
                                     : t('admin.orders.locked', 'Enter an admin token to load order data.')}
@@ -416,27 +416,27 @@ export default function AdminPanel() {
                             orders.map((order) => (
                                 <div
                                     key={order.id}
-                                    className="rounded-2xl border border-slate-100 bg-white/70 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                                    className="rounded-2xl border border-warm-100 bg-white/70 p-4 shadow-sm dark:border-warm-800 dark:bg-warm-900/40"
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <div className="truncate font-semibold text-slate-800 dark:text-slate-100">{order.user_email || order.user_id}</div>
-                                            <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{order.out_trade_no}</div>
+                                            <div className="truncate font-semibold text-warm-800 dark:text-warm-100">{order.user_email || order.user_id}</div>
+                                            <div className="mt-1 truncate text-xs text-warm-500 dark:text-warm-400">{order.out_trade_no}</div>
                                         </div>
                                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                                             order.status === 'SUCCESS'
                                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                                                : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                                : 'bg-warm-100 text-warm-600 dark:bg-warm-800 dark:text-warm-300'
                                         }`}>
                                             {order.status}
                                         </span>
                                     </div>
-                                    <div className="mt-3 flex items-center justify-between text-sm text-slate-600 dark:text-slate-300">
+                                    <div className="mt-3 flex items-center justify-between text-sm text-warm-600 dark:text-warm-300">
                                         <span>{formatCurrencyFen(order.amount_fen)}</span>
                                         <span>{formatDateTime(order.created_at)}</span>
                                     </div>
                                     {order.description && (
-                                        <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">{order.description}</div>
+                                        <div className="mt-2 text-xs text-warm-500 dark:text-warm-400">{order.description}</div>
                                     )}
                                 </div>
                             ))
@@ -462,19 +462,19 @@ function SummaryCard({
     accent: string
 }) {
     return (
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="rounded-2xl border border-warm-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-warm-800 dark:bg-warm-900/70">
             <div className="flex items-center justify-between">
-                <div className="rounded-xl bg-slate-100 p-2 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                <div className="rounded-xl bg-warm-100 p-2 text-warm-500 dark:bg-warm-800 dark:text-warm-300">
                     {icon}
                 </div>
                 {detail && (
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                    <span className="rounded-full bg-warm-100 px-2.5 py-1 text-[11px] font-semibold text-warm-500 dark:bg-warm-800 dark:text-warm-400">
                         {detail}
                     </span>
                 )}
             </div>
             <div className={`mt-5 text-3xl font-bold ${accent}`}>{value}</div>
-            <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">{label}</div>
+            <div className="mt-1 text-sm text-warm-500 dark:text-warm-400">{label}</div>
         </div>
     )
 }

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>VocabBook 主题预览 — 三种方向对比</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Inter','Segoe UI',system-ui,sans-serif; background:#e8e6e2; padding:24px; }
+  h1 { font-size:20px; color:#292524; margin-bottom:4px; }
+  .sub { color:#78716c; font-size:13px; margin-bottom:20px; }
+
+  /* ============ THEME DEFINITIONS ============ */
+  /* 奶油暖陶 Cream × Terracotta */
+  .t-cream {
+    --bg:#FAF6F0; --card:#FFFFFF; --sidebar:#F3EDE3;
+    --accent:#C4622D; --accent-hov:#A94F22; --accent-soft:#F5E3D7;
+    --honey:#B45309;
+    --text:#292524; --text2:#8A8078; --border:#EAE2D8;
+    --dark-bg:#211A15; --dark-card:#2A211B; --dark-sidebar:#1C1611;
+    --dark-accent:#E07856; --dark-accent-soft:#3A2A21;
+    --dark-text:#F0EBE4; --dark-text2:#A89C90; --dark-border:#3D322A;
+  }
+  /* 蜜桃奶茶 Peach Latte */
+  .t-peach {
+    --bg:#FBF3EC; --card:#FFFFFF; --sidebar:#F6E9DE;
+    --accent:#E8927C; --accent-hov:#D97B63; --accent-soft:#FBE7DF;
+    --sage:#8A9B6E;
+    --text:#3D3129; --text2:#A08D7F; --border:#F0E2D6;
+    --dark-bg:#241C18; --dark-card:#2E2520; --dark-sidebar:#1E1814;
+    --dark-accent:#F0A48E; --dark-accent-soft:#3B2B25;
+    --dark-text:#F2EAE3; --dark-text2:#AC9C8E; --dark-border:#42352D;
+  }
+  /* 统一暖石 Unified Stone（Notion 风） */
+  .t-stone {
+    --bg:#FBFAF8; --card:#FFFFFF; --sidebar:#F5F4F1;
+    --accent:#57534E; --accent-hov:#44403C; --accent-soft:#EFEEEC;
+    --honey:#D97706;
+    --text:#1C1917; --text2:#78716C; --border:#E7E5E4;
+    --dark-bg:#191919; --dark-card:#1F1F1F; --dark-sidebar:#161616;
+    --dark-accent:#D6D3D1; --dark-accent-soft:#2A2A2A;
+    --dark-text:#E8E6E3; --dark-text2:#9B9287; --dark-border:#2D2D2D;
+  }
+
+  /* ============ MOCK COMPONENTS ============ */
+  .pair { display:flex; gap:20px; margin-bottom:28px; flex-wrap:wrap; }
+  .mode { border-radius:14px; overflow:hidden; flex:1; min-width:520px; box-shadow:0 2px 10px rgba(0,0,0,.08); }
+  .app { display:flex; height:340px; background:var(--bg); color:var(--text); }
+  .dark { background:var(--dark-bg); color:var(--dark-text); }
+
+  .sb { width:150px; padding:12px 10px; font-size:12.5px; flex-shrink:0; }
+  .app .sb { background:var(--sidebar); border-right:1px solid var(--border); }
+  .dark .sb { background:var(--dark-sidebar); border-right:1px solid var(--dark-border); }
+  .logo { font-weight:700; font-size:13px; margin:4px 8px 14px; letter-spacing:.02em; }
+  .nav { padding:7px 10px; border-radius:8px; margin-bottom:2px; color:var(--text2); position:relative; }
+  .dark .nav { color:var(--dark-text2); }
+  .nav.on { background:var(--accent-soft); color:var(--text); font-weight:600; }
+  .dark .nav.on { background:var(--dark-accent-soft); color:var(--dark-text); }
+  .nav.on::before { content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); width:3px; height:14px; background:var(--accent); border-radius:0 3px 3px 0; }
+  .dark .nav.on::before { background:var(--dark-accent); }
+
+  .main { flex:1; padding:16px 18px; overflow:hidden; }
+  .ptitle { font-size:15px; font-weight:700; margin-bottom:10px; }
+  .wcard { background:var(--card); border:1px solid var(--border); border-radius:11px; padding:11px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+  .dark .wcard { background:var(--dark-card); border-color:var(--dark-border); }
+  .word { font-size:14px; font-weight:700; }
+  .phon { font-size:11px; color:var(--text2); margin-left:6px; font-weight:400; }
+  .dark .phon { color:var(--dark-text2); }
+  .trans { font-size:11.5px; color:var(--text2); }
+  .dark .trans { color:var(--dark-text2); }
+  .tag { font-size:10px; font-weight:600; padding:2px 7px; border-radius:6px; background:var(--accent-soft); color:var(--accent); }
+  .dark .tag { background:var(--dark-accent-soft); color:var(--dark-accent); }
+
+  .btnrow { display:flex; gap:8px; margin-top:12px; align-items:center; }
+  .btn { font-size:11.5px; font-weight:600; padding:6px 14px; border-radius:8px; cursor:pointer; }
+  .b1 { background:var(--accent); color:#fff; }
+  .dark .b1 { background:var(--dark-accent); color:var(--dark-bg); }
+  .b2 { background:var(--card); border:1px solid var(--border); color:var(--text); }
+  .dark .b2 { background:var(--dark-card); border-color:var(--dark-border); color:var(--dark-text); }
+  .b3 { background:transparent; border:1px dashed var(--accent); color:var(--accent); }
+  .dark .b3 { border-color:var(--dark-accent); color:var(--dark-accent); }
+
+  .flip { margin-top:12px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px; text-align:center; }
+  .dark .flip { background:var(--dark-card); border-color:var(--dark-border); }
+  .flip .big { font-size:17px; font-weight:800; letter-spacing:-.01em; }
+  .flip .hint { font-size:10.5px; color:var(--text2); margin-top:3px; }
+  .dark .flip .hint { color:var(--dark-text2); }
+  .rate { display:flex; gap:6px; justify-content:center; margin-top:10px; font-size:10.5px; }
+  .rate span { padding:3px 10px; border-radius:6px; font-weight:600; }
+  .r1 { background:#EFEEEC; color:#78716C; }
+  .r2 { background:var(--accent-soft); color:var(--accent); }
+  .r3 { background:color-mix(in srgb, var(--honey, #8A9B6E) 16%, transparent); color:var(--honey,#8A9B6E); }
+  .dark .rate span { opacity:.92; }
+
+  .mlabel { font-size:10px; letter-spacing:.14em; text-transform:uppercase; padding:5px 12px; background:rgba(0,0,0,.75); color:#fff; display:inline-block; border-radius:0 0 8px 0; font-weight:700; }
+</style>
+</head>
+<body>
+<h1>VocabBook 换肤预览 — 三种方向</h1>
+<p class="sub">每块都是「侧边栏 + 单词列表 + 按钮 + 复习卡」的缩样。上排浅色 / 下排深色。选定后做成设置页一键切换。</p>
+
+<!-- ===== 奶油暖陶 ===== -->
+<div class="pair">
+  <div class="mode t-cream">
+    <div class="mlabel">① 奶油暖陶 · 浅色</div>
+    <div class="app">
+      <div class="sb"><div class="logo">生词本</div>
+        <div class="nav on">📖 生词本</div><div class="nav">🔄 复习</div><div class="nav">➕ 添加单词</div><div class="nav">📊 统计</div></div>
+      <div class="main">
+        <div class="ptitle">我的生词本</div>
+        <div class="wcard"><div><span class="word">serendipity</span><span class="phon">/ˌserənˈdɪpəti/</span><div class="trans">意外发现珍宝的运气</div></div><span class="tag">学习中</span></div>
+        <div class="wcard"><div><span class="word">cozy</span><span class="phon">/ˈkoʊzi/</span><div class="trans">温馨的；舒适的</div></div><span class="tag">已掌握</span></div>
+        <div class="btnrow"><span class="btn b1">添加单词</span><span class="btn b2">导入词表</span><span class="btn b3">AI 例句</span></div>
+        <div class="flip"><div class="big">serene</div><div class="hint">点击卡片翻面查看释义</div>
+          <div class="rate"><span class="r1">忘记</span><span class="r2">模糊</span><span class="r3">记得</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="mode t-cream dark">
+    <div class="mlabel">① 奶油暖陶 · 深色</div>
+    <div class="app">
+      <div class="sb"><div class="logo">生词本</div>
+        <div class="nav on">📖 生词本</div><div class="nav">🔄 复习</div><div class="nav">➕ 添加单词</div><div class="nav">📊 统计</div></div>
+      <div class="main">
+        <div class="ptitle">我的生词本</div>
+        <div class="wcard"><div><span class="word">serendipity</span><span class="phon">/ˌserənˈdɪpəti/</span><div class="trans">意外发现珍宝的运气</div></div><span class="tag">学习中</span></div>
+        <div class="wcard"><div><span class="word">cozy</span><span class="phon">/ˈkoʊzi/</span><div class="trans">温馨的；舒适的</div></div><span class="tag">已掌握</span></div>
+        <div class="btnrow"><span class="btn b1">添加单词</span><span class="btn b2">导入词表</span><span class="btn b3">AI 例句</span></div>
+        <div class="flip"><div class="big">serene</div><div class="hint">点击卡片翻面查看释义</div>
+          <div class="rate"><span class="r1">忘记</span><span class="r2">模糊</span><span class="r3">记得</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 蜜桃奶茶 ===== -->
+<div class="pair">
+  <div class="mode t-peach">
+    <div class="mlabel">② 蜜桃奶茶 · 浅色</div>
+    <div class="app">
+      <div class="sb"><div class="logo">生词本</div>
+        <div class="nav on">📖 生词本</div><div class="nav">🔄 复习</div><div class="nav">➕ 添加单词</div><div class="nav">📊 统计</div></div>
+      <div class="main">
+        <div class="ptitle">我的生词本</div>
+        <div class="wcard"><div><span class="word">serendipity</span><span class="phon">/ˌserənˈdɪpəti/</span><div class="trans">意外发现珍宝的运气</div></div><span class="tag">学习中</span></div>
+        <div class="wcard"><div><span class="word">cozy</span><span class="phon">/ˈkoʊzi/</span><div class="trans">温馨的；舒适的</div></div><span class="tag">已掌握</span></div>
+        <div class="btnrow"><span class="btn b1">添加单词</span><span class="btn b2">导入词表</span><span class="btn b3">AI 例句</span></div>
+        <div class="flip"><div class="big">serene</div><div class="hint">点击卡片翻面查看释义</div>
+          <div class="rate"><span class="r1">忘记</span><span class="r2">模糊</span><span class="r3">记得</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="mode t-peach dark">
+    <div class="mlabel">② 蜜桃奶茶 · 深色</div>
+    <div class="app">
+      <div class="sb"><div class="logo">生词本</div>
+        <div class="nav on">📖 生词本</div><div class="nav">🔄 复习</div><div class="nav">➕ 添加单词</div><div class="nav">📊 统计</div></div>
+      <div class="main">
+        <div class="ptitle">我的生词本</div>
+        <div class="wcard"><div><span class="word">serendipity</span><span class="phon">/ˌserənˈdɪpəti/</span><div class="trans">意外发现珍宝的运气</div></div><span class="tag">学习中</span></div>
+        <div class="wcard"><div><span class="word">cozy</span><span class="phon">/ˈkoʊzi/</span><div class="trans">温馨的；舒适的</div></div><span class="tag">已掌握</span></div>
+        <div class="btnrow"><span class="btn b1">添加单词</span><span class="btn b2">导入词表</span><span class="btn b3">AI 例句</span></div>
+        <div class="flip"><div class="big">serene</div><div class="hint">点击卡片翻面查看释义</div>
+          <div class="rate"><span class="r1">忘记</span><span class="r2">模糊</span><span class="r3">记得</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 统一暖石 ===== -->
+<div class="pair">
+  <div class="mode t-stone">
+    <div class="mlabel">③ 统一暖石 · 浅色</div>
+    <div class="app">
+      <div class="sb"><div class="logo">生词本</div>
+        <div class="nav on">📖 生词本</div><div class="nav">🔄 复习</div><div class="nav">➕ 添加单词</div><div class="nav">📊 统计</div></div>
+      <div class="main">
+        <div class="ptitle">我的生词本</div>
+        <div class="wcard"><div><span class="word">serendipity</span><span class="phon">/ˌserənˈdɪpəti/</span><div class="trans">意外发现珍宝的运气</div></div><span class="tag">学习中</span></div>
+        <div class="wcard"><div><span class="word">cozy</span><span class="phon">/ˈkoʊzi/</span><div class="trans">温馨的；舒适的</div></div><span class="tag">已掌握</span></div>
+        <div class="btnrow"><span class="btn b1">添加单词</span><span class="btn b2">导入词表</span><span class="btn b3">AI 例句</span></div>
+        <div class="flip"><div class="big">serene</div><div class="hint">点击卡片翻面查看释义</div>
+          <div class="rate"><span class="r1">忘记</span><span class="r2">模糊</span><span class="r3">记得</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="mode t-stone dark">
+    <div class="mlabel">③ 统一暖石 · 深色</div>
+    <div class="app">
+      <div class="sb"><div class="logo">生词本</div>
+        <div class="nav on">📖 生词本</div><div class="nav">🔄 复习</div><div class="nav">➕ 添加单词</div><div class="nav">📊 统计</div></div>
+      <div class="main">
+        <div class="ptitle">我的生词本</div>
+        <div class="wcard"><div><span class="word">serendipity</span><span class="phon">/ˌserənˈdɪpəti/</span><div class="trans">意外发现珍宝的运气</div></div><span class="tag">学习中</span></div>
+        <div class="wcard"><div><span class="word">cozy</span><span class="phon">/ˈkoʊzi/</span><div class="trans">温馨的；舒适的</div></div><span class="tag">已掌握</span></div>
+        <div class="btnrow"><span class="btn b1">添加单词</span><span class="btn b2">导入词表</span><span class="btn b3">AI 例句</span></div>
+        <div class="flip"><div class="big">serene</div><div class="hint">点击卡片翻面查看释义</div>
+          <div class="rate"><span class="r1">忘记</span><span class="r2">模糊</span><span class="r3">记得</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

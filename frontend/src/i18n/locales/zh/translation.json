@@ -286,6 +286,16 @@
       "retry": "重试",
       "checkUpdate": "检查更新",
       "footer": "由 VocabBook Team 用 ❤️ 设计"
+    },
+    "appearance": {
+      "paletteTitle": "配色主题",
+      "paletteDesc": "一键切换整体配色，与明暗模式独立记忆",
+      "paletteCream": "奶油暖陶",
+      "paletteCreamDesc": "陶土橙 × 奶油白，温暖治愈",
+      "palettePeach": "蜜桃奶茶",
+      "palettePeachDesc": "粉橘 × 鼠尾草，柔软甜美",
+      "paletteStone": "素石极简",
+      "paletteStoneDesc": "Notion 式克制素雅"
     }
   },
   "auth": {

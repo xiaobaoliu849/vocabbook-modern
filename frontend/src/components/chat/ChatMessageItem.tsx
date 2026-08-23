@@ -48,9 +48,9 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
     return (
         <div className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
             {msg.role === 'assistant' && (
-                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-slate-100/90 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200/60 dark:border-slate-700/60 self-start mt-1">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-warm-100/90 dark:bg-warm-800/90 text-warm-600 dark:text-warm-300 shadow-sm border border-warm-200/60 dark:border-warm-700/60 self-start mt-1">
                     {hasReasoning ? (
-                        <Brain className={`w-5 h-5 ${isStreaming && !displayContent ? 'animate-pulse text-indigo-500 dark:text-indigo-400' : ''}`} />
+                        <Brain className={`w-5 h-5 ${isStreaming && !displayContent ? 'animate-pulse text-primary-500 dark:text-primary-400' : ''}`} />
                     ) : (
                         <Bot className="w-5 h-5" />
                     )}
@@ -60,8 +60,8 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
             <div className="flex flex-col gap-2 max-w-[85%] md:max-w-[80%]">
                 <div className={`px-5 py-3.5 text-[15px] leading-[1.6] relative transition-all
                     ${msg.role === 'user'
-                        ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-[22px] rounded-tr-[4px] shadow-xl shadow-slate-900/10 dark:shadow-black/20 border border-slate-800 dark:border-white whitespace-pre-wrap'
-                        : 'bg-white/60 dark:bg-slate-800/60 backdrop-blur-2xl text-slate-800 dark:text-slate-200 rounded-[22px] rounded-tl-[4px] border border-white/60 dark:border-slate-700/60 shadow-sm'
+                        ? 'bg-warm-900 dark:bg-warm-100 text-white dark:text-warm-900 rounded-[22px] rounded-tr-[4px] shadow-xl shadow-warm-900/10 dark:shadow-black/20 border border-warm-800 dark:border-white whitespace-pre-wrap'
+                        : 'bg-white/60 dark:bg-warm-800/60 backdrop-blur-2xl text-warm-800 dark:text-warm-200 rounded-[22px] rounded-tl-[4px] border border-white/60 dark:border-warm-700/60 shadow-sm'
                     }`}
                 >
                     {msg.attachments && msg.attachments.length > 0 && (
@@ -71,12 +71,12 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                                     key={attachment.id}
                                     className={`overflow-hidden rounded-xl border ${msg.role === 'user'
                                         ? 'border-white/20 bg-white/10'
-                                        : 'border-slate-200/50 bg-white dark:border-slate-700/50 dark:bg-slate-900/60'
+                                        : 'border-warm-200/50 bg-white dark:border-warm-700/50 dark:bg-warm-900/60'
                                         }`}
                                 >
                                     {attachment.fileType === 'document' ? (
                                         <div className="flex items-center gap-3 p-3">
-                                            <FileText className="h-8 w-8 flex-shrink-0 text-slate-500 dark:text-slate-400" />
+                                            <FileText className="h-8 w-8 flex-shrink-0 text-warm-500 dark:text-warm-400" />
                                             <div className="min-w-0 flex-1">
                                                 <div className="truncate text-sm font-medium">{attachment.name}</div>
                                                 <div className="text-xs opacity-60">{attachment.size ? `${(attachment.size / 1024).toFixed(0)} KB` : ''} · PDF</div>
@@ -96,20 +96,20 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                     {displayContent || hasReasoning ? (
                         <div className="space-y-3">
                             {msg.role === 'assistant' && hasReasoning && (
-                                <div className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-900/40 overflow-hidden">
+                                <div className="rounded-xl border border-warm-200/70 dark:border-warm-700/60 bg-warm-50/70 dark:bg-warm-900/40 overflow-hidden">
                                     <button
                                         type="button"
                                         onClick={() => onToggleReasoning(msg.id)}
-                                        className="w-full flex items-center justify-between gap-2 px-3.5 py-2 text-left hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition-colors"
+                                        className="w-full flex items-center justify-between gap-2 px-3.5 py-2 text-left hover:bg-warm-100/70 dark:hover:bg-warm-800/40 transition-colors"
                                     >
-                                        <span className="flex items-center gap-2 min-w-0 text-slate-700 dark:text-slate-300 text-[13px] font-semibold">
+                                        <span className="flex items-center gap-2 min-w-0 text-warm-700 dark:text-warm-300 text-[13px] font-semibold">
                                             <ChevronRight
                                                 size={14}
-                                                className={`shrink-0 text-slate-400 dark:text-slate-500 transition-transform duration-200 ${isReasoningExpanded ? 'rotate-90' : ''}`}
+                                                className={`shrink-0 text-warm-400 dark:text-warm-500 transition-transform duration-200 ${isReasoningExpanded ? 'rotate-90' : ''}`}
                                             />
                                             <span className="truncate">{reasoningTitle}</span>
                                         </span>
-                                        <span className="shrink-0 text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300">
+                                        <span className="shrink-0 text-[11px] font-semibold text-warm-400 dark:text-warm-500 uppercase tracking-wider hover:text-warm-600 dark:hover:text-warm-300">
                                             {isReasoningExpanded ? reasoningCollapse : reasoningExpand}
                                         </span>
                                     </button>
@@ -118,7 +118,7 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                                     >
                                         <div className="overflow-hidden">
                                             {isReasoningExpanded && (
-                                                <div className="border-t border-slate-200/60 dark:border-slate-700/50 px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-600 dark:text-slate-300 max-h-[20rem] overflow-y-auto custom-scrollbar italic bg-white/40 dark:bg-slate-950/20">
+                                                <div className="border-t border-warm-200/60 dark:border-warm-700/50 px-3.5 py-2.5 text-[13px] leading-relaxed text-warm-600 dark:text-warm-300 max-h-[20rem] overflow-y-auto custom-scrollbar italic bg-white/40 dark:bg-warm-950/20">
                                                     <Suspense fallback={null}>
                                                         <Markdown gfm components={mdComponents}>
                                                             {(displayReasoning || '') + (isStreaming && !displayContent ? '▋' : '')}
@@ -140,12 +140,12 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                                 </div>
                             )}
                             {msg.role === 'assistant' && displayContent && !isStreaming && (
-                                <div className="mt-3 flex items-center justify-end border-t border-slate-200/30 dark:border-slate-700/30 pt-2">
+                                <div className="mt-3 flex items-center justify-end border-t border-warm-200/30 dark:border-warm-700/30 pt-2">
                                     <AudioButton
                                         text={displayContent}
                                         useTTS={true}
                                         size={14}
-                                        className="!p-2 hover:bg-white dark:hover:bg-slate-700 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 rounded-lg text-slate-400 hover:text-primary-600 dark:text-slate-500 dark:hover:text-primary-400 transition-all"
+                                        className="!p-2 hover:bg-white dark:hover:bg-warm-700 border border-transparent hover:border-warm-200 dark:hover:border-warm-600 rounded-lg text-warm-400 hover:text-primary-600 dark:text-warm-500 dark:hover:text-primary-400 transition-all"
                                     />
                                 </div>
                             )}
@@ -154,11 +154,11 @@ export const ChatMessageItem = React.memo(function ChatMessageItem({
                         msg.role === 'assistant' && showLoading && (
                             <div className="flex gap-2 items-center h-6">
                                 <div className="flex gap-1">
-                                    <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                    <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                    <div className="w-1.5 h-1.5 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-warm-400 dark:bg-warm-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-warm-400 dark:bg-warm-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-warm-400 dark:bg-warm-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                                 </div>
-                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest animate-pulse">
+                                <span className="text-xs font-semibold text-warm-500 dark:text-warm-400 uppercase tracking-widest animate-pulse">
                                     {thinkingLabel}
                                 </span>
                             </div>

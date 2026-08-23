@@ -15,7 +15,7 @@ const RATING_STYLES = [
     { quality: 1, color: 'bg-red-500', textColor: 'text-red-600 dark:text-red-400', bgLight: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800' },
     { quality: 2, color: 'bg-orange-500', textColor: 'text-orange-600 dark:text-orange-400', bgLight: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-200 dark:border-orange-800' },
     { quality: 3, color: 'bg-yellow-500', textColor: 'text-yellow-600 dark:text-yellow-400', bgLight: 'bg-yellow-50 dark:bg-yellow-900/20', border: 'border-yellow-200 dark:border-yellow-800' },
-    { quality: 4, color: 'bg-blue-500', textColor: 'text-blue-600 dark:text-blue-400', bgLight: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800' },
+    { quality: 4, color: 'bg-primary-500', textColor: 'text-primary-600 dark:text-primary-400', bgLight: 'bg-primary-50 dark:bg-primary-900/20', border: 'border-primary-200 dark:border-primary-800' },
     { quality: 5, color: 'bg-green-500', textColor: 'text-green-600 dark:text-green-400', bgLight: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800' },
 ]
 
@@ -89,7 +89,7 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
     const getGrade = () => {
         if (stats.correctRate >= 90) return { icon: <Trophy size={48} className="text-yellow-500" />, desc: t('review.summary.grades.excellent') }
         if (stats.correctRate >= 75) return { icon: <Star size={48} className="text-yellow-400" />, desc: t('review.summary.grades.great') }
-        if (stats.correctRate >= 60) return { icon: <Dumbbell size={48} className="text-blue-500" />, desc: t('review.summary.grades.good') }
+        if (stats.correctRate >= 60) return { icon: <Dumbbell size={48} className="text-primary-500" />, desc: t('review.summary.grades.good') }
         if (stats.correctRate >= 40) return { icon: <BookOpen size={48} className="text-green-500" />, desc: t('review.summary.grades.keepGoing') }
         return { icon: <Flame size={48} className="text-orange-500" />, desc: t('review.summary.grades.needsWork') }
     }
@@ -106,37 +106,37 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
             {/* ===== 顶部总评 ===== */}
             <div className="glass-card p-8 text-center">
                 <div className="text-6xl mb-3">{grade.icon}</div>
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+                <h2 className="text-2xl font-bold text-warm-800 dark:text-white">
                     {t('review.summary.completed', { mode: modeLabel })}
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400 mt-1">{grade.desc}</p>
+                <p className="text-warm-500 dark:text-warm-400 mt-1">{grade.desc}</p>
 
                 {/* 核心指标卡片 */}
                 <div className="grid grid-cols-4 gap-3 mt-6">
-                    <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
-                        <div className="text-2xl font-bold text-slate-800 dark:text-white">{stats.total}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{t('review.summary.metrics.reviewedWords')}</div>
+                    <div className="bg-warm-50 dark:bg-warm-800 rounded-xl p-3">
+                        <div className="text-2xl font-bold text-warm-800 dark:text-white">{stats.total}</div>
+                        <div className="text-xs text-warm-500 mt-0.5">{t('review.summary.metrics.reviewedWords')}</div>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
+                    <div className="bg-warm-50 dark:bg-warm-800 rounded-xl p-3">
                         <div className={`text-2xl font-bold ${stats.correctRate >= 70 ? 'text-green-600' : stats.correctRate >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
                             {stats.correctRate.toFixed(0)}%
                         </div>
-                        <div className="text-xs text-slate-500 mt-0.5">{t('review.summary.metrics.accuracy')}</div>
+                        <div className="text-xs text-warm-500 mt-0.5">{t('review.summary.metrics.accuracy')}</div>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
+                    <div className="bg-warm-50 dark:bg-warm-800 rounded-xl p-3">
                         <div className="text-2xl font-bold text-primary-600">{stats.avgRating.toFixed(1)}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{t('review.summary.metrics.averageRating')}</div>
+                        <div className="text-xs text-warm-500 mt-0.5">{t('review.summary.metrics.averageRating')}</div>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
-                        <div className="text-2xl font-bold text-slate-800 dark:text-white">{stats.durationStr}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{t('review.summary.metrics.totalTime')}</div>
+                    <div className="bg-warm-50 dark:bg-warm-800 rounded-xl p-3">
+                        <div className="text-2xl font-bold text-warm-800 dark:text-white">{stats.durationStr}</div>
+                        <div className="text-xs text-warm-500 mt-0.5">{t('review.summary.metrics.totalTime')}</div>
                     </div>
                 </div>
             </div>
 
             {/* ===== 评分分布柱状图 ===== */}
             <div className="glass-card p-6">
-                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">
+                <h3 className="text-sm font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider mb-4">
                     {t('review.summary.distributionTitle')}
                 </h3>
                 <div className="space-y-2.5">
@@ -150,7 +150,7 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
                                 <div className={`w-20 text-sm font-medium ${cfg.textColor} shrink-0`}>
                                     {cfg.quality} {cfg.label}
                                 </div>
-                                <div className="flex-1 h-7 bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden relative">
+                                <div className="flex-1 h-7 bg-warm-100 dark:bg-warm-800 rounded-lg overflow-hidden relative">
                                     <div
                                         className={`h-full ${cfg.color} rounded-lg transition-all duration-700 ease-out`}
                                         style={{ width: `${barWidth}%` }}
@@ -167,18 +167,18 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
                 </div>
 
                 {/* 掌握情况三段式 */}
-                <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-slate-100 dark:border-slate-700/50">
+                <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-warm-100 dark:border-warm-700/50">
                     <div className="text-center">
                         <div className="text-xl font-bold text-green-600">{stats.perfect.length}</div>
-                        <div className="text-xs text-slate-500">{t('review.summary.mastery.strong')}</div>
+                        <div className="text-xs text-warm-500">{t('review.summary.mastery.strong')}</div>
                     </div>
                     <div className="text-center">
                         <div className="text-xl font-bold text-yellow-600">{stats.okay.length}</div>
-                        <div className="text-xs text-slate-500">{t('review.summary.mastery.okay')}</div>
+                        <div className="text-xs text-warm-500">{t('review.summary.mastery.okay')}</div>
                     </div>
                     <div className="text-center">
                         <div className="text-xl font-bold text-red-600">{stats.weak.length}</div>
-                        <div className="text-xs text-slate-500">{t('review.summary.mastery.weak')}</div>
+                        <div className="text-xs text-warm-500">{t('review.summary.mastery.weak')}</div>
                     </div>
                 </div>
             </div>
@@ -187,7 +187,7 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
             {stats.weak.length > 0 && (
                 <div className="glass-card p-6">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        <h3 className="text-sm font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider">
                             {t('review.summary.weakWordsTitle', { count: stats.weak.length })}
                         </h3>
                         <button
@@ -206,7 +206,7 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
                         {!showWeakWords && stats.weak.length > 5 && (
                             <button
                                 onClick={() => setShowWeakWords(true)}
-                                className="w-full py-2 text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                className="w-full py-2 text-sm text-warm-400 hover:text-warm-600 dark:hover:text-warm-300 transition-colors"
                             >
                                 {t('review.summary.moreWeakWords', { count: stats.weak.length - 5 })}
                             </button>
@@ -225,9 +225,9 @@ export default function SessionSummary({ data, onRestart, onBackToNormal, onRevi
 
             {/* ===== 全部单词评分明细 ===== */}
             <details className="glass-card p-6 group">
-                <summary className="cursor-pointer text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between select-none">
+                <summary className="cursor-pointer text-sm font-bold text-warm-500 dark:text-warm-400 uppercase tracking-wider flex items-center justify-between select-none">
                     <span>{t('review.summary.allRatings', { count: stats.total })}</span>
-                    <span className="text-xs font-normal text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                    <span className="text-xs font-normal text-warm-400 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-4 space-y-2">
                     {data.ratings.map((item, i) => (
@@ -268,10 +268,10 @@ function WordRatingItem({ item, index, label }: { item: WordRating; index: numbe
             {/* 单词信息 */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800 dark:text-white">{item.word.word}</span>
-                    <span className="text-xs text-slate-400 font-mono">{item.word.phonetic}</span>
+                    <span className="font-bold text-warm-800 dark:text-white">{item.word.word}</span>
+                    <span className="text-xs text-warm-400 font-mono">{item.word.phonetic}</span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                <p className="text-xs text-warm-500 dark:text-warm-400 truncate mt-0.5">
                     {(item.word.meaning ?? '').split('\n')[0]}
                 </p>
             </div>

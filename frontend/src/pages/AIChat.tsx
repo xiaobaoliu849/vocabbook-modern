@@ -1080,7 +1080,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     }
 
     return (
-        <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative rounded-3xl overflow-hidden border border-slate-200/60 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/50 shadow-2xl shadow-slate-200/40 dark:shadow-black/40">
+        <div className="h-[calc(100vh-4rem)] flex animate-fade-in relative rounded-3xl overflow-hidden border border-warm-200/60 dark:border-warm-700/60 bg-warm-50/50 dark:bg-warm-900/50 shadow-2xl shadow-warm-200/40 dark:shadow-black/40">
             {/* Immersive Animated Background */}
             <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                 <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] rounded-full bg-rose-400/10 dark:bg-rose-900/10 blur-[120px] animate-pulse-slow" />
@@ -1112,7 +1112,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             />
 
             {/* Main Chat Area */}
-            <div className="flex-1 flex flex-col min-w-0 bg-slate-50/30 dark:bg-slate-900/20 relative">
+            <div className="flex-1 flex flex-col min-w-0 bg-warm-50/30 dark:bg-warm-900/20 relative">
                 {/* Header + Chat Actions Dropdown */}
                 <ChatHeader
                     sidebarOpen={sidebarOpen}
@@ -1132,7 +1132,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 {/* Memory Toast */}
                 {memoryToast && (
                     <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 animate-fade-in">
-                        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl text-amber-600 dark:text-amber-400 text-[11px] font-bold px-6 py-3 rounded-2xl shadow-2xl shadow-amber-500/10 flex items-center gap-3 whitespace-nowrap border border-white/60 dark:border-slate-800/60 uppercase tracking-widest">
+                        <div className="bg-white/80 dark:bg-warm-900/80 backdrop-blur-xl text-amber-600 dark:text-amber-400 text-[11px] font-bold px-6 py-3 rounded-2xl shadow-2xl shadow-amber-500/10 flex items-center gap-3 whitespace-nowrap border border-white/60 dark:border-warm-800/60 uppercase tracking-widest">
                             <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                             {memoryToast}
                         </div>

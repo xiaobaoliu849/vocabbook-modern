@@ -33,35 +33,35 @@ export default function DictionarySection() {
     return (
         <div className="space-y-6 animate-fade-in">
             <div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+                <h3 className="text-xl font-bold text-warm-800 dark:text-white mb-2">
                     {t('settings.dict.title', '词典源设置')}
                 </h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">
+                <p className="text-warm-500 dark:text-warm-400 text-sm">
                     {t('settings.dict.desc', '管理查词时使用的词典资源')}
                 </p>
             </div>
 
             <div className="glass-card p-6">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-warm-800 dark:text-white mb-4 flex items-center gap-2">
                     📚 {t('settings.dict.enableDict', '启用词典')}
                 </h3>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-sm text-warm-500 mb-4">
                     {t('settings.dict.enableDictDesc', '在查询单词时启用多个词典以获取更全面的释义')}
                 </p>
 
                 <div className="space-y-4">
                     {dictionaries.map((dict) => (
-                        <div key={dict.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                        <div key={dict.id} className="flex items-center justify-between p-3 bg-warm-50 dark:bg-warm-800/50 rounded-xl">
                             <div>
-                                <div className="font-medium text-slate-700 dark:text-slate-300">
+                                <div className="font-medium text-warm-700 dark:text-warm-300">
                                     {dict.name}
                                 </div>
-                                <div className="text-xs text-slate-500">{dict.desc}</div>
+                                <div className="text-xs text-warm-500">{dict.desc}</div>
                             </div>
                             <button
                                 onClick={() => toggleDict(dict.id, dict.fixed)}
                                 disabled={dict.fixed}
-                                className={`relative w-12 h-6 rounded-full transition-colors ${enabledMap[dict.id] ? 'bg-primary-600' : 'bg-slate-300 dark:bg-slate-600'
+                                className={`relative w-12 h-6 rounded-full transition-colors ${enabledMap[dict.id] ? 'bg-primary-600' : 'bg-warm-300 dark:bg-warm-600'
                                     } ${dict.fixed ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                                 <div

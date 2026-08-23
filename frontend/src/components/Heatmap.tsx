@@ -162,18 +162,18 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
     const fridayLabel = weekdayFormatter.format(new Date(2024, 0, 12))
 
     // 使用实心背景代替 glass-card，避免 backdrop-filter 导致的 GPU 闪烁问题
-    const cardStyle = `bg-white dark:bg-slate-800 rounded-2xl shadow-xl 
-                       border border-slate-200 dark:border-slate-700 ${className}`
+    const cardStyle = `bg-white dark:bg-warm-800 rounded-2xl shadow-xl 
+                       border border-warm-200 dark:border-warm-700 ${className}`
 
     if (loading) {
         return (
             <div className={`p-6 ${cardStyle}`}>
                 <div className="flex items-center gap-2 mb-4">
                     <span className="text-2xl">🔥</span>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('heatmap.title', 'Study heatmap')}</h3>
+                    <h3 className="text-lg font-bold text-warm-800 dark:text-white">{t('heatmap.title', 'Study heatmap')}</h3>
                 </div>
                 <div className="flex justify-center items-center h-24">
-                    <div className="animate-pulse text-slate-400">{t('heatmap.loading', 'Loading...')}</div>
+                    <div className="animate-pulse text-warm-400">{t('heatmap.loading', 'Loading...')}</div>
                 </div>
             </div>
         )
@@ -185,10 +185,10 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     <span className="text-2xl">🔥</span>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t('heatmap.title', 'Study heatmap')}</h3>
-                    <span className="text-sm text-slate-500 dark:text-slate-400">{t('heatmap.pastYear', '(Past year)')}</span>
+                    <h3 className="text-lg font-bold text-warm-800 dark:text-white">{t('heatmap.title', 'Study heatmap')}</h3>
+                    <span className="text-sm text-warm-500 dark:text-warm-400">{t('heatmap.pastYear', '(Past year)')}</span>
                 </div>
-                <div className="text-sm text-slate-500 dark:text-slate-400">
+                <div className="text-sm text-warm-500 dark:text-warm-400">
                     {t('heatmap.totalReviewsLabel', 'Reviews')} <span className="font-bold text-green-500">{totalReviews}</span>
                     {' · '}
                     {t('heatmap.activeDaysLabel', 'Active days')} <span className="font-bold text-green-500">{activeDays}</span>
@@ -255,7 +255,7 @@ const Heatmap = React.memo(({ className = '' }: HeatmapProps) => {
             </div>
 
             {/* Legend */}
-            <div className="flex items-center justify-end gap-1 mt-3 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex items-center justify-end gap-1 mt-3 text-xs text-warm-500 dark:text-warm-400">
                 <span>{t('heatmap.less', 'Less')}</span>
                 {[0, 1, 4, 7, 10].map((level, i) => (
                     <div

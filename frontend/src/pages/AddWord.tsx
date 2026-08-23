@@ -238,18 +238,18 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
             {/* Header */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-warm-800 dark:text-white flex items-center gap-2">
                         <Star className="text-primary-500" size={24} />
                         {t('addWord.title')}
                     </h2>
-                    <p className="text-slate-500 dark:text-slate-400 mt-1">
+                    <p className="text-warm-500 dark:text-warm-400 mt-1">
                         {t('addWord.subtitle', 'Ready to expand your vocabulary today?')}
                     </p>
                 </div>
                 {onOpenImport && (
                     <button
                         onClick={onOpenImport}
-                        className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 shadow-sm transition-all hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300 hover:scale-105 active:scale-95"
+                        className="inline-flex items-center gap-2 self-start rounded-xl border border-warm-200 bg-white px-5 py-3 text-sm font-semibold text-warm-600 shadow-sm transition-all hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 dark:border-warm-700 dark:bg-warm-800 dark:text-warm-300 dark:hover:border-primary-700 dark:hover:bg-primary-900/20 dark:hover:text-primary-300 hover:scale-105 active:scale-95"
                         title={t('sidebar.importTooltip', 'Import TXT / CSV in bulk')}
                     >
                         <Upload size={18} />
@@ -263,7 +263,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                 <div className="flex gap-3">
                     <div className="relative flex-1">
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-stone-400" />
+                            <Search className="h-4 w-4 text-warm-400" />
                         </div>
                         <input
                             type="text"
@@ -290,22 +290,22 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                 </div>
 
                 {/* Options */}
-                <div className="mt-4 flex gap-5 text-sm text-stone-500 dark:text-stone-400">
-                    <label className="flex items-center gap-2 cursor-pointer select-none hover:text-stone-700 dark:hover:text-stone-200 transition-colors">
+                <div className="mt-4 flex gap-5 text-sm text-warm-500 dark:text-warm-400">
+                    <label className="flex items-center gap-2 cursor-pointer select-none hover:text-warm-700 dark:hover:text-warm-200 transition-colors">
                         <input
                             type="checkbox"
                             checked={autoPlay}
                             onChange={e => setAutoPlay(e.target.checked)}
-                            className="rounded border-stone-300 text-stone-700 focus:ring-stone-400/30 w-3.5 h-3.5"
+                            className="rounded border-warm-300 text-warm-700 focus:ring-warm-400/30 w-3.5 h-3.5"
                         />
                         {t('addWord.autoPlay')}
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer select-none hover:text-stone-700 dark:hover:text-stone-200 transition-colors">
+                    <label className="flex items-center gap-2 cursor-pointer select-none hover:text-warm-700 dark:hover:text-warm-200 transition-colors">
                         <input
                             type="checkbox"
                             checked={autoSave}
                             onChange={e => setAutoSave(e.target.checked)}
-                            className="rounded border-stone-300 text-stone-700 focus:ring-stone-400/30 w-3.5 h-3.5"
+                            className="rounded border-warm-300 text-warm-700 focus:ring-warm-400/30 w-3.5 h-3.5"
                         />
                         {t('addWord.autoSave')}
                     </label>
@@ -314,23 +314,23 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
 
             {/* Search Result */}
             {searchResult && (
-                <div className="glass-card p-6 md:p-8 rounded-3xl animate-slide-up shadow-xl shadow-slate-200/40 dark:shadow-none border-slate-200/60 dark:border-slate-700/60">
+                <div className="glass-card p-6 md:p-8 rounded-3xl animate-slide-up shadow-xl shadow-warm-200/40 dark:shadow-none border-warm-200/60 dark:border-warm-700/60">
                     {searchResult.error ? (
-                        <div className="text-center text-slate-500 py-12 flex flex-col items-center">
+                        <div className="text-center text-warm-500 py-12 flex flex-col items-center">
                             <span className="text-6xl mb-4 opacity-80">😕</span>
-                            <h3 className="text-xl font-medium text-slate-700 dark:text-slate-300 mb-2">Oops! Couldn't find that word.</h3>
-                            <p className="text-slate-500">{searchResult.error}</p>
+                            <h3 className="text-xl font-medium text-warm-700 dark:text-warm-300 mb-2">Oops! Couldn't find that word.</h3>
+                            <p className="text-warm-500">{searchResult.error}</p>
                         </div>
                     ) : (
                         <div className="space-y-6">
                             {/* Sticky Word Header */}
-                            <div className="sticky top-0 z-10 -mx-6 -mt-6 p-6 pb-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 flex items-start justify-between rounded-t-3xl">
+                            <div className="sticky top-0 z-10 -mx-6 -mt-6 p-6 pb-4 bg-white/90 dark:bg-warm-900/90 backdrop-blur-xl border-b border-warm-100 dark:border-warm-800 flex items-start justify-between rounded-t-3xl">
                                 <div>
-                                    <h3 className="text-3xl md:text-4xl font-extrabold text-slate-800 dark:text-white flex items-center gap-4 tracking-tight">
+                                    <h3 className="text-3xl md:text-4xl font-extrabold text-warm-800 dark:text-white flex items-center gap-4 tracking-tight">
                                         {searchResult.word}
                                         <div className="flex gap-2">
                                             {searchResult.tags && searchResult.tags.split(',').map((tag: string) => (
-                                                <span key={tag} className="px-2.5 py-1 text-xs rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 font-bold tracking-wide uppercase shadow-sm border border-indigo-100 dark:border-indigo-800">
+                                                <span key={tag} className="px-2.5 py-1 text-xs rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400 font-bold tracking-wide uppercase shadow-sm border border-primary-100 dark:border-primary-800">
                                                     {tag.trim()}
                                                 </span>
                                             ))}
@@ -338,7 +338,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                     </h3>
                                     {/* Display phonetic from current tab if available, else primary */}
                                     {(currentData.phonetic || searchResult.phonetic) && (
-                                        <p className="text-slate-500 dark:text-slate-400 text-xl mt-2 font-serif flex items-center gap-3">
+                                        <p className="text-warm-500 dark:text-warm-400 text-xl mt-2 font-serif flex items-center gap-3">
                                             {currentData.phonetic || searchResult.phonetic}
                                             <AudioButton
                                                 word={searchResult.word}
@@ -376,11 +376,11 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                         </div>
                                     )}
                                     {searchResult.synonyms && (
-                                        <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-100 dark:border-indigo-900/30">
-                                            <h4 className="text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-1 uppercase tracking-wider">
+                                        <div className="bg-primary-50 dark:bg-primary-900/20 rounded-xl p-3 border border-primary-100 dark:border-primary-900/30">
+                                            <h4 className="text-xs font-bold text-primary-800 dark:text-primary-300 mb-1 uppercase tracking-wider">
                                                 🔄 {t('addWord.synonyms')}
                                             </h4>
-                                            <p className="text-indigo-900 dark:text-indigo-100 text-sm leading-relaxed">
+                                            <p className="text-primary-900 dark:text-primary-100 text-sm leading-relaxed">
                                                 {searchResult.synonyms}
                                             </p>
                                         </div>
@@ -390,7 +390,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
 
                             {/* Dictionary Tabs */}
                             {searchResult.sources_data && Object.keys(searchResult.sources_data).length > 1 && (
-                                <div className="flex gap-1 p-1.5 bg-slate-100/80 dark:bg-slate-800/80 rounded-2xl overflow-x-auto my-6 shadow-inner w-max max-w-full">
+                                <div className="flex gap-1 p-1.5 bg-warm-100/80 dark:bg-warm-800/80 rounded-2xl overflow-x-auto my-6 shadow-inner w-max max-w-full">
                                     {Object.keys(searchResult.sources_data).map(source => {
                                         const isActive = activeTab === source;
                                         const iconMap: Record<string, string> = {
@@ -404,8 +404,8 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                                 key={source}
                                                 onClick={() => setActiveTab(source)}
                                                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${isActive
-                                                    ? 'bg-white text-slate-800 dark:bg-slate-700 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5 transform scale-100'
-                                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 scale-95 hover:scale-100'
+                                                    ? 'bg-white text-warm-800 dark:bg-warm-700 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5 transform scale-100'
+                                                    : 'text-warm-500 dark:text-warm-400 hover:text-warm-700 dark:hover:text-warm-200 hover:bg-warm-200/50 dark:hover:bg-warm-700/50 scale-95 hover:scale-100'
                                                     }`}
                                             >
                                                 <span className="text-lg">{iconMap[source] || '📚'}</span>
@@ -421,9 +421,9 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                 {/* Meaning */}
                                 <div className="mb-8">
                                     <div className="flex items-center justify-between mb-3">
-                                        <h4 className="font-bold text-lg text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                                        <h4 className="font-bold text-lg text-warm-700 dark:text-warm-200 flex items-center gap-2">
                                             💡 {t('addWord.meaning')}
-                                            <span className="ml-2 text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm">
+                                            <span className="ml-2 text-xs font-medium text-warm-500 bg-warm-100 dark:bg-warm-800 px-3 py-1 rounded-full border border-warm-200 dark:border-warm-700 shadow-sm">
                                                 {getDictionaryLabel(activeTab)}
                                             </span>
                                         </h4>
@@ -434,13 +434,13 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                                 const match = line.match(/^([a-z]+\.)\s+(.+)$/);
                                                 if (match) {
                                                     return (
-                                                        <div key={i} className="flex items-start gap-3 bg-white/50 dark:bg-slate-800/50 p-3 rounded-xl">
+                                                        <div key={i} className="flex items-start gap-3 bg-white/50 dark:bg-warm-800/50 p-3 rounded-xl">
                                                             <span className="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-black tracking-wider uppercase shrink-0 shadow-sm mt-0.5">{match[1]}</span>
-                                                            <span className="text-slate-700 dark:text-slate-200 leading-relaxed font-medium text-lg">{match[2]}</span>
+                                                            <span className="text-warm-700 dark:text-warm-200 leading-relaxed font-medium text-lg">{match[2]}</span>
                                                         </div>
                                                     )
                                                 }
-                                                return <p key={i} className="text-slate-700 dark:text-slate-200 leading-relaxed font-medium text-lg px-2">{line}</p>
+                                                return <p key={i} className="text-warm-700 dark:text-warm-200 leading-relaxed font-medium text-lg px-2">{line}</p>
                                             })}
                                         </div>
                                     </div>
@@ -450,7 +450,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                 {currentData?.example && (
                                     <div className="mb-6">
                                         <div className="flex items-center gap-2 mb-4">
-                                            <h4 className="font-bold text-lg text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                                            <h4 className="font-bold text-lg text-warm-700 dark:text-warm-200 flex items-center gap-2">
                                                 📝 {t('addWord.example')}
                                             </h4>
                                         </div>
@@ -460,8 +460,8 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                                 const enLine = lines.find((l: string) => !/[\u4e00-\u9fff]/.test(l)) || '';
                                                 
                                                 return (
-                                                    <div key={index} className="p-5 bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all group flex flex-col sm:flex-row items-start gap-4">
-                                                        <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700/50 flex items-center justify-center text-slate-400 font-bold shrink-0 shadow-inner text-sm mt-1">
+                                                    <div key={index} className="p-5 bg-white dark:bg-warm-800/90 rounded-2xl border border-warm-100 dark:border-warm-700/60 shadow-sm hover:shadow-md hover:border-primary-200 dark:hover:border-primary-800 transition-all group flex flex-col sm:flex-row items-start gap-4">
+                                                        <div className="w-8 h-8 rounded-full bg-warm-50 dark:bg-warm-700/50 flex items-center justify-center text-warm-400 font-bold shrink-0 shadow-inner text-sm mt-1">
                                                             {index + 1}
                                                         </div>
                                                         <div className="flex-1 space-y-2 w-full">
@@ -470,7 +470,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                                                 return (
                                                                     <p
                                                                         key={lineIndex}
-                                                                        className={`leading-relaxed ${isCn ? 'text-sm text-slate-500 dark:text-slate-400 mt-1 border-l-2 border-slate-200 dark:border-slate-600 pl-3' : 'text-base md:text-lg font-medium text-slate-800 dark:text-slate-200'}`}
+                                                                        className={`leading-relaxed ${isCn ? 'text-sm text-warm-500 dark:text-warm-400 mt-1 border-l-2 border-warm-200 dark:border-warm-600 pl-3' : 'text-base md:text-lg font-medium text-warm-800 dark:text-warm-200'}`}
                                                                     >
                                                                         {line.trim()}
                                                                     </p>
@@ -495,13 +495,13 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                             </div>
 
                             {/* AI Generation */}
-                            <div className="border-t-2 border-dashed border-slate-200 dark:border-slate-700/60 pt-8 mt-8">
+                            <div className="border-t-2 border-dashed border-warm-200 dark:border-warm-700/60 pt-8 mt-8">
                                 <div className="flex items-center justify-between mb-6">
                                     <div>
-                                        <h4 className="font-bold text-lg text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                                        <h4 className="font-bold text-lg text-warm-700 dark:text-warm-200 flex items-center gap-2">
                                             ✨ {t('addWord.aiExamples')}
                                         </h4>
-                                        <p className="text-sm text-slate-500 mt-1">Want more context? Let AI generate custom examples.</p>
+                                        <p className="text-sm text-warm-500 mt-1">Want more context? Let AI generate custom examples.</p>
                                     </div>
                                     <button
                                         onClick={handleGenerateAI}
@@ -527,8 +527,8 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                 {aiSentences.length > 0 && (
                                     <div className="grid grid-cols-1 gap-4 mt-4">
                                         {aiSentences.map((sentence, i) => (
-                                            <div key={i} className="bg-gradient-to-r from-accent-50/80 to-purple-50/80 dark:from-accent-900/10 dark:to-purple-900/10 rounded-2xl p-5 border border-accent-100/50 dark:border-accent-800/30 text-slate-800 dark:text-slate-200 animate-slide-up shadow-sm flex items-start gap-4 group hover:shadow-md transition-shadow" style={{ animationDelay: `${i * 0.1}s` }}>
-                                                <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center text-accent-500 font-bold shrink-0 shadow-sm text-sm mt-0.5">
+                                            <div key={i} className="bg-gradient-to-r from-accent-50/80 to-purple-50/80 dark:from-accent-900/10 dark:to-purple-900/10 rounded-2xl p-5 border border-accent-100/50 dark:border-accent-800/30 text-warm-800 dark:text-warm-200 animate-slide-up shadow-sm flex items-start gap-4 group hover:shadow-md transition-shadow" style={{ animationDelay: `${i * 0.1}s` }}>
+                                                <div className="w-8 h-8 rounded-full bg-white dark:bg-warm-800 flex items-center justify-center text-accent-500 font-bold shrink-0 shadow-sm text-sm mt-0.5">
                                                     ✨
                                                 </div>
                                                 <span className="flex-1 text-lg leading-relaxed">{sentence}</span>
@@ -537,7 +537,7 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
                                                     useTTS={true}
                                                     isExample={true}
                                                     size={18}
-                                                    className="shrink-0 shadow-sm bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-opacity mt-1"
+                                                    className="shrink-0 shadow-sm bg-white hover:bg-warm-50 dark:bg-warm-800 dark:hover:bg-warm-700 opacity-0 group-hover:opacity-100 transition-opacity mt-1"
                                                 />
                                             </div>
                                         ))}
@@ -553,25 +553,25 @@ export default function AddWord({ onOpenImport, isActive = true }: { onOpenImpor
             {!searchResult && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                     <div className="glass-card p-5 rounded-xl flex flex-col gap-3 hover:shadow-md transition-shadow">
-                        <div className="w-9 h-9 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-500">
+                        <div className="w-9 h-9 rounded-lg bg-warm-100 dark:bg-warm-800 flex items-center justify-center text-warm-500">
                             <Search size={18} strokeWidth={1.5} />
                         </div>
-                        <h3 className="font-semibold text-stone-800 dark:text-stone-100 text-sm">{t('addWord.quickTips.search.title')}</h3>
-                        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">{t('addWord.quickTips.search.desc')}</p>
+                        <h3 className="font-semibold text-warm-800 dark:text-warm-100 text-sm">{t('addWord.quickTips.search.title')}</h3>
+                        <p className="text-xs text-warm-500 dark:text-warm-400 leading-relaxed">{t('addWord.quickTips.search.desc')}</p>
                     </div>
                     <div className="glass-card p-5 rounded-xl flex flex-col gap-3 hover:shadow-md transition-shadow">
                         <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
                             <Zap size={18} strokeWidth={1.5} />
                         </div>
-                        <h3 className="font-semibold text-stone-800 dark:text-stone-100 text-sm">{t('addWord.quickTips.ai.title')}</h3>
-                        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">{t('addWord.quickTips.ai.desc')}</p>
+                        <h3 className="font-semibold text-warm-800 dark:text-warm-100 text-sm">{t('addWord.quickTips.ai.title')}</h3>
+                        <p className="text-xs text-warm-500 dark:text-warm-400 leading-relaxed">{t('addWord.quickTips.ai.desc')}</p>
                     </div>
                     <div className="glass-card p-5 rounded-xl flex flex-col gap-3 hover:shadow-md transition-shadow">
-                        <div className="w-9 h-9 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-500">
+                        <div className="w-9 h-9 rounded-lg bg-warm-100 dark:bg-warm-800 flex items-center justify-center text-warm-500">
                             <Keyboard size={18} strokeWidth={1.5} />
                         </div>
-                        <h3 className="font-semibold text-stone-800 dark:text-stone-100 text-sm">{t('addWord.quickTips.shortcuts.title')}</h3>
-                        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">{t('addWord.quickTips.shortcuts.desc')}</p>
+                        <h3 className="font-semibold text-warm-800 dark:text-warm-100 text-sm">{t('addWord.quickTips.shortcuts.title')}</h3>
+                        <p className="text-xs text-warm-500 dark:text-warm-400 leading-relaxed">{t('addWord.quickTips.shortcuts.desc')}</p>
                     </div>
                 </div>
             )}

@@ -5,6 +5,13 @@ import { flushSync } from 'react-dom'
 
 type Theme = 'light' | 'dark' | 'system'
 type ResolvedTheme = 'light' | 'dark'
+export type Palette = 'cream' | 'peach' | 'stone'
+
+export const PALETTES: { value: Palette; labelKey: string }[] = [
+    { value: 'cream', labelKey: 'settings.appearance.paletteCream' },
+    { value: 'peach', labelKey: 'settings.appearance.palettePeach' },
+    { value: 'stone', labelKey: 'settings.appearance.paletteStone' },
+]
 
 interface ThemeContextType {
     theme: Theme
@@ -12,6 +19,8 @@ interface ThemeContextType {
     setTheme: (theme: Theme) => void
     toggleTheme: (e?: React.MouseEvent) => Promise<void>
     isDark: boolean
+    palette: Palette
+    setPalette: (palette: Palette) => void
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
@@ -32,6 +41,10 @@ function applyResolvedThemeToRoot(theme: ResolvedTheme) {
     root.style.colorScheme = theme
 }
 
+function isPalette(value: string | null | undefined): value is Palette {
+    return value === 'cream' || value === 'peach' || value === 'stone'
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, rawSetTheme] = useState<Theme>(() => {
         const saved = safeStorage.get('theme')
@@ -39,6 +52,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         return 'system'
     })
     const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() => getSystemTheme())
+    const [palette, rawSetPalette] = useState<Palette>(() => {
+        const saved = safeStorage.get('palette')
+        return isPalette(saved) ? saved : 'cream'
+    })
     const isTransitioningRef = useRef(false)
     const cleanupFrameRef = useRef<number | null>(null)
 
@@ -152,12 +169,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
 
 
+    const setPalette = (nextPalette: Palette) => {
+        rawSetPalette(nextPalette)
+    }
+
     // Use useLayoutEffect to ensure the class is added/removed synchronously after render
     // This allows flushSync to trigger the class update before the browser captures the new snapshot
     useLayoutEffect(() => {
         applyResolvedThemeToRoot(resolvedTheme)
+        document.documentElement.dataset.palette = palette
         safeStorage.set('theme', theme)
-    }, [resolvedTheme, theme])
+        safeStorage.set('palette', palette)
+    }, [resolvedTheme, theme, palette])
 
     useEffect(() => {
         return () => {
@@ -176,7 +199,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, toggleTheme, isDark: resolvedTheme === 'dark' }}>
+        <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, toggleTheme, isDark: resolvedTheme === 'dark', palette, setPalette }}>
             {children}
         </ThemeContext.Provider>
     )

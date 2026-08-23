@@ -61,17 +61,17 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
     return createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-            <div className="bg-white/10 dark:bg-[#1C1C1E]/80 backdrop-blur-xl border border-white/20 dark:border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl relative">
+            <div className="bg-white/10 dark:bg-warm-800/80 backdrop-blur-xl border border-white/20 dark:border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl relative">
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+                    className="absolute top-4 right-4 text-warm-400 hover:text-white transition-colors"
                 >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
 
-                <h2 className="text-2xl font-semibold mb-6 text-center text-gray-900 dark:text-white">
+                <h2 className="text-2xl font-semibold mb-6 text-center text-warm-900 dark:text-white">
                     {isLogin ? t('auth.welcomeBack') : t('auth.createAccountTitle')}
                 </h2>
 
@@ -88,7 +88,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                             placeholder={t('auth.email')}
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-black/20 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full bg-black/20 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500"
                             required
                         />
                     </div>
@@ -98,7 +98,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                             placeholder={t('auth.password')}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full bg-black/20 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full bg-black/20 border border-white/10 text-white rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary-500"
                             required
                         />
                     </div>
@@ -106,17 +106,17 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-xl font-medium transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
+                        className="w-full py-3 px-4 bg-gradient-to-r from-primary-500 to-primary-700 hover:from-primary-600 hover:to-primary-800 text-white rounded-xl font-medium transition-all shadow-lg active:scale-[0.98] disabled:opacity-50"
                     >
                         {loading ? t('auth.processing') : (isLogin ? t('auth.login') : t('auth.register'))}
                     </button>
 
-                    <p className="text-center text-sm text-gray-400 mt-4">
+                    <p className="text-center text-sm text-warm-400 mt-4">
                         {isLogin ? `${t('auth.noAccount')} ` : `${t('auth.hasAccount')} `}
                         <button
                             type="button"
                             onClick={() => setIsLogin(!isLogin)}
-                            className="text-blue-400 hover:text-blue-300 ml-1"
+                            className="text-primary-400 hover:text-primary-300 ml-1"
                         >
                             {isLogin ? t('auth.registerNow') : t('auth.loginNow')}
                         </button>

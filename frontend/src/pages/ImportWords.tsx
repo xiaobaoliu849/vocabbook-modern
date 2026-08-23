@@ -89,15 +89,15 @@ export default function ImportWords() {
                 {t('importWords.title')}
             </PageTitle>
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="bg-white dark:bg-warm-800 rounded-2xl shadow-sm border border-warm-200 dark:border-warm-700 overflow-hidden">
                 {/* Tabs */}
-                <div className="flex border-b border-slate-200 dark:border-slate-700">
+                <div className="flex border-b border-warm-200 dark:border-warm-700">
                     <button
                         onClick={() => setActiveTab('file')}
                         className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2
                             ${activeTab === 'file'
                                 ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-b-2 border-primary-500'
-                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                                : 'text-warm-500 hover:text-warm-700 dark:text-warm-400 dark:hover:text-warm-200'}`}
                     >
                         <Upload size={18} />
                         {t('importWords.tabs.file')}
@@ -107,7 +107,7 @@ export default function ImportWords() {
                         className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2
                             ${activeTab === 'text'
                                 ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 border-b-2 border-primary-500'
-                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+                                : 'text-warm-500 hover:text-warm-700 dark:text-warm-400 dark:hover:text-warm-200'}`}
                     >
                         <FileText size={18} />
                         {t('importWords.tabs.text')}
@@ -121,7 +121,7 @@ export default function ImportWords() {
                             className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer
                                 ${file
                                     ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10'
-                                    : 'border-slate-300 dark:border-slate-600 hover:border-primary-400 dark:hover:border-primary-500'}`}
+                                    : 'border-warm-300 dark:border-warm-600 hover:border-primary-400 dark:hover:border-primary-500'}`}
                             onDragOver={e => e.preventDefault()}
                             onDrop={handleDrop}
                             onClick={() => fileInputRef.current?.click()}
@@ -137,8 +137,8 @@ export default function ImportWords() {
                             {file ? (
                                 <div className="flex flex-col items-center gap-2">
                                     <FileText size={48} className="text-primary-500" />
-                                    <p className="font-medium text-slate-700 dark:text-slate-200">{file.name}</p>
-                                    <p className="text-sm text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+                                    <p className="font-medium text-warm-700 dark:text-warm-200">{file.name}</p>
+                                    <p className="text-sm text-warm-500">{(file.size / 1024).toFixed(1)} KB</p>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setFile(null); }}
                                         className="mt-2 text-xs text-red-500 hover:underline"
@@ -147,7 +147,7 @@ export default function ImportWords() {
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center gap-2 text-slate-500">
+                                <div className="flex flex-col items-center gap-2 text-warm-500">
                                     <Upload size={48} className="mb-2 opacity-50" />
                                     <p className="font-medium">{t('importWords.uploadPrompt')}</p>
                                     <p className="text-xs opacity-70">{t('importWords.uploadHint')}</p>
@@ -159,22 +159,22 @@ export default function ImportWords() {
                             value={textInput}
                             onChange={e => setTextInput(e.target.value)}
                             placeholder={t('importWords.textPlaceholder')}
-                            className="w-full h-48 p-4 rounded-xl border border-slate-200 dark:border-slate-700
-                                bg-slate-50 dark:bg-slate-900/50 focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none"
+                            className="w-full h-48 p-4 rounded-xl border border-warm-200 dark:border-warm-700
+                                bg-warm-50 dark:bg-warm-900/50 focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none"
                         />
                     )}
 
                     {/* Options */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('importWords.tagLabel')}</label>
+                            <label className="text-sm font-medium text-warm-700 dark:text-warm-300">{t('importWords.tagLabel')}</label>
                             <input
                                 type="text"
                                 value={tag}
                                 onChange={e => setTag(e.target.value)}
                                 placeholder={t('importWords.tagPlaceholder')}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700
-                                    bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                                className="w-full px-4 py-2 rounded-lg border border-warm-200 dark:border-warm-700
+                                    bg-white dark:bg-warm-800 focus:ring-2 focus:ring-primary-500 focus:outline-none"
                             />
                         </div>
                         <div className="flex items-end pb-2">
@@ -183,9 +183,9 @@ export default function ImportWords() {
                                     type="checkbox"
                                     checked={autoLookup}
                                     onChange={e => setAutoLookup(e.target.checked)}
-                                    className="w-5 h-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                    className="w-5 h-5 rounded border-warm-300 text-primary-600 focus:ring-primary-500"
                                 />
-                                <span className="text-slate-700 dark:text-slate-300">{t('importWords.autoLookup')}</span>
+                                <span className="text-warm-700 dark:text-warm-300">{t('importWords.autoLookup')}</span>
                             </label>
                         </div>
                     </div>
@@ -214,13 +214,13 @@ export default function ImportWords() {
 
             {/* Results */}
             {result && (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 animate-fade-in">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">{t('importWords.results.title')}</h3>
+                <div className="bg-white dark:bg-warm-800 rounded-2xl shadow-sm border border-warm-200 dark:border-warm-700 p-6 animate-fade-in">
+                    <h3 className="text-lg font-bold text-warm-800 dark:text-white mb-4">{t('importWords.results.title')}</h3>
 
                     <div className="grid grid-cols-4 gap-4 mb-6">
-                        <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl text-center">
-                            <div className="text-sm text-slate-500">{t('importWords.results.total')}</div>
-                            <div className="text-2xl font-bold text-slate-800 dark:text-slate-200">{result.total}</div>
+                        <div className="p-4 bg-warm-50 dark:bg-warm-900 rounded-xl text-center">
+                            <div className="text-sm text-warm-500">{t('importWords.results.total')}</div>
+                            <div className="text-2xl font-bold text-warm-800 dark:text-warm-200">{result.total}</div>
                         </div>
                         <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl text-center">
                             <div className="text-sm text-green-600 dark:text-green-400">{t('importWords.results.success')}</div>
@@ -237,18 +237,18 @@ export default function ImportWords() {
                     </div>
 
                     {result.details.length > 0 && (
-                        <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                        <div className="border border-warm-200 dark:border-warm-700 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500">
+                                <thead className="bg-warm-50 dark:bg-warm-900 text-warm-500">
                                     <tr>
                                         <th className="px-4 py-2">{t('importWords.table.word')}</th>
                                         <th className="px-4 py-2">{t('importWords.table.status')}</th>
                                         <th className="px-4 py-2">{t('importWords.table.details')}</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                <tbody className="divide-y divide-warm-100 dark:divide-warm-800">
                                     {result.details.map((item, i) => (
-                                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                        <tr key={i} className="hover:bg-warm-50 dark:hover:bg-warm-800/50">
                                             <td className="px-4 py-2 font-medium">{item.word}</td>
                                             <td className="px-4 py-2">
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
@@ -258,7 +258,7 @@ export default function ImportWords() {
                                                     {item.status === 'success' ? t('importWords.status.success') : item.status === 'skipped' ? t('importWords.status.existing') : t('importWords.status.failed')}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-2 text-slate-500 dark:text-slate-400 truncate max-w-xs">
+                                            <td className="px-4 py-2 text-warm-500 dark:text-warm-400 truncate max-w-xs">
                                                 {item.meaning || item.reason || '-'}
                                             </td>
                                         </tr>
