@@ -4,6 +4,21 @@
 > **P2 共 11 条已由主会话逐条人工核实为真**（含本机实测复现 2 条：非 ASCII header 崩溃、aware datetime 落库）。
 > 承接：`docs/engineering/2026-08-22-robustness-round4-5-handoff.md`（第四/五批已提交推送 `077948d..430f3d4`）。
 
+## ✅ 第七批修复状态（2026-08-23，P3 全量清零）
+
+**P3 全部 67 条 + i18n 附录 + 死代码备注已处理完毕。**
+
+- 后端（#1–31）：`fix(backend)` 一个 commit。要点：add_word 返回值→409、tts 缓存 stat 竞态防御+.tmp 清理、review fire-and-forget 任务持强引用+内层 try、dismiss_foresight 属主预检、chat save_session owner_key 守卫（guest→cloud 升级放行，其余跨属主静默跳过防重试风暴）、submit_review 改 `apply_sm2_review` BEGIN IMMEDIATE 单事务 RMW、TTS 兜底超时捕获+shutdown(wait=False)+词典/单词侧 gather 容错、附件流式限长、csv.Error→400、status 参数 pattern 收紧为 due/new/learning、ollama env 缺省并入免额度判定；multi_dict deepcopy 防缓存污染+线程池 6 workers+retries=1+双检锁、dict_service 缓存锁、ai_service anthropic 分支补齐 raise_for_status/content 空列表防护+错误事件不入 full_response（新增 "error" 事件类型）+test_connection 按 provider 分流 /messages、evermem_config temp+os.replace+mtime 缓存+后台任务强引用、presign objectSignedInfo null 预判；words_repo 死 delete 删除/update 吞错改 raise（router 检查返回值）、row_factory 全部改 cursor 级、translations 补 (source_text,source_lang,target_lang) 索引、chat migrate_legacy 只扫 legacy 行、families add_batch 回滚、migrate_from_json 失败 rollback+复用 orphan-bump、reviewed_at 回填补本地 UTC offset。
+- cloud_server（#32–42）：`fix(cloud)` 一个 commit。admin 置 PENDING 改条件 UPDATE；未知订单 error 日志+先落库再 precreate（失败标 FAIL）；登录加纯 IP 桶（RATE_LIMIT_LOGIN_IP_MAX=60）+precreate 用户级桶（RATE_LIMIT_PAY_MAX=10/60s）；支付错误固定文案不回传网关原始响应；Order 新增 license_days 快照列（main.py lifespan 轻量 ALTER 迁移），_license_days_for_order 优先快照；邮箱 strip().lower() 归一（注册/登录/启动存量迁移，冲突跳过并告警）；密码 min_length=8/max_length=72；notify app_id 缺失一律 fail；get_current_user/login 校验 is_active；admin license_expiry 入库前 astimezone(utc) 归一。
+- 前端 pages/components（#43–59，P3-50 已在 HEAD 提前修复）：AdminPanel searchQueryRef 修防抖闭包；Review 拼写翻面定时器 ref 化清理+评分成功后才追加；AIChat 403 分支设标志不再被自身 catch 吞掉、流式 read 60s 空闲超时+卸载 cancel、deleteSession 副本移出 updater、附件函数式截断；WordDetailModal wordFamily 重置+关闭路径统一 flush 笔记草稿；DictionaryPopup 注册定时器 cleanup 防监听器泄漏+handleAddWord seq 守卫；SelectionActionBar 改 popup 打开期间抑制同步（替代一次性 flag）；AudioButton 单源 8s 加载超时自动切下一源；MemoryManagementModal loadSeqRef；QuickLookup SSE 单行 parse 容错；ChoiceMode/SessionSummary meaning null 兜底。
+- Electron/构建/部署（#60–67）：`fix(electron)` + `fix(release)` commit。build.bat 每步 errorlevel 检查+venv-build 每次重建+尾部接 release:check 门禁；main.js whenReady 各步骤独立 try/catch 且 startBackend 提前、isDestroyed 守卫补齐（toggle/context-menu/close/tray/sendUpdateStatus）、did-finish-load 重置 frontendLoadRetries、全部 IPC handle 校验 event.sender（isTrustedSender）；preload backend-status 接前端消费（新 BackendStatusToaster + errors.backendDown i18n）；verify-release.mjs 增加 frontend-dist 字节级哈希比对 + latest.yml file/sha512/size 与实物一致性校验（对当前 stale dist 正确 FAIL，重打包即恢复）；deploy_cloud_server.bat 关键 copy 后 errorlevel 检查+:copyfail 清理出口。
+- i18n 附录：en 缺失的 6 个 chat.sidebar key 第六批已补；反向硬编码键本轮全部入 zh/en 两语言（statistics.weeklyTrendsTitle/noTrendData/masteryDistributionTitle/wordsUnit/cards.new、review.aiComplete*/meaningUpdated、chat.memory.dueToday/difficultWords、common.cancel/common.days、settings.account.comingSoon/cloudSyncPendingDesc）+ 新增 common 顶层命名空间与 errors.backendDown。
+- 死代码：Header.tsx、pay/PaymentModal.tsx 已删（无引用，tsc 干净）。
+
+验证：backend 119 + cloud_server 27 = 146 Python passed、tsc 干净、vitest 50 passed、eslint 仅剩 AudioButton HEAD 既有 1 error 1 warning。
+
+---
+
 ## ✅ 第六批修复状态（2026-08-23，已提交推送 `4cfcaeb..ca3a564`）
 
 **全部 11 个 P2 已修复**，按子系统拆 4 个 commit：
@@ -13,7 +28,6 @@
 - `ca3a564` fix(release)：P2-9 签名后重写 latest.yml sha512/size + 删 stale blockmap + 自校验
 
 验证：Python 146 passed（141 基线 + limit 4 + XFF 1）、tsc 干净、vitest 50 passed、eslint 仅剩 AudioButton HEAD 既有问题。
-**P3 约 67 条仍未修**——下表 P3 清单即第七批候选。另：死代码备注中的 `limits_repo.py` 已随本批删除；前端 Header/PaymentModal 死代码仍在。
 
 ## 汇总
 
