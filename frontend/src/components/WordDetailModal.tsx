@@ -76,6 +76,22 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
      }
    }, [word])
 
+   // Close paths that bypass the textarea's onBlur (Esc, click-outside, X
+   // while focused) used to silently drop the unsaved draft.
+   const handleCloseWithSave = useCallback(async () => {
+     if (!isSavingNote && note !== word.note) {
+       try {
+         await api.put(API_PATHS.WORD(word.word), { note })
+         onWordUpdated?.()
+         setNote(word.note)
+       } catch (err) {
+         console.error('Failed to save note on close:', err)
+         toast(describeApiError(err, t), 'error')
+       }
+     }
+     onClose()
+   }, [isSavingNote, note, word.note, word.word, onWordUpdated, onClose, t, toast])
+
    // Click outside handler
    useEffect(() => {
      const handleClickOutside = (event: MouseEvent) => {
@@ -198,22 +214,6 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
      }
    }
 
-   // Close paths that bypass the textarea's onBlur (Esc, click-outside, X
-   // while focused) used to silently drop the unsaved draft.
-   const handleCloseWithSave = useCallback(async () => {
-     if (!isSavingNote && note !== word.note) {
-       try {
-         await api.put(API_PATHS.WORD(word.word), { note })
-         onWordUpdated?.()
-         setNote(word.note)
-       } catch (err) {
-         console.error('Failed to save note on close:', err)
-         toast(describeApiError(err, t), 'error')
-       }
-     }
-     onClose()
-   }, [isSavingNote, note, word.note, word.word, onWordUpdated, onClose, t, toast])
- 
    if (!word) return null
  
    return (
