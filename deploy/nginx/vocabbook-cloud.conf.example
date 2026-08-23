@@ -15,6 +15,11 @@ server {
         proxy_pass http://127.0.0.1:8010;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        # The backend rate limiter trusts X-Real-IP first (overwrite-style,
+        # cannot be spoofed through this proxy). Behind Cloudflare prefer
+        # the injected client header instead of the CF edge address:
+        #   proxy_set_header X-Real-IP $http_cf_connecting_ip;
+        # or use ngx_http_realip_module with Cloudflare's IP ranges.
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;

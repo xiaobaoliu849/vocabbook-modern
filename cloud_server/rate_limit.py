@@ -17,19 +17,23 @@ logger = logging.getLogger(__name__)
 
 
 def get_client_ip(request: Request) -> str:
-    """Resolve the client IP, honoring proxy headers set by nginx.
+    """Resolve the client IP for rate limiting, spoofing-resistant order.
 
-    The service binds to 127.0.0.1 behind nginx, which sets
-    X-Forwarded-For / X-Real-IP; if it is ever exposed directly,
-    these headers could be spoofed, but rate limiting would then only
-    degrade to best-effort DoS protection.
+    Our nginx sets ``X-Real-IP`` with an overwrite directive
+    (``$remote_addr``), so a client-supplied value never survives the
+    proxy — that header is trusted first. ``X-Forwarded-For`` is
+    append-only (``$proxy_add_x_forwarded_for``), meaning every entry
+    except the last one is client-controlled; we take the rightmost
+    entry, which is the peer address as recorded by our own proxy. If
+    the service is ever exposed directly, both headers are attacker-
+    controlled and limiting degrades to best-effort.
     """
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
     real_ip = request.headers.get("X-Real-IP")
     if real_ip:
         return real_ip.strip()
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[-1].strip()
     if request.client is not None and request.client.host:
         return request.client.host
     return "unknown"

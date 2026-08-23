@@ -131,14 +131,42 @@ def test_sweep_reclaims_expired_entries():
 # --- get_client_ip ---
 
 
-def test_client_ip_prefers_first_x_forwarded_for_entry():
-    request = _FakeRequest(headers={"X-Forwarded-For": "198.51.100.7, 10.0.0.1"})
+def test_client_ip_prefers_x_real_ip_over_forwarded_for():
+    """X-Real-IP is set by our nginx with an overwrite directive and is the
+    only header a client cannot inject content into."""
+    request = _FakeRequest(
+        headers={
+            "X-Real-IP": "198.51.100.8",
+            "X-Forwarded-For": "6.6.6.6, 198.51.100.7",
+        }
+    )
+    assert get_client_ip(request) == "198.51.100.8"
+
+
+def test_client_ip_takes_rightmost_forwarded_for_entry():
+    """XFF is append-only ($proxy_add_x_forwarded_for): every entry except
+    the last is client-supplied and must not be trusted for limiting."""
+    request = _FakeRequest(headers={"X-Forwarded-For": "6.6.6.6, 198.51.100.7"})
     assert get_client_ip(request) == "198.51.100.7"
 
 
-def test_client_ip_falls_back_to_x_real_ip():
-    request = _FakeRequest(headers={"X-Real-IP": "198.51.100.8"})
-    assert get_client_ip(request) == "198.51.100.8"
+def test_client_ip_spoofed_xff_cannot_rotate_limiter_buckets():
+    """A client sending random XFF per request must land in one bucket when
+    nginx also sets X-Real-IP (the deployed configuration)."""
+    limiter = FixedWindowRateLimiter(max_requests=2, window_seconds=60)
+    for i in range(50):
+        request = _FakeRequest(
+            headers={
+                "X-Real-IP": "198.51.100.8",
+                "X-Forwarded-For": f"10.{i}.0.1",
+            }
+        )
+        ip = get_client_ip(request)
+        allowed, _ = limiter.check(ip, now=100.0)
+        if i < 2:
+            assert allowed
+        else:
+            assert not allowed
 
 
 def test_client_ip_falls_back_to_socket_peer():
