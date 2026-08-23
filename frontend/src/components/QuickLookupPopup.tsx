@@ -226,7 +226,15 @@ export default function QuickLookupPopup({ text, type, position, onClose, onNavi
 
                 for (const dataLine of dataLines) {
                     if (!dataLine || dataLine === '[DONE]') continue
-                    const parsed = JSON.parse(dataLine)
+                    let parsed: any
+                    try {
+                        parsed = JSON.parse(dataLine)
+                    } catch {
+                        // One malformed line must not abort the whole stream —
+                        // an unhandled throw here used to replace the partial
+                        // result with the generic failure message.
+                        continue
+                    }
                     if (parsed?.type === 'token' && typeof parsed.content === 'string') {
                         if (!started) {
                             started = true

@@ -15,6 +15,10 @@ interface AudioButtonProps {
   isExample?: boolean
 }
 
+// Per-source load budget: a source that neither plays nor errors within this
+// window is skipped in favor of the next pronunciation source.
+const AUDIO_LOAD_TIMEOUT_MS = 8000
+
 export default function AudioButton({
   word,
   text,
@@ -155,7 +159,21 @@ export default function AudioButton({
       const audio = new Audio(sources[index])
       audioRef.current = audio
 
+      // A hung request fires neither oncanplaythrough nor onerror; without a
+      // load timeout isLoading stayed true and the button looked dead.
+      const loadTimer = window.setTimeout(() => {
+        if (!aliveRef.current) return
+        // Only advance if this attempt is still the active one — a newer
+        // doPlay may already have installed its own audio element.
+        if (audioRef.current === audio) {
+          audioRef.current = null
+          tryPlay(index + 1)
+        }
+      }, AUDIO_LOAD_TIMEOUT_MS)
+      const disarmLoadTimer = () => window.clearTimeout(loadTimer)
+
       audio.oncanplaythrough = () => {
+        disarmLoadTimer()
         if (!aliveRef.current) return
         setIsLoading(false)
         audio.play()
@@ -167,6 +185,7 @@ export default function AudioButton({
           })
       }
       audio.onerror = () => {
+        disarmLoadTimer()
         if (!aliveRef.current) return
         audioRef.current = null
         tryPlay(index + 1)

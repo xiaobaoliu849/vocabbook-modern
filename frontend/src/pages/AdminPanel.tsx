@@ -72,6 +72,10 @@ export default function AdminPanel() {
     const [errorMessage, setErrorMessage] = useState('')
     const [searchQuery, setSearchQuery] = useState('')
     const searchTimeoutRef = useRef<number | undefined>(undefined)
+    // The debounce timer fires with the closure from the render where the last
+    // keystroke happened — before that render's state commit — so reading the
+    // query from state inside searchUsers always missed the final character.
+    const searchQueryRef = useRef('')
     const initializedRef = useRef(false)
     // Shared ticket across loadAdminData/searchUsers: both write the users
     // table, so only the most recently started request may commit its result.
@@ -123,10 +127,11 @@ export default function AdminPanel() {
 
     const searchUsers = useCallback(async () => {
         if (!activeAdminToken) return
+        const query = searchQueryRef.current.trim()
         const seq = ++reqSeqRef.current
         try {
             const userData = await adminRequest<AdminUser[]>(
-                `/admin/users?limit=100${searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : ''}`,
+                `/admin/users?limit=100${query ? `&search=${encodeURIComponent(query)}` : ''}`,
                 activeAdminToken
             )
             if (seq !== reqSeqRef.current) return
@@ -135,7 +140,7 @@ export default function AdminPanel() {
             if (seq !== reqSeqRef.current) return
             setErrorMessage(error instanceof Error ? error.message : t('admin.errors.loadFailed', 'Failed to load admin data.'))
         }
-    }, [activeAdminToken, searchQuery, t])
+    }, [activeAdminToken, t])
 
     const saveTokenAndLoad = async () => {
         const token = adminTokenInput.trim()
@@ -290,6 +295,7 @@ export default function AdminPanel() {
                                     value={searchQuery}
                                     onChange={(e) => {
                                         setSearchQuery(e.target.value)
+                                        searchQueryRef.current = e.target.value
                                         if (searchTimeoutRef.current) window.clearTimeout(searchTimeoutRef.current)
                                         searchTimeoutRef.current = window.setTimeout(() => { searchUsers() }, 500)
                                     }}

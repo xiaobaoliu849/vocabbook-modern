@@ -53,6 +53,9 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
     const [clearing, setClearing] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const cacheRef = useRef<Map<string, MemoryCacheEntry>>(new Map())
+    // Only the most recent type/page request may commit its result; a slow
+    // profile response otherwise overwrote the foresight list shown after it.
+    const loadSeqRef = useRef(0)
     const configured = isEvermemConfigured()
     const selfHosted = isEvermemSelfHosted()
 
@@ -65,6 +68,7 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
 
     const load = useCallback(async (type: MemoryType, p: number, options?: { force?: boolean }) => {
         if (!configured) return
+        const seq = ++loadSeqRef.current
         const force = options?.force === true
         const key = getCacheKey(type, p)
         const cached = cacheRef.current.get(key)
@@ -81,10 +85,12 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
         setError(null)
         try {
             const resp = await listMemoriesApi(type, p, PAGE_SIZE)
+            if (seq !== loadSeqRef.current) return
             const nextItems = resp.items || []
             cacheRef.current.set(key, { items: nextItems, loadedAt: Date.now() })
             applyItems(nextItems)
         } catch (err) {
+            if (seq !== loadSeqRef.current) return
             const msg = err instanceof Error ? err.message : String(err)
             setError(msg)
             if (!cached) {
@@ -92,7 +98,9 @@ export default function MemoryManagementModal({ isOpen, onClose }: MemoryManagem
                 setEmptyHint(false)
             }
         } finally {
-            setLoading(false)
+            if (seq === loadSeqRef.current) {
+                setLoading(false)
+            }
         }
     }, [applyItems, configured, getCacheKey])
 

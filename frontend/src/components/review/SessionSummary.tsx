@@ -272,7 +272,7 @@ function WordRatingItem({ item, index, label }: { item: WordRating; index: numbe
                     <span className="text-xs text-slate-400 font-mono">{item.word.phonetic}</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                    {item.word.meaning.split('\n')[0]}
+                    {(item.word.meaning ?? '').split('\n')[0]}
                 </p>
             </div>
 

@@ -93,6 +93,19 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const standardModeRef = useRef(true)
     /** Word id currently being submitted — guards against submitting the same word twice on rapid key presses */
     const submittingWordIdRef = useRef<number | null>(null)
+    // Spelling auto-flip timer: without a handle, pressing Enter again (or the
+    // deck moving on) inside 800ms left a late setIsFlipped(true) that
+    // revealed the NEXT card's answer.
+    const spellingFlipTimerRef = useRef<number | null>(null)
+
+    const clearSpellingFlipTimer = useCallback(() => {
+        if (spellingFlipTimerRef.current !== null) {
+            window.clearTimeout(spellingFlipTimerRef.current)
+            spellingFlipTimerRef.current = null
+        }
+    }, [])
+
+    useEffect(() => clearSpellingFlipTimer, [clearSpellingFlipTimer])
 
     useEffect(() => {
         dueWordsRef.current = dueWords
@@ -117,12 +130,13 @@ export default function Review({ isActive }: { isActive?: boolean }) {
     const [isAiCompleting, setIsAiCompleting] = useState(false)
 
     const resetInteractionState = useCallback(() => {
+        clearSpellingFlipTimer()
         setIsFlipped(false)
         setSpellingInput('')
         setSpellingStatus('idle')
         setShowSpellingHint(false)
         setIsEditingMeaning(false)
-    }, [])
+    }, [clearSpellingFlipTimer])
 
     const handleAiCompleteMeaning = async (wordToComplete: ReviewWord) => {
         if (!wordToComplete || isAiCompleting) return
@@ -353,17 +367,20 @@ export default function Review({ isActive }: { isActive?: boolean }) {
             const nextReviewedCount = sessionStatsRef.current.reviewed + 1
             const isLastInBatch = index >= words.length - 1
 
-            setSessionRatings(prev => [...prev, {
-                word,
-                quality,
-                timestamp: Date.now()
-            }])
-
             const result = await api.post<ReviewSubmitResponse>(API_PATHS.REVIEW_SUBMIT, {
                 word: word.word,
                 quality,
                 time_spent: 0
             })
+
+            // Record only after the server accepted it: appending optimistically
+            // left a phantom rating on failure, so a retry produced a duplicate
+            // row in the summary and inflated the session count.
+            setSessionRatings(prev => [...prev, {
+                word,
+                quality,
+                timestamp: Date.now()
+            }])
 
             // Keep the ref in sync with the state update so the next key press
             // (even before React commits) sees the incremented count.
@@ -440,12 +457,15 @@ export default function Review({ isActive }: { isActive?: boolean }) {
 
         if (input === target) {
             setSpellingStatus('correct')
-            // const audio = new Audio('/sounds/correct.mp3') 
+            // const audio = new Audio('/sounds/correct.mp3')
             // Or just rely on visual feedback
 
-            // Auto flip after success
-            setTimeout(() => {
+            // Auto flip after success — tracked so a second Enter or a card
+            // change inside the window cancels the late flip.
+            clearSpellingFlipTimer()
+            spellingFlipTimerRef.current = window.setTimeout(() => {
                 setIsFlipped(true)
+                spellingFlipTimerRef.current = null
             }, 800)
         } else {
             setSpellingStatus('incorrect')

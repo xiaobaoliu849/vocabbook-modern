@@ -142,6 +142,8 @@
       "currentDevice": "当前设备",
       "desktopApp": "桌面应用",
       "deviceSyncDesc": "此设备已登录您的账户，数据将实时同步。",
+      "comingSoon": "敬请期待",
+      "cloudSyncPendingDesc": "多设备生词本云端同步功能正在紧锣密鼓地开发中，未来将为您提供无缝的多端学习体验。",
       "logout": "退出登录"
     },
     "general": {
@@ -381,6 +383,8 @@
     },
     "memory": {
       "savedIndicator": "已纳入长记忆",
+      "dueToday": "个今日待复习",
+      "difficultWords": "个困难词",
       "retrievedIndicator": "提取 {{count}} 条核心记忆",
       "panel": {
         "button": "记忆",
@@ -466,6 +470,9 @@
       "modeHint": "练习模式可复习所有单词，困难词本集中复习错题"
     },
     "title": "智能复习",
+    "aiCompleteFailed": "AI 生成释义失败，请检查 AI 设置",
+    "aiCompleteSuccess": "已成功使用 AI 补全释义！",
+    "meaningUpdated": "释义已更新",
     "exitPracticeMode": "点击退出练习模式",
     "exitDifficultMode": "点击退出困难词模式",
     "mode": {
@@ -752,10 +759,15 @@
       "totalWords": "总单词数",
       "mastered": "已掌握",
       "learning": "学习中",
+      "new": "新增",
       "dueToday": "今日待复习",
       "reviewedToday": "今日已复习",
       "streakDays": "连续坚持(天)"
     },
+    "weeklyTrendsTitle": "每周复习趋势",
+    "noTrendData": "暂无复习记录",
+    "masteryDistributionTitle": "掌握度分布",
+    "wordsUnit": "词",
     "heatmapTitle": "学习热力图",
     "studyTimeTitle": "累计学习时长",
     "studyTimeSubtitle": "坚持就是胜利",
@@ -953,6 +965,11 @@
     "accessDenied": "访问被拒绝，请检查设置中的凭据。",
     "serverBusy": "服务暂时不可用（{{status}}），请稍后重试。",
     "sessionExpired": "登录已过期，请重新登录。",
+    "backendDown": "本地后端已停止响应，请重启应用。",
     "requestFailed": "请求失败，请稍后重试。"
+  },
+  "common": {
+    "cancel": "取消",
+    "days": "天"
   }
 }

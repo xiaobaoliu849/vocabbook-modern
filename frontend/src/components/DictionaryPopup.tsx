@@ -223,13 +223,18 @@ export default function DictionaryPopup() {
             if (matches(e, 'common.closeDialog')) setIsVisible(false);
         }
 
+        // Track the delayed registration so a fast close (cleanup runs before
+        // the timer fires) cancels it — otherwise every quick open/close pair
+        // leaked one set of document listeners.
+        let registrationTimer: number | null = null;
         if (isVisible) {
-            setTimeout(() => {
+            registrationTimer = window.setTimeout(() => {
                 document.addEventListener('mousedown', handleClickOutside);
                 document.addEventListener('keydown', handleEsc);
             }, 50); // slight delay to prevent immediate closure from the triggering click
         }
         return () => {
+            if (registrationTimer !== null) window.clearTimeout(registrationTimer);
             document.removeEventListener('mousedown', handleClickOutside);
             document.removeEventListener('keydown', handleEsc);
         };
@@ -237,8 +242,12 @@ export default function DictionaryPopup() {
 
     const handleAddWord = async () => {
         if (!result || result.error) return;
+        // Same seq guard the autoSave path uses: clicking "+" and immediately
+        // looking up another word used to mark the NEW word as already-saved
+        // when the old POST landed.
+        const seqAtSave = fetchSeqRef.current;
         const res = await saveWord(result, false);
-        if (res === 'success' || res === 'exist') {
+        if ((res === 'success' || res === 'exist') && fetchSeqRef.current === seqAtSave) {
             setIsSaved(true);
         }
     };

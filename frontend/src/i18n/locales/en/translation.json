@@ -142,6 +142,8 @@
       "currentDevice": "Current Device",
       "desktopApp": "Desktop App",
       "deviceSyncDesc": "This device is signed in to your account and data will sync in real time.",
+      "comingSoon": "Coming soon",
+      "cloudSyncPendingDesc": "Multi-device vocabulary cloud sync is under active development and will bring a seamless cross-device learning experience.",
       "logout": "Log Out"
     },
     "general": {
@@ -382,6 +384,8 @@
     "memory": {
       "savedIndicator": "Saved to long-term memory",
       "retrievedIndicator": "Retrieved {{count}} key memories",
+      "dueToday": "due words today",
+      "difficultWords": "difficult words",
       "panel": {
         "button": "Memory",
         "title": "Learning Memory",
@@ -466,6 +470,9 @@
       "modeHint": "Practice mode reviews all words, while Difficult Words focuses on mistakes"
     },
     "title": "Smart Review",
+    "aiCompleteFailed": "AI meaning completion failed. Please check your AI settings.",
+    "aiCompleteSuccess": "Meaning completed with AI.",
+    "meaningUpdated": "Meaning updated",
     "exitPracticeMode": "Click to leave practice mode",
     "exitDifficultMode": "Click to leave difficult mode",
     "mode": {
@@ -752,10 +759,15 @@
       "totalWords": "Total Words",
       "mastered": "Mastered",
       "learning": "Learning",
+      "new": "New",
       "dueToday": "Due Today",
       "reviewedToday": "Reviewed Today",
       "streakDays": "Streak (days)"
     },
+    "weeklyTrendsTitle": "Weekly Review Trends",
+    "noTrendData": "No review history found",
+    "masteryDistributionTitle": "Mastery Distribution",
+    "wordsUnit": "words",
     "heatmapTitle": "Study Heatmap",
     "studyTimeTitle": "Total Study Time",
     "studyTimeSubtitle": "Consistency wins",
@@ -953,6 +965,11 @@
     "accessDenied": "Access denied. Please check your credentials in Settings.",
     "serverBusy": "The service is temporarily unavailable ({{status}}). Please try again later.",
     "sessionExpired": "Your session has expired. Please sign in again.",
+    "backendDown": "The local backend stopped responding. Please restart the app.",
     "requestFailed": "Request failed. Please try again later."
+  },
+  "common": {
+    "cancel": "Cancel",
+    "days": "d"
   }
 }

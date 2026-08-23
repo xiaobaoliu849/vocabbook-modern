@@ -18,13 +18,15 @@ export default function ChoiceMode({ word, allWords, onComplete }: ReviewModePro
 
     // Generate 4 options: 1 correct + 3 distractors
     const options = useMemo(() => {
-        const correctMeaning = word.meaning.split('\n')[0].trim() // Use first line of meaning
+        // Imported JSON can carry "meaning": null — calling .split on it threw
+        // during render, and the ErrorBoundary's retry then crashed again.
+        const correctMeaning = (word.meaning ?? '').split('\n')[0].trim() // Use first line of meaning
 
         // Get distractors from other words
         const otherWords = allWords.filter(w => w.id !== word.id && w.meaning)
         const rotation = otherWords.length > 0 ? word.id % otherWords.length : 0
         const rotatedWords = otherWords.slice(rotation).concat(otherWords.slice(0, rotation))
-        const distractors = rotatedWords.slice(0, 3).map(w => w.meaning.split('\n')[0].trim())
+        const distractors = rotatedWords.slice(0, 3).map(w => (w.meaning ?? '').split('\n')[0].trim())
 
         // If not enough distractors, add placeholders
         while (distractors.length < 3) {

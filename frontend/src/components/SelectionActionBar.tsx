@@ -43,7 +43,6 @@ export default function SelectionActionBar() {
     const [actionBar, setActionBar] = useState<ActionBarState | null>(null)
     const [popup, setPopup] = useState<PopupState | null>(null)
     const toolbarRef = useRef<HTMLDivElement>(null)
-    const suppressNextSelectionSyncRef = useRef(false)
 
     const hideActionBar = useCallback(() => {
         setActionBar(null)
@@ -85,10 +84,12 @@ export default function SelectionActionBar() {
     }, [])
 
     const syncFromSelection = useCallback((preferredPoint?: { x: number; y: number }) => {
-        if (suppressNextSelectionSyncRef.current) {
-            suppressNextSelectionSyncRef.current = false
-            return
-        }
+        // While the quick-lookup popup is open, selection churn is a side
+        // effect of using it — don't pop the toolbar for that. This replaces
+        // an older consume-once flag, which stayed armed whenever the expected
+        // stray event never came and then swallowed the user's NEXT real
+        // selection (toolbar refused to appear until they reselected).
+        if (popup) return
 
         const selection = window.getSelection()
         if (!selection) {
@@ -104,7 +105,7 @@ export default function SelectionActionBar() {
 
         setPopup(null)
         setActionBar(nextState)
-    }, [buildActionBarState, hideActionBar])
+    }, [buildActionBarState, hideActionBar, popup])
 
     useEffect(() => {
         const handleMouseUp = (event: MouseEvent) => {
@@ -182,7 +183,6 @@ export default function SelectionActionBar() {
 
     const openPopup = (type: QuickAction) => {
         if (!actionBar) return
-        suppressNextSelectionSyncRef.current = true
         const text = type === 'translate' ? actionBar.rawText : actionBar.lookupText
         setPopup({
             text,

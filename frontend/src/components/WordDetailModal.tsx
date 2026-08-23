@@ -54,7 +54,10 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
    useEffect(() => {
      setNote(word.note || '')
      setSavedSuccess(false)
-     
+     // Clear immediately: keeping the previous word's family around meant a
+     // failed fetch for this word displayed stale data forever.
+     setWordFamily(null)
+
      let active = true
      const fetchFamily = async () => {
        try {
@@ -82,12 +85,12 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
          return
        }
        if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
-         onClose()
+         handleCloseWithSave()
        }
      }
      document.addEventListener('mousedown', handleClickOutside)
      return () => document.removeEventListener('mousedown', handleClickOutside)
-   }, [onClose, isDragging])
+   }, [handleCloseWithSave, isDragging])
  
    // Keyboard shortcuts
    useEffect(() => {
@@ -96,10 +99,10 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
        const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
 
        if (matches(event, 'common.closeDialog')) {
-           onClose()
+           handleCloseWithSave()
            return
        }
-       
+
        if (!isInput) {
            if (event.key === 'ArrowLeft' && onPrevious) {
                event.preventDefault()
@@ -114,7 +117,7 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
      }
      document.addEventListener('keydown', handleKeyDown)
      return () => document.removeEventListener('keydown', handleKeyDown)
-   }, [matches, onClose, onPrevious, onNext])
+   }, [matches, handleCloseWithSave, onPrevious, onNext])
  
    // Audio auto-play
    useEffect(() => {
@@ -194,6 +197,22 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
        setIsSavingNote(false)
      }
    }
+
+   // Close paths that bypass the textarea's onBlur (Esc, click-outside, X
+   // while focused) used to silently drop the unsaved draft.
+   const handleCloseWithSave = useCallback(async () => {
+     if (!isSavingNote && note !== word.note) {
+       try {
+         await api.put(API_PATHS.WORD(word.word), { note })
+         onWordUpdated?.()
+         setNote(word.note)
+       } catch (err) {
+         console.error('Failed to save note on close:', err)
+         toast(describeApiError(err, t), 'error')
+       }
+     }
+     onClose()
+   }, [isSavingNote, note, word.note, word.word, onWordUpdated, onClose, t, toast])
  
    if (!word) return null
  
@@ -217,11 +236,11 @@ export default function WordDetailModal({ word, onClose, onWordUpdated, onPrevio
            <div className="flex items-center gap-4 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 transition-colors">
              <GripHorizontal size={18} className="opacity-50" />
            </div>
-           <button 
+           <button
              onClick={(e) => {
                e.stopPropagation()
-               onClose()
-             }} 
+               handleCloseWithSave()
+             }}
              className="p-2 -mr-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-all text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
            >
              <X size={20} strokeWidth={2} />

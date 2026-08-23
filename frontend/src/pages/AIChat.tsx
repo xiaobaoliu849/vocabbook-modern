@@ -68,6 +68,16 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
     }, [])
     const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([])
     const [memoryPanelOpen, setMemoryPanelOpen] = useState(false)
+    // Cancel hook for the active chat stream: a half-open connection (sleep/
+    // VPN drop) otherwise blocks in reader.read() forever with loading stuck.
+    const streamCancelRef = useRef<(() => void) | null>(null)
+
+    useEffect(() => {
+        return () => {
+            streamCancelRef.current?.()
+            streamCancelRef.current = null
+        }
+    }, [])
 
     // Streaming message + typing animation caret
     const {
@@ -423,7 +433,14 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             accepted.push(att)
         }
         if (accepted.length > 0) {
-            setPendingAttachments(prev => [...prev, ...accepted])
+            // Truncate inside the functional update: two concurrent batches
+            // both read the same stale pendingAttachments and together slip
+            // past MAX_ATTACHMENTS.
+            setPendingAttachments(prev => {
+                const room = MAX_ATTACHMENTS - prev.length
+                if (room <= 0) return prev
+                return [...prev, ...accepted.slice(0, room)]
+            })
         }
     }
 
@@ -589,16 +606,18 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 await api.delete(API_PATHS.AI_CHAT_SESSION_DELETE(id))
             } catch (err) { console.error("Failed to delete session from DB", err) }
 
-            setSessions(prev => {
-                const filtered = prev.filter(s => s.id !== id)
-                if (activeSessionId === id) {
-                    setActiveSessionId(filtered.length > 0 ? filtered[0].id : null)
-                }
-                if (filtered.length === 0) {
-                    setTimeout(() => createNewSession(), 0)
-                }
-                return filtered
-            })
+            // Decide outside the updater: StrictMode invokes updaters twice,
+            // so side effects inside them ran twice (two blank sessions).
+            const wasActive = activeSessionId === id
+            const nextFirstId = sessions.find(s => s.id !== id)?.id ?? null
+            const remainingCount = sessions.reduce((n, s) => (s.id !== id ? n + 1 : n), 0)
+            setSessions(prev => prev.filter(s => s.id !== id))
+            if (wasActive) {
+                setActiveSessionId(nextFirstId)
+            }
+            if (remainingCount === 0) {
+                setTimeout(() => createNewSession(), 0)
+            }
         }
     }
 
@@ -795,18 +814,17 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
             if (!response.ok) {
                 const raw = await response.text()
                 let detailedMessage = t('chat.errors.api', { message: response.statusText })
+                let premiumRequired = false
                 try {
                     const parsed = raw ? JSON.parse(raw) : null
                     const detail = parsed?.detail
                     if (response.status === 403 && detail?.required_tier === 'premium') {
-                        if (!token) {
-                            setShowLoginModal(true)
-                        } else {
-                            setShowUpgradeModal(true)
-                        }
-                        throw new Error(detail.message || "Premium required")
-                    }
-                    if (typeof detail === 'string' && detail.trim()) {
+                        // Set a flag, don't throw: throwing inside this try hit
+                        // the catch below, which replaced the message with the
+                        // raw JSON — displayed AND persisted into the session.
+                        premiumRequired = true
+                        detailedMessage = detail.message || "Premium required"
+                    } else if (typeof detail === 'string' && detail.trim()) {
                         detailedMessage = detail
                     } else if (detail?.message && typeof detail.message === 'string') {
                         detailedMessage = detail.message
@@ -814,8 +832,15 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                         detailedMessage = raw
                     }
                 } catch {
-                    if (raw && raw.trim()) {
+                    if (!premiumRequired && raw && raw.trim()) {
                         detailedMessage = raw
+                    }
+                }
+                if (premiumRequired) {
+                    if (!token) {
+                        setShowLoginModal(true)
+                    } else {
+                        setShowUpgradeModal(true)
                     }
                 }
                 throw new Error(detailedMessage)
@@ -901,8 +926,39 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 }
             }
 
+            // Idle-timeout the stream: if no chunk arrives within the window,
+            // cancel the reader and surface an error instead of hanging on a
+            // dead connection with the composer locked.
+            const STREAM_IDLE_TIMEOUT_MS = 60_000
+            const cancelStream = () => {
+                try {
+                    reader.cancel()
+                } catch {
+                    // Reader already closed/cancelled.
+                }
+            }
+            streamCancelRef.current = cancelStream
+
+            const readChunkWithIdleTimeout = (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+                let timerId: number | null = null
+                return Promise.race([
+                    reader.read(),
+                    new Promise<never>((_, reject) => {
+                        timerId = window.setTimeout(
+                            () => {
+                                cancelStream()
+                                reject(new Error('stream_idle_timeout'))
+                            },
+                            STREAM_IDLE_TIMEOUT_MS,
+                        )
+                    }),
+                ]).finally(() => {
+                    if (timerId !== null) window.clearTimeout(timerId)
+                })
+            }
+
             while (!done) {
-                const { value, done: readerDone } = await reader.read()
+                const { value, done: readerDone } = await readChunkWithIdleTimeout()
                 done = readerDone
                 if (value) {
                     sseBuffer += decoder.decode(value, { stream: true })
@@ -1016,6 +1072,7 @@ export default function AIChat({ isActive, onOpenTranslation }: { isActive?: boo
                 return updated
             })
         } finally {
+            streamCancelRef.current = null
             cancelTyping()
             setLoading(false)
             setStreamingMsgId(null)
