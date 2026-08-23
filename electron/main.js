@@ -67,6 +67,14 @@ function normalizeFrontendShortcutBinding(binding) {
         return null
     }
 
+    // Global shortcuts swallow the key in EVERY application. A bare or
+    // Shift-only key ("V" / "Shift+V") would hijack that letter system-
+    // wide, so require Ctrl/Meta/Alt; the recorder UI must not be able to
+    // produce anything else.
+    if (!modifiers.has('Ctrl') && !modifiers.has('Meta') && !modifiers.has('Alt')) {
+        return null
+    }
+
     const orderedModifiers = ['Ctrl', 'Meta', 'Alt', 'Shift'].filter((token) => modifiers.has(token))
     return [...orderedModifiers, keyToken].join('+')
 }
