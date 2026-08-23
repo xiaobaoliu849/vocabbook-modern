@@ -41,21 +41,21 @@ echo Installing dependencies...
 python -m pip install --upgrade pip
 if %errorlevel% neq 0 (
     echo pip upgrade failed!
-    deactivate
+    call deactivate
     cd ..
     exit /b %errorlevel%
 )
 pip install pyinstaller fastapi uvicorn aiosqlite edge_tts openai anthropic google-generativeai beautifulsoup4 pydantic requests
 if %errorlevel% neq 0 (
     echo dependency install failed!
-    deactivate
+    call deactivate
     cd ..
     exit /b %errorlevel%
 )
 pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo requirements install failed!
-    deactivate
+    call deactivate
     cd ..
     exit /b %errorlevel%
 )
@@ -69,11 +69,11 @@ pyinstaller --clean --distpath dist-release --workpath build-release vocabbook-b
 
 if %errorlevel% neq 0 (
     echo Backend build failed!
-    deactivate
+    call deactivate
     cd ..
     exit /b %errorlevel%
 )
-deactivate
+call deactivate
 cd ..
 
 echo.

@@ -139,10 +139,30 @@ const distDir = path.join(electronDir, 'dist');
 const latestYmlPath = path.join(distDir, 'latest.yml');
 if (fs.existsSync(latestYmlPath)) {
   const yml = readText(latestYmlPath);
-  const fileRef = yml.match(/^file:\s*(\S+)\s*$/m)?.[1]
-    ?? yml.match(/^path:\s*(\S+)\s*$/m)?.[1];
+  // Artifact names contain spaces (e.g. "智能生词本 Setup 2.0.0.exe"), so
+  // capture the rest of the line instead of \S+, trimming trailing whitespace.
+  const fileRef = yml.match(/^file:\s*(.+?)\s*$/m)?.[1]
+    ?? yml.match(/^path:\s*(.+?)\s*$/m)?.[1];
   const sha512B64 = yml.match(/^sha512:\s*([A-Za-z0-9+/=]+)\s*$/m)?.[1];
-  const size = yml.match(/^size:\s*(\d+)\s*$/m)?.[1];
+  // electron-builder v26 writes size only inside the files[] entry (indented),
+  // not at the top level, so fall back to the size of the entry that names
+  // the installer.
+  const size = yml.match(/^size:\s*(\d+)\s*$/m)?.[1]
+    ?? (() => {
+      let inInstallerEntry = false;
+      for (const line of yml.split(/\r?\n/)) {
+        const stripped = line.trim();
+        const indent = line.length - line.trimStart().length;
+        if (stripped.startsWith('- url:')) {
+          inInstallerEntry = fileRef !== null && stripped.slice('- url:'.length).trim() === fileRef;
+        } else if (inInstallerEntry && indent === 0 && stripped.endsWith(':')) {
+          inInstallerEntry = false;
+        } else if (inInstallerEntry && stripped.startsWith('size:')) {
+          return stripped.match(/^size:\s*(\d+)/)?.[1];
+        }
+      }
+      return undefined;
+    })();
 
   const installerPath = fileRef ? path.join(distDir, fileRef) : null;
   addCheck(
