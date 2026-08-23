@@ -33,20 +33,103 @@ class ReviewsRepository:
         sql += ' WHERE word = ?'
         params.append(word)
 
-        cursor.execute(sql, tuple(params))
+        try:
+            cursor.execute(sql, tuple(params))
 
-        today = datetime.now().strftime('%Y-%m-%d')
+            today = datetime.now().strftime('%Y-%m-%d')
+            reviewed_at = time.time()
+            # Single statement: derive word_id from the words row instead of a separate SELECT
+            cursor.execute(
+                '''
+                INSERT INTO review_history (word_id, review_date, reviewed_at, rating)
+                SELECT id, ?, ?, ? FROM words WHERE word = ?
+                ''',
+                (today, reviewed_at, 1, word),
+            )
+
+            conn.commit()
+        except Exception:
+            # Without this rollback a failed INSERT leaves the UPDATE sitting in
+            # an open implicit transaction that a later commit would land.
+            conn.rollback()
+            raise
+
+    def apply_sm2_review(self, word: str, rating: int) -> dict:
+        """Atomically read the word row, recompute SM-2 from it, and persist.
+
+        The read-modify-write must be one BEGIN IMMEDIATE transaction: two
+        concurrent submits of the same word otherwise both compute SM-2 from
+        the same snapshot and whichever commits last wins with stale values.
+        Returns the recomputed fields plus post-update error_count and the
+        remaining due count; {} if the word no longer exists.
+        """
+        from services.review_service import ReviewService
+
         reviewed_at = time.time()
-        # Single statement: derive word_id from the words row instead of a separate SELECT
-        cursor.execute(
-            '''
-            INSERT INTO review_history (word_id, review_date, reviewed_at, rating)
-            SELECT id, ?, ?, ? FROM words WHERE word = ?
-            ''',
-            (today, reviewed_at, 1, word),
-        )
+        today = datetime.fromtimestamp(reviewed_at).strftime('%Y-%m-%d')
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
 
-        conn.commit()
+        try:
+            # Serialize against other writers for the whole read-compute-write.
+            cursor.execute('BEGIN IMMEDIATE')
+            cursor.execute(
+                'SELECT easiness, interval, repetitions, stage, error_count FROM words WHERE word = ?',
+                (word,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                conn.rollback()
+                return {}
+
+            easiness, interval, repetitions = ReviewService.calculate_sm2(
+                rating,
+                {'easiness': row[0], 'interval': row[1], 'repetitions': row[2], 'stage': row[3]},
+            )
+            next_time = ReviewService.calculate_next_review_time(interval, rating)
+            mastered = 1 if interval > 180 else 0
+            error_delta = 1 if rating <= 2 else (-1 if rating >= 4 else 0)
+            error_count = max(0, int(row[4] or 0) + error_delta)
+
+            cursor.execute(
+                '''
+                UPDATE words
+                SET easiness = ?, interval = ?, repetitions = ?, next_review_time = ?,
+                    mastered = ?, review_count = review_count + 1,
+                    error_count = ?
+                WHERE word = ?
+                ''',
+                (easiness, interval, repetitions, next_time, mastered, error_count, word),
+            )
+
+            # Single statement: derive word_id from the words row instead of a separate SELECT
+            cursor.execute(
+                '''
+                INSERT INTO review_history (word_id, review_date, reviewed_at, rating)
+                SELECT id, ?, ?, ? FROM words WHERE word = ?
+                ''',
+                (today, reviewed_at, rating, word),
+            )
+
+            cursor.execute(
+                'SELECT COUNT(*) FROM words WHERE next_review_time = 0 OR (next_review_time > 0 AND next_review_time <= ?)',
+                (reviewed_at,),
+            )
+            due_count = int(cursor.fetchone()[0] or 0)
+
+            conn.commit()
+            return {
+                "easiness": easiness,
+                "interval": interval,
+                "repetitions": repetitions,
+                "next_review_time": next_time,
+                "mastered": bool(mastered),
+                "error_count": error_count,
+                "remaining_due_count": due_count,
+            }
+        except Exception:
+            conn.rollback()
+            raise
 
     def update_sm2_status(self, word: str, easiness: float, interval: int, repetitions: int, next_time: float, rating: int) -> int:
         """Apply the SM-2 update and return the remaining due count on the same connection."""
@@ -117,8 +200,10 @@ class ReviewsRepository:
     def get_difficult_words(self, limit: int) -> list[dict]:
         """Words with error_count >= 1, hardest first."""
         conn = self.db.get_connection()
-        conn.row_factory = sqlite3.Row
+        # Cursor-scoped so the shared thread-local connection's default row
+        # factory is untouched for other callers.
         cursor = conn.cursor()
+        cursor.row_factory = sqlite3.Row
         cursor.execute(
             """
             SELECT * FROM words
@@ -297,22 +382,21 @@ class ReviewsRepository:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
+        # Single atomic upsert: the old UPDATE-then-INSERT-on-0-rows lost the
+        # whole session when two requests hit the first entry of a day at once
+        # (both saw 0 rows, one INSERT won, the other was swallowed).
         try:
             cursor.execute('''
-                UPDATE study_stats
-                SET total_duration = total_duration + ?, review_count = review_count + ?
-                WHERE date = ?
-            ''', (duration_seconds, review_count, today))
-
-            if cursor.rowcount == 0:
-                cursor.execute('''
-                    INSERT INTO study_stats (date, total_duration, review_count)
-                    VALUES (?, ?, ?)
-                ''', (today, duration_seconds, review_count))
-
+                INSERT INTO study_stats (date, total_duration, review_count)
+                VALUES (?, ?, ?)
+                ON CONFLICT(date) DO UPDATE SET
+                    total_duration = total_duration + excluded.total_duration,
+                    review_count = review_count + excluded.review_count
+            ''', (today, duration_seconds, review_count))
             conn.commit()
-        except Exception as e:
-            logger.error(f"Log study session error: {e}")
+        except Exception:
+            conn.rollback()
+            raise
 
     def get_total_study_time(self) -> int:
         conn = self.db.get_connection()

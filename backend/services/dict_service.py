@@ -3,11 +3,12 @@ from bs4 import BeautifulSoup
 from collections import OrderedDict
 from datetime import datetime
 from typing import Optional
+import threading
 import time
 
 from .tag_service import TagService
 from .word_family_service import WordFamilyService
-from .multi_dict_service import get_session, MultiDictService, clean_chinese_text, _clean_dict_entry
+from .multi_dict_service import get_session, MultiDictService, clean_chinese_text, _clean_dict_entry, safe_url_word
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,19 +16,23 @@ logger = logging.getLogger(__name__)
 
 # 内存缓存用于词典查询 (最多 500 个词，5分钟过期，LRU 淘汰)
 _dict_cache: OrderedDict = OrderedDict()
+# 查询线程跑在共享线程池里：无锁时 TTL 过期分支的 del 与另一线程的
+# move_to_end/popitem 并发会直接 KeyError 打穿请求。
+_cache_lock = threading.Lock()
 _cache_ttl = 1800  # 30 minutes — aligned with MultiDictService memory cache
 
 
 def _get_cached(word: str):
     """获取缓存的词典结果"""
-    if word in _dict_cache:
-        result, timestamp = _dict_cache[word]
-        if time.time() - timestamp < _cache_ttl:
-            # Move to end (most recently used)
-            _dict_cache.move_to_end(word)
-            return _clean_dict_entry(result)
-        else:
-            del _dict_cache[word]
+    with _cache_lock:
+        if word in _dict_cache:
+            result, timestamp = _dict_cache[word]
+            if time.time() - timestamp < _cache_ttl:
+                # Move to end (most recently used)
+                _dict_cache.move_to_end(word)
+                return _clean_dict_entry(result)
+            else:
+                del _dict_cache[word]
     return None
 
 
@@ -36,10 +41,11 @@ def _set_cached(word: str, result: dict):
     # Clean before caching
     result = _clean_dict_entry(result)
 
-    # 限制缓存大小 — LRU 淘汰最老的条目
-    if len(_dict_cache) >= 2000:
-        _dict_cache.popitem(last=False)
-    _dict_cache[word] = (result, time.time())
+    with _cache_lock:
+        # 限制缓存大小 — LRU 淘汰最老的条目
+        while len(_dict_cache) >= 2000:
+            _dict_cache.popitem(last=False)
+        _dict_cache[word] = (result, time.time())
 
 
 class DictService:
@@ -143,7 +149,7 @@ class DictService:
         Original Youdao search logic to parse specific fields like roots, tags, etc.
         """
         try:
-            url = f"https://dict.youdao.com/w/eng/{word}"
+            url = f"https://dict.youdao.com/w/eng/{safe_url_word(word)}"
             session = get_session()
             resp = session.get(url, timeout=10)
 

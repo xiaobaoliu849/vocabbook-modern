@@ -84,6 +84,10 @@ class ReviewRepository:
     def get_word(self, word: str):
         return self.db.get_word(word)
 
+    def apply_sm2_review(self, word: str, rating: int) -> dict:
+        """Atomic SM-2 read-modify-write; returns recomputed fields + due count, {} if missing."""
+        return self.db.reviews.apply_sm2_review(word, rating)
+
     def update_sm2_status(
         self,
         *,

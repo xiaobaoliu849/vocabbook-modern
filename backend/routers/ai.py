@@ -40,9 +40,15 @@ def _is_learning_context_enabled() -> bool:
 
 
 def _is_local_ollama_request(provider: Optional[str], api_base: Optional[str]) -> bool:
-    if (provider or "").strip().lower() != "ollama":
+    # Mirror AIService's resolution: an absent header falls back to the
+    # AI_PROVIDER / AI_API_BASE env vars, so a server configured for local
+    # ollama isn't charged quota for its zero-cost requests.
+    effective_provider = (
+        provider or os.environ.get("AI_PROVIDER") or "openai"
+    ).strip().lower()
+    if effective_provider != "ollama":
         return False
-    base = (api_base or "").strip().lower()
+    base = (api_base or os.environ.get("AI_API_BASE", "")).strip().lower()
     # Empty base uses default localhost ollama endpoint in service layer.
     if not base:
         return True
@@ -605,6 +611,7 @@ async def dismiss_foresight(
     x_evermem_enabled: str = Header("false", alias="X-EverMem-Enabled"),
     x_evermem_url: Optional[str] = Header(None, alias="X-EverMem-Url"),
     x_evermem_key: Optional[str] = Header(None, alias="X-EverMem-Key"),
+    x_client_id: Optional[str] = Header(None, alias="X-Client-Id"),
     authorization: Optional[str] = Header(None),
 ):
     """Dismiss a specific foresight reminder."""
@@ -616,6 +623,33 @@ async def dismiss_foresight(
     )
     if not evermem_enabled or not service:
         raise HTTPException(status_code=400, detail="EverMemOS not enabled")
+
+    # Ownership precheck (same contract as delete_memory): the EverMind delete
+    # endpoint only takes memory_id, so without this any caller could delete a
+    # memory belonging to a different owner by guessing its id.
+    owner_key = await _resolve_chat_owner_key(authorization, x_client_id)
+    foresight_group_id = f"{owner_key}::foresight"
+    found = False
+    try:
+        items = await service.get_memories(
+            user_id=owner_key,
+            group_ids=[foresight_group_id],
+            memory_type="foresight",
+            page_size=100,
+        )
+        for item in items or []:
+            if (item.get("memory_id") or item.get("id")) == memory_id:
+                found = True
+                break
+    except Exception as e:
+        logger.debug(f"Failed to fetch foresights for ownership check: {e}")
+
+    if not found:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Foresight {memory_id} not found for the current owner",
+        )
+
     success = await service.delete_memories(memory_id=memory_id)
     return {"success": success}
 

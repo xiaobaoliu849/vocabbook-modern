@@ -67,8 +67,10 @@ class WordsRepository:
 
     def get(self, word: str) -> dict | None:
         conn = self.db.get_connection()
-        conn.row_factory = sqlite3.Row
+        # Cursor-scoped so the shared thread-local connection's default row
+        # factory is untouched for other callers.
         cursor = conn.cursor()
+        cursor.row_factory = sqlite3.Row
         cursor.execute('SELECT * FROM words WHERE word = ?', (word,))
         row = cursor.fetchone()
         if row:
@@ -83,8 +85,10 @@ class WordsRepository:
 
     def get_all(self) -> list[dict]:
         conn = self.db.get_connection()
-        conn.row_factory = sqlite3.Row
+        # Cursor-scoped so the shared thread-local connection's default row
+        # factory is untouched for other callers.
         cursor = conn.cursor()
+        cursor.row_factory = sqlite3.Row
         cursor.execute('SELECT * FROM words ORDER BY next_review_time ASC')
         rows = cursor.fetchall()
 
@@ -101,8 +105,10 @@ class WordsRepository:
 
     def get_for_list(self, keyword=None, tag=None, page=1, page_size=20) -> dict:
         conn = self.db.get_connection()
-        conn.row_factory = sqlite3.Row
+        # Cursor-scoped so the shared thread-local connection's default row
+        # factory is untouched for other callers.
         cursor = conn.cursor()
+        cursor.row_factory = sqlite3.Row
 
         select_fields = '''
             id, word, phonetic, meaning, mastered, next_review_time,
@@ -306,13 +312,13 @@ class WordsRepository:
             return affected > 0
         except sqlite3.Error:
             # Roll back so the thread-local connection doesn't carry a half
-            # -finished transaction into the next caller's commit.
+            # -finished transaction into the next caller's commit. Re-raise:
+            # swallowing the error into False made a failed UPDATE look like
+            # "word not found", and routers that ignore the return value then
+            # reported success while the edit was silently lost.
             conn.rollback()
-            return False
+            raise
 
-    def delete(self, word: str) -> None:
-        conn = self.db.get_connection()
-        cursor = conn.cursor()
     def delete(self, word: str) -> None:
         conn = self.db.get_connection()
         cursor = conn.cursor()
@@ -349,8 +355,10 @@ class WordsRepository:
         count_total=True,
     ) -> tuple[list[dict], int | None]:
         conn = self.db.get_connection()
-        conn.row_factory = sqlite3.Row
+        # Cursor-scoped so the shared thread-local connection's default row
+        # factory is untouched for other callers.
         cursor = conn.cursor()
+        cursor.row_factory = sqlite3.Row
 
         conditions = []
         params = []

@@ -17,6 +17,19 @@ _DEFAULT_URL = "https://api.evermind.ai"
 _cached_service: Optional[EverMemService] = None
 _cached_key: Optional[str] = None
 _cached_url: Optional[str] = None
+# (mtime, enabled, url, legacy_key) — avoids re-reading/parsing the config file
+# on every chat request.
+_config_cache = None
+
+# Strong references for fire-and-forget tasks: the event loop keeps only weak
+# ones, so without this the GC can collect a task before it runs.
+_background_tasks: set = set()
+
+
+def _spawn_background(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 def _normalize_url(url: Optional[str]) -> str:
@@ -34,17 +47,34 @@ def _persist_config(enabled: bool, url: Optional[str]) -> None:
         "url": _normalize_url(url),
         "key_persisted": False
     }
-    with open(_CONFIG_PATH, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False)
+    # Temp file + atomic replace: a crash mid-write used to leave a truncated
+    # JSON that loaded as disabled with no hint anything went wrong.
+    tmp_path = f"{_CONFIG_PATH}.{os.getpid()}.tmp"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False)
+        os.replace(tmp_path, _CONFIG_PATH)
+    except Exception:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _load_persisted_config():
+    global _config_cache
     enabled = False
     url = _DEFAULT_URL
     legacy_key = ""
 
-    if not os.path.exists(_CONFIG_PATH):
+    try:
+        mtime = os.path.getmtime(_CONFIG_PATH)
+    except OSError:
         return enabled, url, legacy_key
+
+    if _config_cache is not None and _config_cache[0] == mtime:
+        return _config_cache[1], _config_cache[2], _config_cache[3]
 
     try:
         with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -59,9 +89,12 @@ def _load_persisted_config():
             legacy_key = maybe_key.strip()
             logger.warning("Detected legacy plaintext EverMem key on disk; scrubbing persisted key.")
             _persist_config(enabled, url)
+            mtime = os.path.getmtime(_CONFIG_PATH)
     except Exception as e:
         logger.warning(f"Failed to load evermem config: {e}")
+        return enabled, url, legacy_key
 
+    _config_cache = (mtime, enabled, url, legacy_key)
     return enabled, url, legacy_key
 
 
@@ -89,8 +122,7 @@ def _schedule_timezone_init(service: EverMemService) -> None:
             logger.warning(f"[EverMem] Timezone init failed: {exc}")
 
     try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(_do_set_timezone())
+        _spawn_background(_do_set_timezone())
     except RuntimeError:
         # No running event loop (e.g. called from a sync context / test).
         # Skip silently — the timezone will be set on the next async call.
@@ -127,8 +159,7 @@ def _schedule_sender_registration(service: EverMemService, user_id: str) -> None
             logger.warning(f"[EverMem] Sender registration failed: {exc}")
 
     try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(_do_register())
+        _spawn_background(_do_register())
     except RuntimeError:
         pass
 

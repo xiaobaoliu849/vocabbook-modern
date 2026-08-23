@@ -32,8 +32,10 @@ class TranslationsRepository:
 
     def find(self, source_text: str, source_lang: str, target_lang: str) -> dict | None:
         conn = self.db.get_connection()
-        conn.row_factory = sqlite3.Row
+        # Cursor-scoped so the shared thread-local connection's default row
+        # factory is untouched for other callers.
         cursor = conn.cursor()
+        cursor.row_factory = sqlite3.Row
         cursor.execute('''
             SELECT * FROM translations
             WHERE source_text = ? AND source_lang = ? AND target_lang = ?
@@ -45,8 +47,10 @@ class TranslationsRepository:
 
     def get_all(self, limit: int = 20, offset: int = 0) -> list[dict]:
         conn = self.db.get_connection()
-        conn.row_factory = sqlite3.Row
+        # Cursor-scoped so the shared thread-local connection's default row
+        # factory is untouched for other callers.
         cursor = conn.cursor()
+        cursor.row_factory = sqlite3.Row
         cursor.execute('''
             SELECT * FROM translations
             ORDER BY created_at DESC

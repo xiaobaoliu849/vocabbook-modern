@@ -143,10 +143,22 @@ def _run_tts_download(word: str, filepath: str) -> bool:
         return asyncio.run(_download_tts(word, filepath))
 
     if loop.is_running():
+        import concurrent.futures
         from concurrent.futures import ThreadPoolExecutor
 
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(asyncio.run, _download_tts(word, filepath)).result(timeout=30)
+        pool = ThreadPoolExecutor(max_workers=1)
+        try:
+            future = pool.submit(asyncio.run, _download_tts(word, filepath))
+            return future.result(timeout=30)
+        except (TimeoutError, concurrent.futures.TimeoutError):
+            # A hung Edge-TTS session must degrade to "no audio", not bubble a
+            # TimeoutError up through ensure_audio into the dictionary/word
+            # endpoints. shutdown(wait=False) abandons the worker instead of
+            # blocking on the very download we just timed out.
+            logger.warning(f"TTS fallback timed out for '{word}'")
+            return False
+        finally:
+            pool.shutdown(wait=False)
     return asyncio.run(_download_tts(word, filepath))
 
 

@@ -940,7 +940,12 @@ class EverMemService:
                 return None
             entry = object_list[0]
             object_key = entry["objectKey"]
-            signed_info = entry.get("objectSignedInfo", {})
+            # The gateway sends objectSignedInfo: null on some failures; the
+            # default-{} only applies when the key is absent, so a null value
+            # used to escape as AttributeError past the except tuple below.
+            signed_info = entry.get("objectSignedInfo")
+            if not isinstance(signed_info, dict):
+                signed_info = {}
             upload_url = signed_info.get("url")
             fields = signed_info.get("fields")
         except (KeyError, TypeError, IndexError) as e:

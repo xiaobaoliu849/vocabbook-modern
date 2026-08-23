@@ -40,6 +40,9 @@ class FamiliesRepository:
             conn.commit()
             return True
         except Exception as e:
+            # Roll back so the first k-1 inserts don't sit in an open
+            # transaction that a later unrelated commit would land.
+            conn.rollback()
             logger.error(f"Add word families batch error: {e}")
             return False
 

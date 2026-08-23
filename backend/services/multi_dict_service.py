@@ -4,9 +4,11 @@
 """
 import re
 import time
+import copy
 import threading
 import httpx
 import json
+from urllib.parse import quote
 from collections import OrderedDict
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -29,9 +31,22 @@ _DEFAULT_HEADERS = {
 
 # 数据库管理器引用（延迟初始化）
 _db_manager = None
+_db_manager_lock = threading.Lock()
 
-# 词典聚合查询共享线程池（避免每次请求新建/销毁 executor）
-_dict_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="vocabbook-dict")
+# 词典聚合查询共享线程池（避免每次请求新建/销毁 executor）。
+# 6 workers: an aggregate fans out 3 sub-queries, so 3 workers let a single
+# hung upstream (cancel is a no-op on running futures, worst case ~20s with
+# retries) starve every other lookup; 6 lets two aggregates overlap.
+_dict_executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix="vocabbook-dict")
+
+
+def safe_url_word(word: str) -> str:
+    """Percent-encode a user-supplied word for URL interpolation.
+
+    Raw words containing ? # & / or spaces silently change the upstream query
+    semantics and produce empty results that are hard to trace back.
+    """
+    return quote(str(word).strip(), safe="")
 
 
 def shutdown_dict_executor() -> None:
@@ -48,7 +63,9 @@ def get_session():
             timeout=httpx.Timeout(10.0),
             follow_redirects=True,
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
-            transport=httpx.HTTPTransport(retries=2),
+            # One retry, not two: each retry multiplies how long a dead
+            # upstream pins a worker of the small shared dict thread pool.
+            transport=httpx.HTTPTransport(retries=1),
         )
         _thread_local.client = client
     return client
@@ -59,9 +76,14 @@ def get_db_manager():
 
     优先复用 FastAPI 应用里 main.py 的全局 DatabaseManager（同一连接池/迁移），
     仅在应用未运行时（如测试）才自建一个。
+    双检锁：两个线程同时首建会各自跑一遍迁移并泄漏一个实例。
     """
     global _db_manager
-    if _db_manager is None:
+    if _db_manager is not None:
+        return _db_manager
+    with _db_manager_lock:
+        if _db_manager is not None:
+            return _db_manager
         try:
             # Reuse the app's shared instance when the FastAPI app is running
             from main import get_db as main_get_db
@@ -168,7 +190,9 @@ class MultiDictService:
                     result = cache_entry.get(source)
                     if result is not None:
                         cls._memory_cache.move_to_end(word_lower)
-                        return _clean_dict_entry(result)
+                        # 返回副本：调用方会原地补字段（audio/is_saved 等），
+                        # 直接返回缓存对象会让同词的后续请求读到脏条目。
+                        return _clean_dict_entry(copy.deepcopy(result))
                 else:
                     # 内存缓存过期，清除
                     del cls._memory_cache[word_lower]
@@ -181,7 +205,7 @@ class MultiDictService:
                 if result is not None:
                     # Clean before returning
                     result = _clean_dict_entry(result)
-                    # 回填到内存缓存
+                    # 回填到内存缓存（_update_memory_cache 内部存副本）
                     cls._update_memory_cache(word, source, result)
                     return result
             except Exception as e:
@@ -210,10 +234,12 @@ class MultiDictService:
     def _update_memory_cache(cls, word, source, result):
         """更新内存缓存（带锁；超出上限时按 LRU 淘汰最旧词条）"""
         word_lower = word.lower()
+        # 只存副本：调用方在 set_cache 之后仍持有并可能修改原对象。
+        stored = copy.deepcopy(result)
         with cls._memory_cache_lock:
             if word_lower not in cls._memory_cache:
                 cls._memory_cache[word_lower] = {"timestamp": time.time()}
-            cls._memory_cache[word_lower][source] = result
+            cls._memory_cache[word_lower][source] = stored
             cls._memory_cache[word_lower]["timestamp"] = time.time()
             cls._memory_cache.move_to_end(word_lower)
             while len(cls._memory_cache) > cls._memory_cache_max:
@@ -230,7 +256,7 @@ class MultiDictService:
 
         try:
             # 剑桥词典 URL (English-Chinese Simplified)
-            url = f"https://dictionary.cambridge.org/dictionary/english-chinese-simplified/{word}"
+            url = f"https://dictionary.cambridge.org/dictionary/english-chinese-simplified/{safe_url_word(word)}"
             session = get_session()
             resp = session.get(url, timeout=10)
 
@@ -317,7 +343,7 @@ class MultiDictService:
 
         try:
             # 使用 mkt=zh-cn 强制中文版，setlang 备用
-            url = f"https://cn.bing.com/dict/search?q={word}&mkt=zh-cn&setlang=zh-hans"
+            url = f"https://cn.bing.com/dict/search?q={safe_url_word(word)}&mkt=zh-cn&setlang=zh-hans"
             session = get_session()
             resp = session.get(url, timeout=8)
 
@@ -380,7 +406,7 @@ class MultiDictService:
         if cached: return cached
 
         try:
-            url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
+            url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{safe_url_word(word)}"
             session = get_session()
             resp = session.get(url, timeout=8)
 

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from services.blocking_io import run_db_blocking, run_io_blocking
 from utils.import_utils import parse_txt_content, parse_csv_content
+import csv
 import logging
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,12 @@ async def import_from_file(
     
     # 解析文件
     if filename.endswith('.csv'):
-        entries = parse_csv_content(text)
+        try:
+            entries = parse_csv_content(text)
+        except csv.Error as e:
+            # Malformed input (NUL bytes, oversized fields, bad quoting) is a
+            # client error, not a server failure.
+            raise HTTPException(status_code=400, detail=f"Invalid CSV file: {e}")
     else:
         words = parse_txt_content(text)
         entries = [{"word": w} for w in words]

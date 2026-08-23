@@ -30,21 +30,39 @@ def ensure_output_dir():
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
 
+def _cache_file_size(path: str) -> int:
+    """Size of path, or 0 if it vanished mid-race (concurrent eviction)."""
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+
 def enforce_cache_limits():
     """淘汰最旧的缓存音频，直到文件数和总大小都回落到上限内。"""
     try:
-        entries = [
-            os.path.join(OUTPUT_DIR, name)
-            for name in os.listdir(OUTPUT_DIR)
-            if name.endswith(".mp3")
-        ]
+        names = os.listdir(OUTPUT_DIR)
     except OSError:
         return
 
-    entries.sort(key=os.path.getmtime)
-    total_bytes = sum(os.path.getsize(p) for p in entries)
+    # Stat defensively: another request's eviction can delete a file between
+    # listdir and stat; skip vanished files instead of failing the whole sweep.
+    entries = []
+    total_bytes = 0
+    for name in names:
+        if not name.endswith(".mp3"):
+            continue
+        path = os.path.join(OUTPUT_DIR, name)
+        try:
+            stat = os.stat(path)
+        except OSError:
+            continue
+        entries.append((stat.st_mtime, path))
+        total_bytes += stat.st_size
+
+    entries.sort()
     removed = 0
-    for path in entries:
+    for _, path in entries:
         if len(entries) - removed <= CACHE_MAX_FILES and total_bytes <= CACHE_MAX_BYTES:
             break
         try:
@@ -148,7 +166,7 @@ async def text_to_speech(
         filename = get_audio_filename(cleaned_text, voice)
         filepath = os.path.join(OUTPUT_DIR, filename)
         
-        if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+        if _cache_file_size(filepath) == 0:
             try:
                 limit_service = LimitService(db=get_db())
                 token = authorization.split(" ")[1] if authorization and authorization.startswith("Bearer ") else None
@@ -161,7 +179,7 @@ async def text_to_speech(
         filepath = os.path.join(OUTPUT_DIR, filename)
         
         # 如果文件已存在，直接返回缓存
-        if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+        if _cache_file_size(filepath) > 0:
             logger.debug(f"[TTS] Cache hit: {filename}")
             return FileResponse(
                 filepath,
@@ -241,9 +259,13 @@ async def clear_cache():
         ensure_output_dir()
         count = 0
         for filename in os.listdir(OUTPUT_DIR):
-            if filename.endswith(".mp3"):
+            # .tmp covers orphaned temp files left by a crashed generation.
+            if filename.endswith(".mp3") or filename.endswith(".tmp"):
                 filepath = os.path.join(OUTPUT_DIR, filename)
-                os.remove(filepath)
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    continue
                 count += 1
         return {"message": f"Cleared {count} cached audio files"}
     except Exception as e:

@@ -260,6 +260,9 @@ class DatabaseManager:
             )
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_translations_created ON translations(created_at)')
+        # find() looks up by exact source text + langs; without this the
+        # translation cache degrades to a full table scan as it grows.
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_translations_lookup ON translations(source_text, source_lang, target_lang)')
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -356,12 +359,17 @@ class DatabaseManager:
             if 'reviewed_at' not in review_history_columns:
                 logger.info("Adding 'reviewed_at' column to review_history table...")
                 cursor.execute("ALTER TABLE review_history ADD COLUMN reviewed_at REAL")
+                # review_date is a LOCAL date (datetime.now()); strftime('%s')
+                # parses it as UTC, so shift by the machine's UTC offset or
+                # backfilled history lands 8h early in UTC+8.
+                local_offset_seconds = int(datetime.now().astimezone().utcoffset().total_seconds())
                 cursor.execute(
                     """
                     UPDATE review_history
-                    SET reviewed_at = CAST(strftime('%s', review_date || ' 00:00:00') AS REAL)
+                    SET reviewed_at = CAST(strftime('%s', review_date || ' 00:00:00') AS REAL) + ?
                     WHERE reviewed_at IS NULL AND review_date IS NOT NULL AND review_date != ''
-                    """
+                    """,
+                    (local_offset_seconds,),
                 )
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_word_id ON review_history(word_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_review_history_review_date ON review_history(review_date)')
@@ -443,11 +451,23 @@ class DatabaseManager:
                 except Exception as e:
                     logger.error(f"Skipping error word {item.get('word')}: {e}")
 
+            # Imported words with next_review_time=0 must be bumped to due-now
+            # here; the orphan-bump in check_schema_updates already ran, so
+            # without this they'd wait for the next restart to enter the queue.
+            cursor.execute(
+                "UPDATE words SET next_review_time = ? WHERE next_review_time = 0 OR next_review_time IS NULL",
+                (time.time(),)
+            )
+
             conn.commit()
             logger.info(f"Migration complete. {len(data)} words imported.")
 
         except Exception as e:
-            logger.error(f"Migration failed: {e}")
+            # Roll back the partial import: otherwise the half-finished
+            # transaction sits open and a later commit on this thread's
+            # connection silently lands a corrupt subset of the library.
+            conn.rollback()
+            logger.exception(f"JSON migration failed — no words imported (source file: {self.json_path}): {e}")
 
     # ------------------------------------------------------------------
     # Backward-compatible delegation methods

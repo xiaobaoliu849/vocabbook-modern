@@ -37,10 +37,20 @@ async def presign_attachment(
 
     file_type, default_ext, max_bytes = ALLOWED_MIME[mime]
 
-    file_bytes = await file.read()
-    if len(file_bytes) > max_bytes:
-        limit_mb = max_bytes // (1024 * 1024)
-        raise HTTPException(status_code=400, detail=f"file_too_large_{limit_mb}mb")
+    # Stream in chunks and abort at the cap: reading the whole body first let
+    # an oversized upload exhaust memory before the size check could reject it.
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            limit_mb = max_bytes // (1024 * 1024)
+            raise HTTPException(status_code=400, detail=f"file_too_large_{limit_mb}mb")
+        chunks.append(chunk)
+    file_bytes = b"".join(chunks)
 
     if not is_enabled(x_evermem_enabled) or not can_use_evermem(authorization):
         raise HTTPException(status_code=400, detail="evermem_not_enabled")

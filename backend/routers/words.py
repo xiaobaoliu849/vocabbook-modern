@@ -91,7 +91,13 @@ def get_db():
 async def _ensure_word_audio_field(word: str, existing_audio: str = "") -> str:
     if existing_audio:
         return existing_audio
-    audio_path = await run_io_blocking(AudioService.ensure_audio, word)
+    try:
+        audio_path = await run_io_blocking(AudioService.ensure_audio, word)
+    except Exception as exc:
+        # Audio is best-effort decoration: a TTS timeout or network failure
+        # must not turn a perfectly good dictionary/word response into a 500.
+        logger.warning(f"[Words] Audio ensure failed for '{word}': {exc}")
+        return ""
     return audio_path or ""
 
 
@@ -120,7 +126,10 @@ async def get_words(
     keyword: str = Query("", description="搜索关键词"),
     tag: str = Query("", description="标签筛选"),
     mastered: Optional[bool] = Query(None, description="是否已掌握"),
-    status: Optional[str] = Query(None, description="状态筛选: new/learning/review"),
+    # Only values search_words actually implements; anything else (e.g. the
+    # once-documented "review") would silently degrade to "no filter" and
+    # return the full list, so let FastAPI reject it with 422.
+    status: Optional[str] = Query(None, pattern="^(due|new|learning)$", description="状态筛选: due/new/learning"),
     sort_by: str = Query("next_review_time", description="排序字段"),
     sort_order: str = Query("ASC", description="排序方向"),
     page: int = Query(1, ge=1, description="页码"),
@@ -176,8 +185,13 @@ async def get_word(word: str):
 
     audio_path = await _ensure_word_audio_field(word, word_data.get("audio", ""))
     if audio_path and audio_path != word_data.get("audio"):
-        await run_db_blocking(db.update_word, word, {"audio": audio_path})
-        word_data["audio"] = audio_path
+        try:
+            await run_db_blocking(db.update_word, word, {"audio": audio_path})
+            word_data["audio"] = audio_path
+        except Exception as exc:
+            # Caching the resolved audio path is best-effort; the word data is
+            # already complete without it.
+            logger.warning(f"[Words] Failed to persist audio path for '{word}': {exc}")
 
     return _clean_word_data(word_data)
 
@@ -208,7 +222,11 @@ async def add_word(word_data: WordCreate):
         "date": datetime.now().strftime('%Y-%m-%d')
     }
     
-    await run_db_blocking(db.add_word, data)
+    inserted = await run_db_blocking(db.add_word, data)
+    if not inserted:
+        # add_word returns False on the words.word UNIQUE violation: a request
+        # raced past the existence check above and inserted first.
+        raise HTTPException(status_code=409, detail=f"Word '{word_data.word}' already exists")
     return {"message": "Word added successfully", "word": word_data.word, "audio": audio_path}
 
 
@@ -228,8 +246,12 @@ async def update_word(word: str, word_data: WordUpdate):
             update_dict[field] = value
             
     if update_dict:
-        await run_db_blocking(db.update_word, word, update_dict)
-    
+        updated = await run_db_blocking(db.update_word, word, update_dict)
+        if not updated:
+            # update() returns False only when no row matched (it raises on DB
+            # errors): the word vanished between the existence check and now.
+            raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
+
     return {"message": "Word updated successfully", "word": word}
 
 

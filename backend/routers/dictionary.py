@@ -11,6 +11,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 from repositories.dictionary_repository import DictionaryRepository
 from services.blocking_io import run_db_blocking, run_io_blocking
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -44,9 +47,18 @@ async def search_word(word: str, sources: Optional[str] = None):
     trimmed = word.strip()
     source_list = sources.split(",") if sources else None
 
+    async def _safe_ensure_audio(w: str):
+        # Audio prefetch is best-effort: an exception here must not take the
+        # whole search response down via gather's fail-fast propagation.
+        try:
+            return await run_io_blocking(AudioService.ensure_audio, w)
+        except Exception as exc:
+            logger.warning(f"[Dictionary] Audio prefetch failed for '{w}': {exc}")
+            return None
+
     # 并行执行：词典查询 + 音频预取 + 是否已保存查询
     dict_task = run_io_blocking(DictService.search_word, trimmed, source_list)
-    audio_task = run_io_blocking(AudioService.ensure_audio, trimmed)
+    audio_task = _safe_ensure_audio(trimmed)
     saved_task = run_db_blocking(_get_db().get_word, trimmed)
 
     result, audio_path, saved_word = await asyncio.gather(

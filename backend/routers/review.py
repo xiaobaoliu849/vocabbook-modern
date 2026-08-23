@@ -26,6 +26,31 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Fire-and-forget EverMem tasks: the event loop only holds a weak reference to
+# tasks, so without a strong reference the GC can collect one mid-flight and
+# silently drop the memory write it was performing.
+_evermem_background_tasks: set = set()
+
+
+def _spawn_evermem_task(coro) -> None:
+    """Schedule an EverMem write that outlives the request, logging failures.
+
+    Mirrors _store_foresight_reminder's inner try/except: an unhandled
+    exception in a detached task would otherwise surface only as a
+    "Task exception was never retrieved" warning and the record is lost.
+    """
+    import asyncio
+
+    async def _guarded():
+        try:
+            await coro
+        except Exception as exc:
+            logger.error(f"[EverMem] Background task failed: {exc}")
+
+    task = asyncio.create_task(_guarded())
+    _evermem_background_tasks.add(task)
+    task.add_done_callback(_evermem_background_tasks.discard)
+
 
 class ReviewSubmit(BaseModel):
     """提交复习结果"""
@@ -204,25 +229,20 @@ async def submit_review(
     if not word_data:
         raise HTTPException(status_code=404, detail=f"Word '{review.word}' not found")
     
-    # Import review service
-    from services.review_service import ReviewService
-    
-    # Calculate SM-2
-    easiness, interval, repetitions = ReviewService.calculate_sm2(review.quality, word_data)
-    next_time = ReviewService.calculate_next_review_time(interval, review.quality)
+    # Atomically read the row, recompute SM-2, and persist it. Computing from
+    # a separately-fetched snapshot (the old flow) let two concurrent submits
+    # of the same word both write stale SM-2 state.
+    sm2_result = await run_db_blocking(repo.apply_sm2_review, review.word, review.quality)
+    if not sm2_result:
+        raise HTTPException(status_code=404, detail=f"Word '{review.word}' not found")
+
+    easiness = sm2_result["easiness"]
+    interval = sm2_result["interval"]
+    repetitions = sm2_result["repetitions"]
+    next_time = sm2_result["next_review_time"]
+    error_count = sm2_result["error_count"]
+    remaining_due_count = sm2_result["remaining_due_count"]
     next_review_in_hours = round(max(0, next_time - time.time()) / 3600, 1)
-    
-    # Update database (returns remaining due count on the same connection,
-    # avoiding a second get_word and a separate due-count query)
-    remaining_due_count = await run_db_blocking(
-        repo.update_sm2_status,
-        word=review.word,
-        easiness=easiness,
-        interval=interval,
-        repetitions=repetitions,
-        next_time=next_time,
-        rating=review.quality,
-    )
 
     # Store learning record to EverMemOS (fire-and-forget)
     try:
@@ -233,7 +253,6 @@ async def submit_review(
             x_evermem_key=x_evermem_key,
         )
         if evermem and evermem_user_id:
-            import asyncio
             meaning = word_data.get('meaning', '')
             review_group_id = _review_group_id_for_user(evermem_user_id)
             # Build structured learning record
@@ -243,10 +262,7 @@ async def submit_review(
             }
             label = quality_labels.get(review.quality, f"评分{review.quality}")
             interval_text = f"{next_review_in_hours}小时后" if review.quality <= 2 else f"{interval}天后"
-            # error_count after the update (same delta logic as reviews_repo.update_sm2_status)
-            old_error_count = int(word_data.get("error_count") or 0)
-            error_delta = 1 if review.quality <= 2 else (-1 if review.quality >= 4 else 0)
-            error_count = max(0, old_error_count + error_delta)
+            # error_count after the update (computed in apply_sm2_review)
             weakness_signal = (
                 "This word is still weak for the user."
                 if review.quality <= 2 or error_count >= 2
@@ -274,7 +290,7 @@ async def submit_review(
                     status = result.get("status", "unknown")
                     logger.debug(f"[EverMem Review] Stored review record user={evermem_user_id} group_id={review_group_id} word={review.word} quality={review.quality} status={status}")
 
-            asyncio.create_task(_store_review_record())
+            _spawn_evermem_task(_store_review_record())
         elif evermem_enabled:
             logger.warning(
                 "[EverMem Review] Skipped review record "
@@ -318,7 +334,6 @@ async def log_session(
             x_evermem_key=x_evermem_key,
         )
         if evermem and evermem_user_id:
-            import asyncio
             focus_summary = _format_learning_focus_summary(
                 await run_db_blocking(repo.get_learning_focus_summary, 5),
                 limit=5,
@@ -345,7 +360,7 @@ async def log_session(
                         status = result.get("status", "unknown")
                         logger.debug(f"[EverMem Review] Stored review session summary user={evermem_user_id} group_id={review_group_id} reviewed={session.review_count} status={status}")
 
-                asyncio.create_task(_store_review_session())
+                _spawn_evermem_task(_store_review_session())
 
                 foresight_group_id = f"{evermem_user_id}::foresight"
                 valid_until = (date.today() + timedelta(days=3)).isoformat()
@@ -385,7 +400,7 @@ async def log_session(
                     except Exception as exc:
                         logger.error(f"[EverMem Foresight] Failed to store foresight: {exc}")
 
-                asyncio.create_task(_store_foresight_reminder())
+                _spawn_evermem_task(_store_foresight_reminder())
         elif evermem_enabled:
             logger.warning(
                 "[EverMem Review] Skipped review session "

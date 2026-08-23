@@ -253,18 +253,28 @@ class AIService:
                 return ""
 
         elif self.provider == "anthropic":
-            response = await client.post(
-                f"{config['base_url']}/messages",
-                headers=config['headers'],
-                json={
-                    "model": self.model or "claude-3-sonnet-20240229",
-                    "max_tokens": 1024,
-                    "messages": messages,
-                    "temperature": temperature
-                }
-            )
-            data = response.json()
-            return data.get("content", [{}])[0].get("text", "")
+            try:
+                response = await client.post(
+                    f"{config['base_url']}/messages",
+                    headers=config['headers'],
+                    json={
+                        "model": self.model or "claude-3-sonnet-20240229",
+                        "max_tokens": 1024,
+                        "messages": messages,
+                        "temperature": temperature
+                    }
+                )
+                response.raise_for_status()
+                data = response.json()
+                # content is a block list; an error/empty body yields [] and the
+                # old `[0]` indexing raised IndexError.
+                for block in data.get("content") or []:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        return block.get("text", "")
+                return ""
+            except Exception as e:
+                logger.error(f"LLM API Error: {e}")
+                return ""
 
         return ""
 
@@ -310,7 +320,9 @@ class AIService:
                                 continue
             except Exception as e:
                 logger.error(f"LLM Stream API Error: {e}")
-                yield {"type": "token", "content": f"对话失败，API报错：{str(e)}。请检查模型配置或 API Key。"}
+                # Typed as "error" so consumers can surface it to the user
+                # while keeping it out of persisted conversation/memory text.
+                yield {"type": "error", "content": f"对话失败，API报错：{str(e)}。请检查模型配置或 API Key。"}
 
         # Streaming for anthropic is not fully implemented here as dashscope/openai/ollama are primary
         else:
@@ -981,6 +993,13 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     yield f"data: {json.dumps({'type': 'reasoning', 'content': event_content})}\n\n"
                     continue
 
+                if event_type == "error":
+                    # Forward to the user, but never accumulate failure text:
+                    # it used to flow into full_response and get written to
+                    # long-term memory as if the assistant had said it.
+                    yield f"data: {json.dumps({'type': 'token', 'content': event_content})}\n\n"
+                    continue
+
                 full_response += event_content
                 yield f"data: {json.dumps({'type': 'token', 'content': event_content})}\n\n"
 
@@ -1103,15 +1122,24 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
         config = self._get_client_config()
         try:
             client = get_http_client()
-            response = await client.post(
-                f"{config['base_url']}/chat/completions",
-                headers=config['headers'],
-                json={
+            prompt_msg = {"role": "user", "content": "Hello, please reply with 'OK' if you can hear me."}
+            # Anthropic speaks /messages with max_tokens and a block-list reply;
+            # the old fixed /chat/completions probe failed for it every time.
+            if self.provider == "anthropic":
+                url = f"{config['base_url']}/messages"
+                payload = {
+                    "model": self.model or "claude-3-sonnet-20240229",
+                    "max_tokens": 32,
+                    "messages": [prompt_msg],
+                }
+            else:
+                url = f"{config['base_url']}/chat/completions"
+                payload = {
                     "model": self.model,
-                    "messages": [{"role": "user", "content": "Hello, please reply with 'OK' if you can hear me."}],
+                    "messages": [prompt_msg],
                     "temperature": 0.1
                 }
-            )
+            response = await client.post(url, headers=config['headers'], json=payload)
             if response.status_code != 200:
                 error_body = response.text[:200]
                 return {
@@ -1120,7 +1148,14 @@ The teacher will elucidate the complex theorem. | 老师将阐明这个复杂的
                     "details": f"Provider: {self.provider}, Model: {self.model}\n{error_body}"
                 }
             data = response.json()
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if self.provider == "anthropic":
+                content = "".join(
+                    block.get("text", "")
+                    for block in (data.get("content") or [])
+                    if isinstance(block, dict) and block.get("type") == "text"
+                )
+            else:
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             if content and len(content.strip()) > 0:
                 return {
                     "success": True,

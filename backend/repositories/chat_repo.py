@@ -48,8 +48,11 @@ class ChatRepository:
         )
 
     def migrate_legacy(self, cursor: sqlite3.Cursor) -> None:
+        # Only revisit sessions still holding legacy JSON. This used to run an
+        # unconditional UPDATE for every session on every cold start.
         cursor.execute(
-            "SELECT id, owner_key, messages, COALESCE(created_at, updated_at, 0) FROM chat_sessions"
+            "SELECT id, owner_key, messages, COALESCE(created_at, updated_at, 0) FROM chat_sessions "
+            "WHERE messages IS NOT NULL AND messages NOT IN ('', '[]')"
         )
         sessions = cursor.fetchall()
         for session_id, owner_key, legacy_messages, created_at in sessions:
@@ -100,6 +103,27 @@ class ChatRepository:
         cursor = conn.cursor()
         resolved_owner_key = session_data.get('owner_key') or owner_key or 'guest'
         try:
+            # One machine can hold several accounts: never let one account's
+            # sync overwrite another account's session. The only allowed
+            # ownership change is guest -> cloud (the same human logging in
+            # claims their local sessions); anything else is skipped.
+            cursor.execute(
+                "SELECT owner_key FROM chat_sessions WHERE id = ?",
+                (session_data['id'],),
+            )
+            existing_row = cursor.fetchone()
+            if existing_row is not None:
+                existing_owner = existing_row[0] or 'guest'
+                if existing_owner != resolved_owner_key and not (
+                    existing_owner.startswith('guest_')
+                    and resolved_owner_key.startswith('cloud_')
+                ):
+                    logger.warning(
+                        "[ChatRepo] Skipped saving session %s owned by %s from owner %s",
+                        session_data['id'], existing_owner, resolved_owner_key,
+                    )
+                    return True
+
             serialized_messages = [
                 self._serialize_chat_message(message)
                 for message in session_data.get('messages', [])
