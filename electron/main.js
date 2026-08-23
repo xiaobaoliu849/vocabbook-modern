@@ -175,7 +175,7 @@ function saveShortcutSettings() {
 }
 
 function toggleMainWindowVisibility() {
-    if (!mainWindow) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
         return
     }
 
@@ -185,6 +185,17 @@ function toggleMainWindowVisibility() {
         mainWindow.show()
         mainWindow.focus()
     }
+}
+
+// Renderer-trust gate for IPC: a compromised renderer (injected script) must
+// not be able to drive updater/config channels. Only our own main window's
+// webContents may invoke.
+function isTrustedSender(event) {
+    return (
+        mainWindow !== null &&
+        !mainWindow.isDestroyed() &&
+        event.sender === mainWindow.webContents
+    )
 }
 
 function isAllowedExternalUrl(rawUrl) {
@@ -282,6 +293,13 @@ function createWindow() {
         }
     })
 
+    // A successful load restores the full retry budget: without this reset,
+    // retries exhausted in one session (e.g. backend slow to boot) left every
+    // later real load failure going straight to the error page.
+    mainWindow.webContents.on('did-finish-load', () => {
+        frontendLoadRetries = 0
+    })
+
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         void openAllowedExternalUrl(url)
         return { action: 'deny' }
@@ -324,6 +342,7 @@ function createWindow() {
                 {
                     label: `查询 "${params.selectionText.trim().length > 15 ? params.selectionText.trim().slice(0, 15) + '...' : params.selectionText.trim()}"`,
                     click: () => {
+                        if (!mainWindow || mainWindow.isDestroyed()) return
                         mainWindow.show()
                         mainWindow.focus()
                         mainWindow.webContents.send('trigger-search', params.selectionText.trim())
@@ -341,7 +360,9 @@ function createWindow() {
     mainWindow.on('close', (event) => {
         if (!app.isQuiting) {
             event.preventDefault()
-            mainWindow.hide()
+            if (!mainWindow.isDestroyed()) {
+                mainWindow.hide()
+            }
         }
     })
 
@@ -387,6 +408,7 @@ function createTray() {
         {
             label: '显示主窗口',
             click: () => {
+                if (!mainWindow || mainWindow.isDestroyed()) return
                 mainWindow.show()
                 mainWindow.focus()
             }
@@ -394,6 +416,7 @@ function createTray() {
         {
             label: '开始复习',
             click: () => {
+                if (!mainWindow || mainWindow.isDestroyed()) return
                 mainWindow.show()
                 mainWindow.webContents.send('navigate-to', 'review')
             }
@@ -412,6 +435,7 @@ function createTray() {
     tray.setContextMenu(contextMenu)
 
     tray.on('double-click', () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return
         mainWindow.show()
         mainWindow.focus()
     })
@@ -709,19 +733,18 @@ if (!gotSingleInstanceLock) {
 
 if (gotSingleInstanceLock) app.whenReady().then(() => {
     shortcutSettings = loadShortcutSettings()
-    createWindow()
-    createTray()
-    createApplicationMenu()
-    registerGlobalShortcut()
 
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow()
-        }
-    })
+    // Each init step is isolated: previously a throw anywhere in this chain
+    // (Tray creation with an empty image throws on some platforms) silently
+    // skipped every later step — including the backend startup below.
+    try {
+        createWindow()
+    } catch (err) {
+        console.error('Failed to create window:', err)
+    }
 
-    // In production, start backend. resolvePackagedBackendPath() throws when
-    // the bundle is broken — catch so activate/menu handlers stay registered.
+    // Start the backend before the peripheral UI so a tray/menu failure can
+    // never delay or block it.
     if (!DEV_MODE) {
         try {
             startBackend()
@@ -730,6 +753,28 @@ if (gotSingleInstanceLock) app.whenReady().then(() => {
             notifyBackendStatus('down')
         }
     }
+
+    try {
+        createTray()
+    } catch (err) {
+        console.error('Failed to create tray:', err)
+    }
+    try {
+        createApplicationMenu()
+    } catch (err) {
+        console.error('Failed to create application menu:', err)
+    }
+    try {
+        registerGlobalShortcut()
+    } catch (err) {
+        console.error('Failed to register global shortcut:', err)
+    }
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            createWindow()
+        }
+    })
 })
 
 app.on('window-all-closed', () => {
@@ -752,7 +797,7 @@ app.on('before-quit', () => {
 // ============================================
 
 function sendUpdateStatus(status, data = null) {
-    if (mainWindow && mainWindow.webContents) {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
         mainWindow.webContents.send('update-status', status, data)
     }
 }
@@ -810,8 +855,11 @@ function setupAutoUpdater() {
     })
 }
 
-// IPC Handlers for renderer process
-ipcMain.handle('check-for-updates', async () => {
+// IPC Handlers for renderer process. Every handler validates event.sender:
+// a compromised renderer must not be able to invoke updater installs or
+// rewrite global shortcut config.
+ipcMain.handle('check-for-updates', async (event) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted IPC sender')
     try {
         return await autoUpdater.checkForUpdates()
     } catch (error) {
@@ -820,7 +868,8 @@ ipcMain.handle('check-for-updates', async () => {
     }
 })
 
-ipcMain.handle('download-update', async () => {
+ipcMain.handle('download-update', async (event) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted IPC sender')
     try {
         return await autoUpdater.downloadUpdate()
     } catch (error) {
@@ -829,19 +878,23 @@ ipcMain.handle('download-update', async () => {
     }
 })
 
-ipcMain.handle('install-update', () => {
+ipcMain.handle('install-update', (event) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted IPC sender')
     autoUpdater.quitAndInstall(false, true)
 })
 
-ipcMain.handle('get-app-version', () => {
+ipcMain.handle('get-app-version', (event) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted IPC sender')
     return app.getVersion()
 })
 
-ipcMain.handle('get-shortcut-settings', () => {
+ipcMain.handle('get-shortcut-settings', (event) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted IPC sender')
     return { ...shortcutSettings }
 })
 
-ipcMain.handle('update-global-shortcut', (_event, binding) => {
+ipcMain.handle('update-global-shortcut', (event, binding) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted IPC sender')
     return updateGlobalShortcut(binding)
 })
 

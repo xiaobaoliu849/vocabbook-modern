@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const electronDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -93,6 +94,81 @@ addCheck(
   packageJson.build?.win?.target?.some((target) => target.target === 'nsis'),
   'Windows release should build an NSIS installer.'
 );
+
+// --- Content-level release checks -------------------------------------------
+// Existence checks alone shipped broken artifacts before (a latest.yml naming
+// a file that does not exist, a stale packaged frontend). These compare bytes.
+
+function hashFile(filePath, algorithm = 'sha256') {
+  return crypto.createHash(algorithm).update(fs.readFileSync(filePath)).digest();
+}
+
+const sourceDistDir = path.join(repoRoot, 'frontend', 'dist');
+const packagedFrontendDir = path.join(resourcesDir, 'frontend-dist');
+if (fs.existsSync(resourcesDir) && fs.existsSync(sourceDistDir) && fs.existsSync(packagedFrontendDir)) {
+  const mismatches = [];
+  let compared = 0;
+  const walk = (dir, relBase = '') => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const absPath = path.join(dir, entry.name);
+      const relPath = path.join(relBase, entry.name);
+      if (entry.isDirectory()) {
+        walk(absPath, relPath);
+      } else {
+        compared += 1;
+        const packagedPath = path.join(packagedFrontendDir, relPath);
+        if (!fs.existsSync(packagedPath) || !hashFile(absPath).equals(hashFile(packagedPath))) {
+          mismatches.push(relPath);
+        }
+      }
+    }
+  };
+  walk(sourceDistDir);
+  addCheck(
+    'Packaged frontend-dist matches source dist byte-for-byte',
+    compared > 0 && mismatches.length === 0,
+    compared === 0
+      ? 'No files compared - source dist is empty?'
+      : `Stale/mismatched packaged files (rebuild the Electron app): ${mismatches.slice(0, 5).join(', ')}`
+  );
+} else if (!fs.existsSync(resourcesDir)) {
+  console.log('[SKIP] frontend-dist byte-compare (no dist/win-unpacked yet)');
+}
+
+const distDir = path.join(electronDir, 'dist');
+const latestYmlPath = path.join(distDir, 'latest.yml');
+if (fs.existsSync(latestYmlPath)) {
+  const yml = readText(latestYmlPath);
+  const fileRef = yml.match(/^file:\s*(\S+)\s*$/m)?.[1]
+    ?? yml.match(/^path:\s*(\S+)\s*$/m)?.[1];
+  const sha512B64 = yml.match(/^sha512:\s*([A-Za-z0-9+/=]+)\s*$/m)?.[1];
+  const size = yml.match(/^size:\s*(\d+)\s*$/m)?.[1];
+
+  const installerPath = fileRef ? path.join(distDir, fileRef) : null;
+  addCheck(
+    'latest.yml references an existing installer file',
+    Boolean(installerPath && fs.existsSync(installerPath)),
+    `latest.yml names "${fileRef ?? '?'}" but that file is not in electron/dist - rebuild or re-run the signing step.`
+  );
+
+  if (installerPath && fs.existsSync(installerPath)) {
+    const actualSha512 = hashFile(installerPath, 'sha512').toString('base64');
+    const actualSize = fs.statSync(installerPath).size;
+    addCheck(
+      'latest.yml sha512 matches the installer on disk',
+      Boolean(sha512B64) && sha512B64 === actualSha512,
+      'latest.yml sha512 is stale - electron-updater would reject every download. Re-run scripts/sign_windows_installer.py.'
+    );
+    addCheck(
+      'latest.yml size matches the installer on disk',
+      Boolean(size) && Number(size) === actualSize,
+      `latest.yml says ${size} bytes but the file is ${actualSize} - update manifest is stale.`
+    );
+  }
+} else {
+  console.log('[SKIP] latest.yml checks (no dist/latest.yml yet)');
+}
+
 
 const frontendDistIndex = path.join(repoRoot, 'frontend', 'dist', 'index.html');
 addCheck(

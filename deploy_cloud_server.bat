@@ -26,17 +26,22 @@ if exist "deploy_tmp_cloud" rmdir /s /q deploy_tmp_cloud
 mkdir deploy_tmp_cloud
 
 xcopy /E /I /Y cloud_server deploy_tmp_cloud\cloud_server >nul
+if errorlevel 1 goto :copyfail
 mkdir deploy_tmp_cloud\scripts >nul 2>&1
 copy /Y scripts\cloud_deploy_check.py deploy_tmp_cloud\scripts\ >nul
+if errorlevel 1 goto :copyfail
 if exist "deploy_tmp_cloud\cloud_server\cloud_app.db" del /q deploy_tmp_cloud\cloud_server\cloud_app.db >nul 2>&1
 if exist "deploy_tmp_cloud\cloud_server\__pycache__" rmdir /s /q deploy_tmp_cloud\cloud_server\__pycache__
 
 mkdir deploy_tmp_cloud\deploy >nul 2>&1
 xcopy /E /I /Y deploy\nginx deploy_tmp_cloud\deploy\nginx >nul
+if errorlevel 1 goto :copyfail
 xcopy /E /I /Y deploy\systemd deploy_tmp_cloud\deploy\systemd >nul
+if errorlevel 1 goto :copyfail
 
 mkdir deploy_tmp_cloud\docs\deploy >nul 2>&1
 copy /Y docs\deploy\ALIYUN_CLOUDFLARE_DEPLOY.md deploy_tmp_cloud\docs\deploy\ >nul
+if errorlevel 1 goto :copyfail
 
 if exist "%PACKAGE_NAME%" del /q "%PACKAGE_NAME%"
 tar -czf "%PACKAGE_NAME%" -C deploy_tmp_cloud .
@@ -71,3 +76,8 @@ echo [4/4] Deployment finished.
 echo Public URL: https://api.historyai.fun/
 echo.
 pause
+:copyfail
+echo Copy failed during packaging - aborting before tar.
+rmdir /s /q deploy_tmp_cloud
+pause
+exit /b 1
