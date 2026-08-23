@@ -3,7 +3,17 @@
 > 7 个子系统并行深审（后端路由 / 后端服务 / 后端数据层 / cloud_server / 前端 pages / 前端组件+utils / Electron+构建+i18n），全部逐文件通读并要求给 file:line + 失败场景。
 > **P2 共 11 条已由主会话逐条人工核实为真**（含本机实测复现 2 条：非 ASCII header 崩溃、aware datetime 落库）。
 > 承接：`docs/engineering/2026-08-22-robustness-round4-5-handoff.md`（第四/五批已提交推送 `077948d..430f3d4`）。
-> 本文档只记录发现，未包含修复。
+
+## ✅ 第六批修复状态（2026-08-23，已提交推送 `4cfcaeb..ca3a564`）
+
+**全部 11 个 P2 已修复**，按子系统拆 4 个 commit：
+- `edb77ce` fix(backend)：P2-1 limit_service 原子 upsert（+删除死代码 limits_repo，+4 并发回归测试）、P2-2 EverMem 附件缺键跳过、P2-3 RFC 5987 文件名
+- `6bfe81c` fix(cloud)：P2-4 X-Real-IP 优先 + XFF 取最右段（+1 防桶轮换测试；nginx 示例补 CF 说明）
+- `7041588` fix(frontend)：P2-5 例句与词条配对、P2-6 会话同步 30s 超时+失败回队、P2-7 safeStorage 全量替换（18 文件约 100 处）、P2-8 mermaid strict、P2-10 托盘导航接通、快捷键强制修饰键、en 补 6 个 chat.sidebar key
+- `ca3a564` fix(release)：P2-9 签名后重写 latest.yml sha512/size + 删 stale blockmap + 自校验
+
+验证：Python 146 passed（141 基线 + limit 4 + XFF 1）、tsc 干净、vitest 50 passed、eslint 仅剩 AudioButton HEAD 既有问题。
+**P3 约 67 条仍未修**——下表 P3 清单即第七批候选。另：死代码备注中的 `limits_repo.py` 已随本批删除；前端 Header/PaymentModal 死代码仍在。
 
 ## 汇总
 
