@@ -54,6 +54,7 @@
             }
         ],
         "win": {
+            "icon": "build/icon.ico",
             "target": [
                 {
                     "target": "nsis",
@@ -64,6 +65,7 @@
             ]
         },
         "nsis": {
+            "artifactName": "vocabbook-modern-setup-${version}.${ext}",
             "oneClick": false,
             "perMachine": true,
             "allowToChangeInstallationDirectory": true,

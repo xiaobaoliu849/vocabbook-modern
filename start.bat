@@ -24,13 +24,13 @@ if not exist "%VENV_PYTHON%" (
     exit /b 1
 )
 
-REM Start backend in background
-start "VocabBook Backend" /min cmd /c "cd /d \"%ROOT%backend\" && \"%VENV_PYTHON%\" -m uvicorn main:app --host 127.0.0.1 --port 8000"
+REM Run the Python script to manage all processes (Backend + Frontend + Electron)
+"%VENV_PYTHON%" "%ROOT%scripts\dev_runner.py"
+if errorlevel 1 (
+    exit /b %errorlevel%
+)
 
-REM Wait for backend to start
-timeout /t 3 /nobreak >nul
+echo.
+echo Exiting...
+pause
 
-REM Start Electron
-cd /d "%ROOT%electron"
-call npm start
-exit /b %errorlevel%
