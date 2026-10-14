@@ -24,25 +24,31 @@ async def _run_startup_migrations(conn) -> None:
         logger.info("Added orders.license_days column")
 
     # 2) Normalize legacy mixed-case emails to the storage convention.
+    #    Columns are selected explicitly: this runs on an AsyncConnection, where
+    #    .scalars() yields the first column (User.id) instead of User entities,
+    #    so `select(User)` + `.scalars()` raised AttributeError on any database
+    #    that actually had a mixed-case email to migrate.
     rows = (
-        await conn.execute(select(User).where(User.email != func.lower(User.email)))
-    ).scalars().all()
-    for user in rows:
-        target = user.email.strip().lower()
+        await conn.execute(
+            select(User.id, User.email).where(User.email != func.lower(User.email))
+        )
+    ).all()
+    for user_id, email in rows:
+        target = email.strip().lower()
         conflict = (
             await conn.execute(select(User.id).where(User.email == target))
         ).scalar()
         if conflict is not None:
             logger.error(
                 "Skipping email normalization for user %s: %s already exists",
-                user.id, target,
+                user_id, target,
             )
             continue
         await conn.execute(
             text("UPDATE users SET email = :target WHERE id = :uid"),
-            {"target": target, "uid": user.id},
+            {"target": target, "uid": user_id},
         )
-        logger.info("Normalized email case for user %s", user.id)
+        logger.info("Normalized email case for user %s", user_id)
 
 
 @asynccontextmanager
